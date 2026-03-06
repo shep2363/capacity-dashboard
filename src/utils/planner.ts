@@ -17,6 +17,7 @@ import type {
   AppFilters,
   ChartGroupBy,
   LeafCell,
+  MonthlyBucket,
   PivotRowGrouping,
   PivotTableModel,
   TaskRow,
@@ -106,8 +107,9 @@ export function buildBaseLeafCells(
   tasks: TaskRow[],
   filters: AppFilters,
   includeWeekends: boolean,
+  selectedResources: Set<string>,
 ): { leafCells: LeafCell[]; weekKeys: string[]; projects: string[]; resources: string[] } {
-  const filteredTasks = tasks.filter((task) => !filters.resource || task.resourceName === filters.resource)
+  const filteredTasks = tasks.filter((task) => selectedResources.has(task.resourceName))
   const leafMap = new Map<string, number>()
 
   for (const task of filteredTasks) {
@@ -209,8 +211,7 @@ export function buildPivotModel(
 export function buildWeeklyBucketsFromLeaf(
   finalLeafByKey: Record<string, number>,
   weekKeys: string[],
-  weekCapacities: Record<string, number>,
-  globalCapacity: number,
+  defaultCapacity: number,
   chartGroupBy: ChartGroupBy,
 ): WeeklyBucket[] {
   const perWeek = new Map<string, { total: number; groups: Record<string, number> }>()
@@ -239,7 +240,7 @@ export function buildWeeklyBucketsFromLeaf(
     const weekStart = localDateFromIso(weekStartIso)
     const weekEnd = addDays(weekStart, 4)
     const weekData = perWeek.get(weekStartIso) ?? { total: 0, groups: {} }
-    const capacity = weekCapacities[weekStartIso] ?? globalCapacity
+    const capacity = defaultCapacity
     const variance = weekData.total - capacity
 
     return {
@@ -253,6 +254,35 @@ export function buildWeeklyBucketsFromLeaf(
       groups: weekData.groups,
     }
   })
+}
+
+export function buildMonthlyBuckets(weeklyBuckets: WeeklyBucket[], monthlyCapacity: number): MonthlyBucket[] {
+  const byMonth = new Map<string, number>()
+
+  for (const bucket of weeklyBuckets) {
+    const monthKey = format(localDateFromIso(bucket.weekStartIso), 'yyyy-MM')
+    byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + bucket.totalHours)
+  }
+
+  return [...byMonth.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([monthKey, plannedHours]) => {
+      const monthDate = parseISO(`${monthKey}-01`)
+      const variance = plannedHours - monthlyCapacity
+      const overCapacity = variance > 0
+      const underCapacity = variance < 0
+
+      return {
+        monthKey,
+        monthLabel: format(monthDate, 'MMM yyyy'),
+        plannedHours,
+        capacity: monthlyCapacity,
+        variance,
+        overCapacity,
+        underCapacity,
+        status: overCapacity ? 'Over Capacity' : underCapacity ? 'Under Capacity' : 'At Capacity',
+      }
+    })
 }
 
 export function computeCategoryKeys(weeklyBuckets: WeeklyBucket[]): string[] {

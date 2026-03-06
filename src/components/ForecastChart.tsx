@@ -109,7 +109,7 @@ export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProp
     <div className="panel chart-panel">
       <div className="section-header">
         <h2>Weekly Capacity Forecast</h2>
-        <p>Stacked weekly forecast hours with editable capacity comparison.</p>
+        <p>Stacked weekly forecast hours with total capacity from selected resources.</p>
       </div>
 
       <div className="chart-wrap">

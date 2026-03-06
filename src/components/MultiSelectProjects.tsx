@@ -5,26 +5,30 @@ interface MultiSelectProjectsProps {
   selectedValues: string[]
   onChange: (nextSelected: string[]) => void
   placeholder?: string
+  entityPlural?: string
+  searchPlaceholder?: string
+  noMatchingText?: string
+  ariaLabel?: string
 }
 
-function buildTriggerLabel(options: string[], selected: string[]): string {
+function buildTriggerLabel(options: string[], selected: string[], entityPlural: string): string {
   if (options.length === 0) {
-    return 'No Projects'
+    return `No ${entityPlural}`
   }
 
   if (selected.length === 0) {
-    return 'No Projects Selected'
+    return `No ${entityPlural} Selected`
   }
 
   if (selected.length === options.length) {
-    return 'All Projects'
+    return `All ${entityPlural}`
   }
 
   if (selected.length <= 2) {
     return selected.join(', ')
   }
 
-  return `${selected.length} projects selected`
+  return `${selected.length} selected`
 }
 
 export function MultiSelectProjects({
@@ -32,6 +36,10 @@ export function MultiSelectProjects({
   selectedValues,
   onChange,
   placeholder = 'Projects',
+  entityPlural = 'Projects',
+  searchPlaceholder = 'Search projects...',
+  noMatchingText = 'No matching projects',
+  ariaLabel = 'Projects',
 }: MultiSelectProjectsProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -76,12 +84,12 @@ export function MultiSelectProjects({
     }
   }, [isOpen])
 
-  function toggleOption(project: string): void {
+  function toggleOption(value: string): void {
     const next = new Set(selectedSet)
-    if (next.has(project)) {
-      next.delete(project)
+    if (next.has(value)) {
+      next.delete(value)
     } else {
-      next.add(project)
+      next.add(value)
     }
 
     onChange(options.filter((option) => next.has(option)))
@@ -95,7 +103,7 @@ export function MultiSelectProjects({
     onChange([])
   }
 
-  const triggerLabel = buildTriggerLabel(options, selectedValues)
+  const triggerLabel = buildTriggerLabel(options, selectedValues, entityPlural)
 
   return (
     <div className="multi-select" ref={rootRef}>
@@ -114,7 +122,7 @@ export function MultiSelectProjects({
       </button>
 
       {isOpen && (
-        <div className="multi-menu" role="listbox" aria-label="Projects">
+        <div className="multi-menu" role="listbox" aria-label={ariaLabel}>
           <div className="multi-actions">
             <button type="button" className="ghost-btn" onClick={selectAll}>
               Select All
@@ -130,23 +138,19 @@ export function MultiSelectProjects({
             className="multi-search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search projects..."
-            aria-label="Search projects"
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
           />
 
           <div className="multi-options">
-            {filteredOptions.map((project) => (
-              <label key={project} className="multi-option">
-                <input
-                  type="checkbox"
-                  checked={selectedSet.has(project)}
-                  onChange={() => toggleOption(project)}
-                />
-                <span>{project}</span>
+            {filteredOptions.map((value) => (
+              <label key={value} className="multi-option">
+                <input type="checkbox" checked={selectedSet.has(value)} onChange={() => toggleOption(value)} />
+                <span>{value}</span>
               </label>
             ))}
 
-            {filteredOptions.length === 0 && <div className="multi-empty">No matching projects</div>}
+            {filteredOptions.length === 0 && <div className="multi-empty">{noMatchingText}</div>}
           </div>
         </div>
       )}

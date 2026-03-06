@@ -1,29 +1,29 @@
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { WeeklyBucket } from '../types'
+import type { MonthlyBucket } from '../types'
 
-type SortKey = 'weekStartIso' | 'totalHours' | 'capacity' | 'variance'
+type SortKey = 'monthKey' | 'plannedHours' | 'capacity' | 'variance'
 type SortDirection = 'asc' | 'desc'
 
-interface ForecastTableProps {
-  weeklyBuckets: WeeklyBucket[]
+interface MonthlyForecastTableProps {
+  monthlyBuckets: MonthlyBucket[]
 }
 
 function nextDirection(currentKey: SortKey, clickedKey: SortKey, currentDirection: SortDirection): SortDirection {
   if (currentKey !== clickedKey) {
-    return 'desc'
+    return 'asc'
   }
 
-  return currentDirection === 'desc' ? 'asc' : 'desc'
+  return currentDirection === 'asc' ? 'desc' : 'asc'
 }
 
-export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>('weekStartIso')
+export function MonthlyForecastTable({ monthlyBuckets }: MonthlyForecastTableProps) {
+  const [sortKey, setSortKey] = useState<SortKey>('monthKey')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const sortedRows = useMemo(() => {
-    return [...weeklyBuckets].sort((a, b) => {
+    return [...monthlyBuckets].sort((a, b) => {
       const left = a[sortKey]
       const right = b[sortKey]
 
@@ -37,7 +37,7 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
 
       return 0
     })
-  }, [weeklyBuckets, sortDirection, sortKey])
+  }, [monthlyBuckets, sortDirection, sortKey])
 
   function handleSort(clickedKey: SortKey): void {
     setSortDirection((currentDirection) => nextDirection(sortKey, clickedKey, currentDirection))
@@ -48,8 +48,8 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
     <div className="panel table-panel">
       <div className="section-header section-header-row">
         <div>
-          <h2>Weekly Forecast Table</h2>
-          <p>Each row compares plan weekly hours against total selected resource capacity.</p>
+          <h2>Monthly Forecast Table</h2>
+          <p>Monthly plan versus total selected resource capacity.</p>
         </div>
         <div className="section-actions">
           <button type="button" className="ghost-btn" onClick={() => setIsCollapsed((current) => !current)}>
@@ -64,13 +64,13 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
             <thead>
               <tr>
                 <th>
-                  <button type="button" className="sortable" onClick={() => handleSort('weekStartIso')}>
-                    Week (Mon-Fri)
+                  <button type="button" className="sortable" onClick={() => handleSort('monthKey')}>
+                    Month
                   </button>
                 </th>
                 <th>
-                  <button type="button" className="sortable" onClick={() => handleSort('totalHours')}>
-                    Plan Weekly Hours
+                  <button type="button" className="sortable" onClick={() => handleSort('plannedHours')}>
+                    Planned Hours
                   </button>
                 </th>
                 <th>
@@ -80,7 +80,7 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
                 </th>
                 <th>
                   <button type="button" className="sortable" onClick={() => handleSort('variance')}>
-                    Variance (Forecast - Capacity)
+                    Variance (Planned - Capacity)
                   </button>
                 </th>
                 <th>Status</th>
@@ -89,25 +89,19 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
             <tbody>
               {sortedRows.map((bucket) => (
                 <tr
-                  key={bucket.weekStartIso}
+                  key={bucket.monthKey}
                   className={clsx({
-                    'weekly-over-row': bucket.variance > 0,
-                    'weekly-under-row': bucket.variance < 0,
+                    'monthly-over-row': bucket.overCapacity,
+                    'monthly-under-row': bucket.underCapacity,
                   })}
                 >
-                  <td>{bucket.weekLabel}</td>
-                  <td>{bucket.totalHours.toFixed(2)}</td>
+                  <td>{bucket.monthLabel}</td>
+                  <td>{bucket.plannedHours.toFixed(2)}</td>
                   <td>{bucket.capacity.toFixed(2)}</td>
                   <td className={bucket.variance !== 0 ? 'negative' : ''}>
                     {bucket.variance.toFixed(2)}
                   </td>
-                  <td>
-                    {bucket.variance > 0
-                      ? 'Over Capacity'
-                      : bucket.variance < 0
-                        ? 'Under Capacity'
-                        : 'At Capacity'}
-                  </td>
+                  <td>{bucket.status}</td>
                 </tr>
               ))}
             </tbody>

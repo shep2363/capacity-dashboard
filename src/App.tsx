@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { ForecastChart } from './components/ForecastChart'
 import { ForecastTable } from './components/ForecastTable'
+import { MonthlyForecastTable } from './components/MonthlyForecastTable'
 import { MultiSelectProjects } from './components/MultiSelectProjects'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
+import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { downloadCsv, weeklyBucketsToCsv } from './utils/csv'
 import { parseSpreadsheet } from './utils/excel'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
+  buildMonthlyBuckets,
   buildPivotModel,
   buildWeeklyBucketsFromLeaf,
   computeCategoryKeys,
@@ -19,10 +22,15 @@ import {
 } from './utils/planner'
 
 const DEFAULT_CAPACITY = 260
+const WEEKS_PER_MONTH = 52 / 12
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b))
+}
+
+function monthlyFromWeekly(weekly: number): number {
+  return weekly * WEEKS_PER_MONTH
 }
 
 function App() {
@@ -33,17 +41,17 @@ function App() {
   const [pivotRowGrouping, setPivotRowGrouping] = useState<PivotRowGrouping>('project')
   const [chartGroupBy, setChartGroupBy] = useState<ChartGroupBy>('project')
   const [includeWeekends, setIncludeWeekends] = useState(false)
-  const [globalCapacity, setGlobalCapacity] = useState(DEFAULT_CAPACITY)
-  const [weekCapacities, setWeekCapacities] = useState<Record<string, number>>({})
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({})
   const [isPivotCollapsed, setIsPivotCollapsed] = useState(false)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
+  const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set())
+  const [resourceWeeklyCapacities, setResourceWeeklyCapacities] = useState<Record<string, number>>({})
   const [projectsInitialized, setProjectsInitialized] = useState(false)
+  const [resourcesInitialized, setResourcesInitialized] = useState(false)
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
 
   const [filters, setFilters] = useState<AppFilters>({
-    resource: '',
     dateFrom: '',
     dateTo: '',
     year: '',
@@ -106,8 +114,45 @@ function App() {
     setSelectedProjects((current) => new Set([...current].filter((project) => allProjects.includes(project))))
   }, [allProjects, projectsInitialized])
 
-  const baseLayer = useMemo(() => buildBaseLeafCells(tasks, filters, includeWeekends), [tasks, filters, includeWeekends])
+  useEffect(() => {
+    if (resources.length === 0) {
+      setSelectedResources(new Set())
+      setResourcesInitialized(false)
+      return
+    }
 
+    if (!resourcesInitialized) {
+      setSelectedResources(new Set(resources))
+      setResourcesInitialized(true)
+      return
+    }
+
+    setSelectedResources((current) => new Set([...current].filter((resource) => resources.includes(resource))))
+  }, [resources, resourcesInitialized])
+
+  useEffect(() => {
+    if (resources.length === 0) {
+      setResourceWeeklyCapacities({})
+      return
+    }
+
+    const defaultPerResource = Number((DEFAULT_CAPACITY / resources.length).toFixed(2))
+
+    setResourceWeeklyCapacities((current) => {
+      const next: Record<string, number> = {}
+      for (const resource of resources) {
+        const candidate = current[resource]
+        next[resource] = Number.isFinite(candidate) ? candidate : defaultPerResource
+      }
+      return next
+    })
+  }, [resources])
+
+  const selectedResourcesForCalc = useMemo(() => selectedResources, [selectedResources])
+  const baseLayer = useMemo(
+    () => buildBaseLeafCells(tasks, filters, includeWeekends, selectedResourcesForCalc),
+    [tasks, filters, includeWeekends, selectedResourcesForCalc],
+  )
   const selectedProjectsForCalc = useMemo(() => selectedProjects, [selectedProjects])
 
   const { baseByKey, finalByKey } = useMemo(
@@ -115,10 +160,37 @@ function App() {
     [baseLayer.leafCells, manualOverrides, selectedProjectsForCalc],
   )
 
-  const weeklyBuckets = useMemo(
+  const selectedResourceList = useMemo(
+    () => resources.filter((resource) => selectedResources.has(resource)),
+    [resources, selectedResources],
+  )
+
+  const selectedWeeklyCapacity = useMemo(
     () =>
-      buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, weekCapacities, globalCapacity, chartGroupBy),
-    [finalByKey, baseLayer.weekKeys, weekCapacities, globalCapacity, chartGroupBy],
+      selectedResourceList.reduce((sum, resource) => {
+        const weekly = resourceWeeklyCapacities[resource] ?? 0
+        return sum + weekly
+      }, 0),
+    [selectedResourceList, resourceWeeklyCapacities],
+  )
+
+  const selectedMonthlyCapacity = useMemo(
+    () =>
+      selectedResourceList.reduce((sum, resource) => {
+        const weekly = resourceWeeklyCapacities[resource] ?? 0
+        return sum + monthlyFromWeekly(weekly)
+      }, 0),
+    [selectedResourceList, resourceWeeklyCapacities],
+  )
+
+  const weeklyBuckets = useMemo(
+    () => buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, selectedWeeklyCapacity, chartGroupBy),
+    [finalByKey, baseLayer.weekKeys, selectedWeeklyCapacity, chartGroupBy],
+  )
+
+  const monthlyBuckets = useMemo(
+    () => buildMonthlyBuckets(weeklyBuckets, selectedMonthlyCapacity),
+    [weeklyBuckets, selectedMonthlyCapacity],
   )
 
   const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
@@ -202,10 +274,11 @@ function App() {
       const parsed = parseSpreadsheet(arrayBuffer)
       setTasks(parsed)
       setFileName(file.name)
-      setWeekCapacities({})
       setManualOverrides({})
-      setFilters({ resource: '', dateFrom: '', dateTo: '', year: '' })
+      setResourceWeeklyCapacities({})
+      setFilters({ dateFrom: '', dateTo: '', year: '' })
       setProjectsInitialized(false)
+      setResourcesInitialized(false)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
     } finally {
@@ -214,14 +287,14 @@ function App() {
     }
   }
 
-  function handleWeekCapacityChange(weekIso: string, capacityValue: number): void {
-    if (!Number.isFinite(capacityValue) || capacityValue < 0) {
+  function handleResourceWeeklyCapacityChange(resource: string, weeklyCapacity: number): void {
+    if (!Number.isFinite(weeklyCapacity) || weeklyCapacity < 0) {
       return
     }
 
-    setWeekCapacities((current) => ({
+    setResourceWeeklyCapacities((current) => ({
       ...current,
-      [weekIso]: capacityValue,
+      [resource]: weeklyCapacity,
     }))
   }
 
@@ -291,8 +364,9 @@ function App() {
   }
 
   function resetFilters(): void {
-    setFilters((current) => ({ ...current, resource: '', dateFrom: '', dateTo: '', year: current.year }))
+    setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year }))
     setSelectedProjects(new Set(allProjects))
+    setSelectedResources(new Set(resources))
   }
 
   function resetManualEdits(): void {
@@ -341,15 +415,33 @@ function App() {
           </label>
 
           <MultiSelectProjects
+            options={resources}
+            selectedValues={resources.filter((resource) => selectedResources.has(resource))}
+            onChange={(nextSelected) => setSelectedResources(new Set(nextSelected))}
+            placeholder="Resource Filter"
+            entityPlural="Resources"
+            searchPlaceholder="Search resources..."
+            noMatchingText="No matching resources"
+            ariaLabel="Resources"
+          />
+
+          <MultiSelectProjects
             options={allProjects}
             selectedValues={allProjects.filter((project) => selectedProjects.has(project))}
             onChange={(nextSelected) => setSelectedProjects(new Set(nextSelected))}
             placeholder="Projects"
+            entityPlural="Projects"
+            searchPlaceholder="Search projects..."
+            noMatchingText="No matching projects"
+            ariaLabel="Projects"
           />
 
           <label>
             Year
-            <select value={filters.year} onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}>
+            <select
+              value={filters.year}
+              onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}
+            >
               <option value="">All years</option>
               {years.map((year) => (
                 <option key={year} value={year}>
@@ -359,17 +451,6 @@ function App() {
             </select>
           </label>
 
-          <label>
-            Global Weekly Capacity (hours)
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={globalCapacity}
-              onChange={(event) => setGlobalCapacity(Number(event.target.value) || 0)}
-            />
-          </label>
-
           <label className="checkbox-label">
             <input
               type="checkbox"
@@ -377,21 +458,6 @@ function App() {
               onChange={(event) => setIncludeWeekends(event.target.checked)}
             />
             Include weekends in distribution
-          </label>
-
-          <label>
-            Resource Filter
-            <select
-              value={filters.resource}
-              onChange={(event) => setFilters((current) => ({ ...current, resource: event.target.value }))}
-            >
-              <option value="">All resources</option>
-              {resources.map((resource) => (
-                <option key={resource} value={resource}>
-                  {resource}
-                </option>
-              ))}
-            </select>
           </label>
 
           <label>
@@ -424,7 +490,11 @@ function App() {
             <strong>Weeks in View:</strong> {baseLayer.weekKeys.length}
           </div>
           <div>
-            <strong>Data Date Span:</strong> {taskDateSpan.start && taskDateSpan.end ? `${taskDateSpan.start} to ${taskDateSpan.end}` : 'N/A'}
+            <strong>Selected Resources:</strong> {selectedResourceList.length}
+          </div>
+          <div>
+            <strong>Data Date Span:</strong>{' '}
+            {taskDateSpan.start && taskDateSpan.end ? `${taskDateSpan.start} to ${taskDateSpan.end}` : 'N/A'}
           </div>
           <button type="button" className="ghost-btn" onClick={resetFilters}>
             Reset Filters
@@ -451,6 +521,14 @@ function App() {
             <strong>{totals.capacity.toFixed(2)}</strong>
           </div>
           <div>
+            <span>Selected Weekly Capacity</span>
+            <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
+          </div>
+          <div>
+            <span>Selected Monthly Capacity</span>
+            <strong>{selectedMonthlyCapacity.toFixed(2)}</strong>
+          </div>
+          <div>
             <span>Variance (Forecast - Capacity)</span>
             <strong className={totals.variance > 0 ? 'negative' : 'positive'}>{totals.variance.toFixed(2)}</strong>
           </div>
@@ -464,6 +542,15 @@ function App() {
           </div>
         </div>
       </section>
+
+      {!isLoading && !error && allResourcesVisible && (
+        <ResourceCapacityTable
+          resources={resources}
+          selectedResources={selectedResources}
+          weeklyCapacitiesByResource={resourceWeeklyCapacities}
+          onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
+        />
+      )}
 
       {isLoading && <div className="panel status">Loading workbook...</div>}
       {!isLoading && error && <div className="panel status error">{error}</div>}
@@ -482,9 +569,7 @@ function App() {
             weekWindowLabel={pivotWeekWindowLabel}
             canPageBack={safePivotStartIndex > 0}
             canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
-            onPageBack={() =>
-              setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))
-            }
+            onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
             onPageForward={() =>
               setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
             }
@@ -500,11 +585,14 @@ function App() {
             onEditCell={handlePivotCellEdit}
             onResetEdits={resetManualEdits}
           />
-          <ForecastTable weeklyBuckets={weeklyBuckets} onWeekCapacityChange={handleWeekCapacityChange} />
+          <ForecastTable weeklyBuckets={weeklyBuckets} />
+          <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
         </>
       )}
 
-      {!allResourcesVisible && !isLoading && <div className="panel status">No resources available in the current data scope.</div>}
+      {!allResourcesVisible && !isLoading && (
+        <div className="panel status">No resources available in the current data scope.</div>
+      )}
     </div>
   )
 }

@@ -12,7 +12,6 @@ export interface TaskRow {
 }
 
 export interface AppFilters {
-  resource: string
   dateFrom: string
   dateTo: string
   year: string
@@ -27,6 +26,17 @@ export interface WeeklyBucket {
   variance: number
   overCapacity: boolean
   groups: Record<string, number>
+}
+
+export interface MonthlyBucket {
+  monthKey: string
+  monthLabel: string
+  plannedHours: number
+  capacity: number
+  variance: number
+  overCapacity: boolean
+  underCapacity: boolean
+  status: 'Over Capacity' | 'Under Capacity' | 'At Capacity'
 }
 
 export interface LeafCell {

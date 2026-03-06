@@ -371,7 +371,7 @@ button:disabled {
 
 .pivot-wrap,
 .table-wrap {
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
 }
 
@@ -395,8 +395,9 @@ table {
 th,
 td {
   border-bottom: 1px solid #e2e8f0;
-  text-align: left;
-  padding: 0.5rem;
+  text-align: center;
+  vertical-align: middle;
+  padding: 0.58rem 0.52rem;
   font-size: 0.95rem;
   white-space: normal;
   word-break: break-word;
@@ -427,10 +428,12 @@ th {
 
 .row-label {
   font-weight: 700;
+  text-align: center;
 }
 
 .row-total {
   font-weight: 700;
+  text-align: center;
 }
 
 .pivot-table td input {
@@ -448,7 +451,7 @@ th {
   border-radius: 8px;
   background: #ffffff;
   color: #0f172a;
-  text-align: right;
+  text-align: center;
   font-weight: 600;
 }
 
@@ -493,12 +496,23 @@ button.sortable {
   font-weight: 700;
 }
 
-.over-row {
-  background: #fff1f2;
-}
-
 .capacity-cell {
   width: 130px;
+  text-align: center;
+}
+
+.capacity-selected-row {
+  background: #eff6ff;
+}
+
+.weekly-over-row td,
+.monthly-over-row td {
+  background: #ffedd5;
+}
+
+.weekly-under-row td,
+.monthly-under-row td {
+  background: #fee2e2;
 }
 
 .status {
