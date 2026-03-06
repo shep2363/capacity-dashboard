@@ -7,6 +7,8 @@ interface ResourceCapacityTableProps {
   onWeeklyCapacityChange: (resource: string, weeklyCapacity: number) => void
   onToggleResource: (resource: string, enabled: boolean) => void
   weekendDaysByWeek: Record<string, number>
+  weekendExtraByResource: Record<string, number>
+  onWeekendExtraChange: (resource: string, weekendHours: number) => void
 }
 
 const WEEKS_PER_MONTH = 52 / 12
@@ -22,6 +24,8 @@ export function ResourceCapacityTable({
   onWeeklyCapacityChange,
   onToggleResource,
   weekendDaysByWeek,
+  weekendExtraByResource,
+  onWeekendExtraChange,
 }: ResourceCapacityTableProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const totalWeekendDays = Object.values(weekendDaysByWeek).reduce((sum, v) => sum + v, 0)
@@ -61,8 +65,9 @@ export function ResourceCapacityTable({
             <tbody>
               {resources.map((resource) => {
                 const weekly = weeklyCapacitiesByResource[resource] ?? 0
-                const weekendContribution = weekly * (averageWeekendDays / 5)
-                const effectiveWeekly = weekly + weekendContribution
+                const autoWeekend = weekly * (averageWeekendDays / 5)
+                const manualWeekend = weekendExtraByResource[resource] ?? autoWeekend
+                const effectiveWeekly = weekly + manualWeekend
                 const monthly = monthlyFromWeekly(effectiveWeekly)
                 const isEnabled = enabledResources[resource] !== false
 
@@ -91,7 +96,17 @@ export function ResourceCapacityTable({
                         aria-label={`Weekly capacity for ${resource}`}
                       />
                     </td>
-                    <td>{weekendContribution.toFixed(2)}</td>
+                    <td>
+                      <input
+                        className="capacity-cell"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={Number.isFinite(manualWeekend) ? manualWeekend : 0}
+                        onChange={(event) => onWeekendExtraChange(resource, Number(event.target.value))}
+                        aria-label={`Weekend capacity for ${resource}`}
+                      />
+                    </td>
                     <td>{effectiveWeekly.toFixed(2)}</td>
                     <td>{monthly.toFixed(2)}</td>
                   </tr>

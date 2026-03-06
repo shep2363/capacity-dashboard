@@ -47,6 +47,7 @@ function App() {
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
   const [resourceWeeklyCapacities, setResourceWeeklyCapacities] = useState<Record<string, number>>({})
   const [enabledResources, setEnabledResources] = useState<Record<string, boolean>>({})
+  const [weekendExtraByResource, setWeekendExtraByResource] = useState<Record<string, number>>({})
   const [projectsInitialized, setProjectsInitialized] = useState(false)
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
@@ -117,6 +118,15 @@ function App() {
       const next: Record<string, boolean> = {}
       for (const resource of resources) {
         next[resource] = current[resource] !== false
+      }
+      return next
+    })
+    setWeekendExtraByResource((current) => {
+      const next: Record<string, number> = {}
+      for (const resource of resources) {
+        if (current[resource] !== undefined) {
+          next[resource] = current[resource]
+        }
       }
       return next
     })
@@ -208,16 +218,16 @@ function App() {
     const map: Record<string, number> = {}
     for (const weekIso of baseLayer.weekKeys) {
       const weekendDays = weekendDaysByWeek[weekIso] ?? 0
-      const workingFactor = (5 + weekendDays) / 5
       let total = 0
       for (const resource of enabledResourceList) {
         const weekly = resourceWeeklyCapacities[resource] ?? 0
-        total += weekly * workingFactor
+        const weekendExtra = weekendExtraByResource[resource] ?? weekly * (weekendDays / 5)
+        total += weekly + weekendExtra
       }
       map[weekIso] = total
     }
     return map
-  }, [baseLayer.weekKeys, weekendDaysByWeek, enabledResourceList, resourceWeeklyCapacities])
+  }, [baseLayer.weekKeys, weekendDaysByWeek, enabledResourceList, resourceWeeklyCapacities, weekendExtraByResource])
 
   const selectedWeeklyCapacity = useMemo(() => {
     if (baseLayer.weekKeys.length === 0) return 0
@@ -637,6 +647,13 @@ function App() {
           onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
           onToggleResource={handleToggleResource}
           weekendDaysByWeek={weekendDaysByWeek}
+          weekendExtraByResource={weekendExtraByResource}
+          onWeekendExtraChange={(resource, hours) =>
+            setWeekendExtraByResource((current) => ({
+              ...current,
+              [resource]: Number.isFinite(hours) && hours >= 0 ? hours : 0,
+            }))
+          }
         />
       )}
 
