@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { format } from 'date-fns'
+import { format, parseISO, startOfWeek } from 'date-fns'
 import { ForecastChart } from './components/ForecastChart'
 import { ForecastTable } from './components/ForecastTable'
 import { MonthlyForecastTable } from './components/MonthlyForecastTable'
@@ -199,19 +199,31 @@ function App() {
     [baseLayer.leafCells, manualOverrides, selectedProjectsForCalc],
   )
 
+  const weekendWeeks = useMemo(() => {
+    const set = new Set<string>()
+    selectedWeekendDates.forEach((iso) => {
+      const d = parseISO(iso)
+      const weekStart = startOfWeek(d, { weekStartsOn: 1 })
+      set.add(format(weekStart, 'yyyy-MM-dd'))
+    })
+    return set
+  }, [selectedWeekendDates])
+
   const weekCapacities = useMemo(() => {
     const map: Record<string, number> = {}
     for (const weekIso of baseLayer.weekKeys) {
-      let total = 0
+      let weeklyTotal = 0
+      let weekendTotal = 0
       for (const resource of enabledResourceList) {
         const weekly = resourceWeeklyCapacities[resource] ?? 0
         const weekendExtra = weekendExtraByResource[resource] ?? 0
-        total += weekly + weekendExtra
+        weeklyTotal += weekly
+        weekendTotal += weekendExtra
       }
-      map[weekIso] = total
+      map[weekIso] = weekendWeeks.has(weekIso) ? weeklyTotal + weekendTotal : weeklyTotal
     }
     return map
-  }, [baseLayer.weekKeys, enabledResourceList, resourceWeeklyCapacities, weekendExtraByResource])
+  }, [baseLayer.weekKeys, enabledResourceList, resourceWeeklyCapacities, weekendExtraByResource, weekendWeeks])
 
   const selectedWeeklyCapacity = useMemo(() => {
     if (baseLayer.weekKeys.length === 0) return 0
