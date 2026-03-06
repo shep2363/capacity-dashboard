@@ -160,20 +160,21 @@ function App() {
     })
   }, [resources])
 
+  const enabledResourceList = useMemo(
+    () => resources.filter((resource) => enabledResources[resource] !== false),
+    [resources, enabledResources],
+  )
+  const enabledResourceSet = useMemo(() => new Set(enabledResourceList), [enabledResourceList])
+
   const baseLayer = useMemo(
-    () => buildBaseLeafCells(tasks, filters, includeWeekends),
-    [tasks, filters, includeWeekends],
+    () => buildBaseLeafCells(tasks, filters, includeWeekends, enabledResourceSet),
+    [tasks, filters, includeWeekends, enabledResourceSet],
   )
   const selectedProjectsForCalc = useMemo(() => selectedProjects, [selectedProjects])
 
   const { baseByKey, finalByKey } = useMemo(
     () => buildLeafValueMap(baseLayer.leafCells, manualOverrides, selectedProjectsForCalc),
     [baseLayer.leafCells, manualOverrides, selectedProjectsForCalc],
-  )
-
-  const enabledResourceList = useMemo(
-    () => resources.filter((resource) => enabledResources[resource] !== false),
-    [resources, enabledResources],
   )
 
   const selectedWeeklyCapacity = useMemo(
