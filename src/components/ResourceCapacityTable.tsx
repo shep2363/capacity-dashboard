@@ -6,7 +6,6 @@ interface ResourceCapacityTableProps {
   weeklyCapacitiesByResource: Record<string, number>
   onWeeklyCapacityChange: (resource: string, weeklyCapacity: number) => void
   onToggleResource: (resource: string, enabled: boolean) => void
-  weekendDaysByWeek: Record<string, number>
   weekendExtraByResource: Record<string, number>
   onWeekendExtraChange: (resource: string, weekendHours: number) => void
 }
@@ -23,14 +22,10 @@ export function ResourceCapacityTable({
   weeklyCapacitiesByResource,
   onWeeklyCapacityChange,
   onToggleResource,
-  weekendDaysByWeek,
   weekendExtraByResource,
   onWeekendExtraChange,
 }: ResourceCapacityTableProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const totalWeekendDays = Object.values(weekendDaysByWeek).reduce((sum, v) => sum + v, 0)
-  const weeksCount = Math.max(1, Object.keys(weekendDaysByWeek).length)
-  const averageWeekendDays = totalWeekendDays / weeksCount
 
   return (
     <section className="panel table-panel">
@@ -65,8 +60,7 @@ export function ResourceCapacityTable({
             <tbody>
               {resources.map((resource) => {
                 const weekly = weeklyCapacitiesByResource[resource] ?? 0
-                const autoWeekend = weekly * (averageWeekendDays / 5)
-                const manualWeekend = weekendExtraByResource[resource] ?? autoWeekend
+                const manualWeekend = weekendExtraByResource[resource] ?? 0
                 const effectiveWeekly = weekly + manualWeekend
                 const monthly = monthlyFromWeekly(effectiveWeekly)
                 const isEnabled = enabledResources[resource] !== false

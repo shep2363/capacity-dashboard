@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { addDays, format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { ForecastChart } from './components/ForecastChart'
 import { ForecastTable } from './components/ForecastTable'
 import { MonthlyForecastTable } from './components/MonthlyForecastTable'
@@ -124,9 +124,8 @@ function App() {
     setWeekendExtraByResource((current) => {
       const next: Record<string, number> = {}
       for (const resource of resources) {
-        if (current[resource] !== undefined) {
-          next[resource] = current[resource]
-        }
+        const candidate = current[resource]
+        next[resource] = Number.isFinite(candidate) ? candidate : 0
       }
       return next
     })
@@ -200,34 +199,19 @@ function App() {
     [baseLayer.leafCells, manualOverrides, selectedProjectsForCalc],
   )
 
-  const weekendDaysByWeek = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const weekStartIso of baseLayer.weekKeys) {
-      const monday = parseISO(weekStartIso)
-      const saturdayIso = format(addDays(monday, 5), 'yyyy-MM-dd')
-      const sundayIso = format(addDays(monday, 6), 'yyyy-MM-dd')
-      let count = 0
-      if (selectedWeekendDates.has(saturdayIso)) count += 1
-      if (selectedWeekendDates.has(sundayIso)) count += 1
-      map[weekStartIso] = count
-    }
-    return map
-  }, [baseLayer.weekKeys, selectedWeekendDates])
-
   const weekCapacities = useMemo(() => {
     const map: Record<string, number> = {}
     for (const weekIso of baseLayer.weekKeys) {
-      const weekendDays = weekendDaysByWeek[weekIso] ?? 0
       let total = 0
       for (const resource of enabledResourceList) {
         const weekly = resourceWeeklyCapacities[resource] ?? 0
-        const weekendExtra = weekendExtraByResource[resource] ?? weekly * (weekendDays / 5)
+        const weekendExtra = weekendExtraByResource[resource] ?? 0
         total += weekly + weekendExtra
       }
       map[weekIso] = total
     }
     return map
-  }, [baseLayer.weekKeys, weekendDaysByWeek, enabledResourceList, resourceWeeklyCapacities, weekendExtraByResource])
+  }, [baseLayer.weekKeys, enabledResourceList, resourceWeeklyCapacities, weekendExtraByResource])
 
   const selectedWeeklyCapacity = useMemo(() => {
     if (baseLayer.weekKeys.length === 0) return 0
@@ -341,6 +325,7 @@ function App() {
       setEnabledResources({})
       setFilters({ dateFrom: '', dateTo: '', year: '', resources: [] })
       setSelectedWeekendDates(new Set())
+      setWeekendExtraByResource({})
       setProjectsInitialized(false)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
@@ -441,6 +426,7 @@ function App() {
       })
       return next
     })
+    setWeekendExtraByResource({})
   }
 
   function resetManualEdits(): void {
@@ -646,7 +632,6 @@ function App() {
           weeklyCapacitiesByResource={resourceWeeklyCapacities}
           onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
           onToggleResource={handleToggleResource}
-          weekendDaysByWeek={weekendDaysByWeek}
           weekendExtraByResource={weekendExtraByResource}
           onWeekendExtraChange={(resource, hours) =>
             setWeekendExtraByResource((current) => ({
