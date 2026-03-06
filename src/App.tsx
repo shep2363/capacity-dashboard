@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { format } from 'date-fns'
+import { addDays, format, parseISO } from 'date-fns'
 import { ForecastChart } from './components/ForecastChart'
 import { ForecastTable } from './components/ForecastTable'
 import { MonthlyForecastTable } from './components/MonthlyForecastTable'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
+import { MultiSelectProjects } from './components/MultiSelectProjects'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { downloadCsv, weeklyBucketsToCsv } from './utils/csv'
 import { parseSpreadsheet } from './utils/excel'
@@ -34,10 +35,6 @@ function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b))
 }
 
-function monthlyFromWeekly(weekly: number): number {
-  return weekly * WEEKS_PER_MONTH
-}
-
 function App() {
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [fileName, setFileName] = useState(INITIAL_FILE_NAME)
@@ -45,7 +42,7 @@ function App() {
   const [error, setError] = useState('')
   const [pivotRowGrouping, setPivotRowGrouping] = useState<PivotRowGrouping>('project')
   const [chartGroupBy, setChartGroupBy] = useState<ChartGroupBy>('project')
-  const [includeWeekends, setIncludeWeekends] = useState(false)
+  const [selectedWeekendDates, setSelectedWeekendDates] = useState<Set<string>>(new Set())
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({})
   const [isPivotCollapsed, setIsPivotCollapsed] = useState(false)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
@@ -158,9 +155,20 @@ function App() {
   const enabledResourceSet = useMemo(() => new Set(enabledResourceList), [enabledResourceList])
 
   const baseLayer = useMemo(
-    () => buildBaseLeafCells(tasks, filters, includeWeekends, enabledResourceSet),
-    [tasks, filters, includeWeekends, enabledResourceSet],
+    () => buildBaseLeafCells(tasks, filters, selectedWeekendDates, enabledResourceSet),
+    [tasks, filters, selectedWeekendDates, enabledResourceSet],
   )
+  const weekendOptions = useMemo(() => {
+    const set = new Set<string>()
+    baseLayer.weekKeys.forEach((weekIso) => {
+      const monday = parseISO(weekIso)
+      const sat = format(addDays(monday, 5), 'yyyy-MM-dd')
+      const sun = format(addDays(monday, 6), 'yyyy-MM-dd')
+      set.add(sat)
+      set.add(sun)
+    })
+    return [...set].sort()
+  }, [baseLayer.weekKeys])
   const availableProjects = useMemo(() => {
     const totals = new Map<string, number>()
     baseLayer.leafCells.forEach((cell) => {
@@ -194,32 +202,59 @@ function App() {
     [baseLayer.leafCells, manualOverrides, selectedProjectsForCalc],
   )
 
-  const selectedWeeklyCapacity = useMemo(
-    () =>
-      enabledResourceList.reduce((sum, resource) => {
-        const weekly = resourceWeeklyCapacities[resource] ?? 0
-        return sum + weekly
-      }, 0),
-    [enabledResourceList, resourceWeeklyCapacities],
-  )
+  const weekendDaysByWeek = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const weekStartIso of baseLayer.weekKeys) {
+      const monday = parseISO(weekStartIso)
+      const saturdayIso = format(addDays(monday, 5), 'yyyy-MM-dd')
+      const sundayIso = format(addDays(monday, 6), 'yyyy-MM-dd')
+      let count = 0
+      if (selectedWeekendDates.has(saturdayIso)) count += 1
+      if (selectedWeekendDates.has(sundayIso)) count += 1
+      map[weekStartIso] = count
+    }
+    return map
+  }, [baseLayer.weekKeys, selectedWeekendDates])
 
-  const selectedMonthlyCapacity = useMemo(
-    () =>
-      enabledResourceList.reduce((sum, resource) => {
+  const weekCapacities = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const weekIso of baseLayer.weekKeys) {
+      const weekendDays = weekendDaysByWeek[weekIso] ?? 0
+      const workingFactor = (5 + weekendDays) / 5
+      let total = 0
+      for (const resource of enabledResourceList) {
         const weekly = resourceWeeklyCapacities[resource] ?? 0
-        return sum + monthlyFromWeekly(weekly)
-      }, 0),
-    [enabledResourceList, resourceWeeklyCapacities],
-  )
+        total += weekly * workingFactor
+      }
+      map[weekIso] = total
+    }
+    return map
+  }, [baseLayer.weekKeys, weekendDaysByWeek, enabledResourceList, resourceWeeklyCapacities])
+
+  const selectedWeeklyCapacity = useMemo(() => {
+    if (baseLayer.weekKeys.length === 0) return 0
+    return baseLayer.weekKeys.reduce((sum, week) => sum + (weekCapacities[week] ?? 0), 0) / baseLayer.weekKeys.length
+  }, [baseLayer.weekKeys, weekCapacities])
+
+  const selectedMonthlyCapacity = useMemo(() => selectedWeeklyCapacity * WEEKS_PER_MONTH, [selectedWeeklyCapacity])
 
   const weeklyBuckets = useMemo(
-    () => buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, selectedWeeklyCapacity, chartGroupBy),
-    [finalByKey, baseLayer.weekKeys, selectedWeeklyCapacity, chartGroupBy],
+    () => buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy),
+    [finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy],
   )
 
+  const monthlyCapacities = useMemo(() => {
+    const map: Record<string, number> = {}
+    baseLayer.weekKeys.forEach((weekIso) => {
+      const monthKey = weekIso.slice(0, 7)
+      map[monthKey] = (map[monthKey] ?? 0) + (weekCapacities[weekIso] ?? 0)
+    })
+    return map
+  }, [baseLayer.weekKeys, weekCapacities])
+
   const monthlyBuckets = useMemo(
-    () => buildMonthlyBuckets(weeklyBuckets, selectedMonthlyCapacity),
-    [weeklyBuckets, selectedMonthlyCapacity],
+    () => buildMonthlyBuckets(weeklyBuckets, monthlyCapacities),
+    [weeklyBuckets, monthlyCapacities],
   )
 
   const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
@@ -307,6 +342,7 @@ function App() {
       setResourceWeeklyCapacities({})
       setEnabledResources({})
       setFilters({ dateFrom: '', dateTo: '', year: '', resources: [] })
+      setSelectedWeekendDates(new Set())
       setProjectsInitialized(false)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
@@ -399,6 +435,7 @@ function App() {
   function resetFilters(): void {
     setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year, resources: [] }))
     setSelectedProjects(new Set(availableProjects))
+    setSelectedWeekendDates(new Set())
     setEnabledResources(() => {
       const next: Record<string, boolean> = {}
       resources.forEach((resource) => {
@@ -472,14 +509,16 @@ function App() {
             </select>
           </label>
 
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={includeWeekends}
-              onChange={(event) => setIncludeWeekends(event.target.checked)}
-            />
-            Include weekends in distribution
-          </label>
+          <MultiSelectProjects
+            options={weekendOptions}
+            selectedValues={[...selectedWeekendDates]}
+            onChange={(nextSelected) => setSelectedWeekendDates(new Set(nextSelected))}
+            placeholder="Working Weekends"
+            entityPlural="Weekends"
+            searchPlaceholder="Search weekend dates..."
+            noMatchingText="No weekends"
+            ariaLabel="Working weekends"
+          />
 
           <label>
             Week Range Start (Monday)
@@ -571,6 +610,7 @@ function App() {
           weeklyCapacitiesByResource={resourceWeeklyCapacities}
           onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
           onToggleResource={handleToggleResource}
+          weekendDaysByWeek={weekendDaysByWeek}
         />
       )}
 

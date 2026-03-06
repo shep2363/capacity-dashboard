@@ -73,14 +73,20 @@ export function parseLeafKey(leafKey: string): { project: string; resource: stri
   return { project, resource, weekStartIso }
 }
 
-function distributeTaskWork(task: TaskRow, includeWeekends: boolean): Array<{ date: Date; hours: number }> {
+function distributeTaskWork(task: TaskRow, workingWeekendDates: Set<string>): Array<{ date: Date; hours: number }> {
   const start = startOfDay(task.start)
   const finish = startOfDay(task.finish)
   const startDate = isAfter(start, finish) ? finish : start
   const endDate = isAfter(start, finish) ? start : finish
 
   const allDays = eachDayOfInterval({ start: startDate, end: endDate })
-  const activeDays = includeWeekends ? allDays : allDays.filter((day) => getDay(day) !== 0 && getDay(day) !== 6)
+  const activeDays = allDays.filter((day) => {
+    const dow = getDay(day)
+    if (dow === 0 || dow === 6) {
+      return workingWeekendDates.has(isoFromDate(day))
+    }
+    return true
+  })
   const days = activeDays.length > 0 ? activeDays : [startDate]
   const hoursPerDay = task.workHours / days.length
 
@@ -106,7 +112,7 @@ export function getAvailableYears(tasks: TaskRow[]): string[] {
 export function buildBaseLeafCells(
   tasks: TaskRow[],
   filters: AppFilters,
-  includeWeekends: boolean,
+  workingWeekendDates: Set<string>,
   enabledResources: Set<string>,
 ): { leafCells: LeafCell[]; weekKeys: string[]; projects: string[]; resources: string[] } {
   const filteredTasks =
@@ -124,7 +130,7 @@ export function buildBaseLeafCells(
   const leafMap = new Map<string, number>()
 
   for (const task of filteredTasks) {
-    const daily = distributeTaskWork(task, includeWeekends)
+    const daily = distributeTaskWork(task, workingWeekendDates)
 
     for (const allocation of daily) {
       const monday = startOfWeek(allocation.date, { weekStartsOn: 1 })
@@ -222,7 +228,7 @@ export function buildPivotModel(
 export function buildWeeklyBucketsFromLeaf(
   finalLeafByKey: Record<string, number>,
   weekKeys: string[],
-  defaultCapacity: number,
+  weekCapacities: Record<string, number>,
   chartGroupBy: ChartGroupBy,
 ): WeeklyBucket[] {
   const perWeek = new Map<string, { total: number; groups: Record<string, number> }>()
@@ -251,7 +257,7 @@ export function buildWeeklyBucketsFromLeaf(
     const weekStart = localDateFromIso(weekStartIso)
     const weekEnd = addDays(weekStart, 4)
     const weekData = perWeek.get(weekStartIso) ?? { total: 0, groups: {} }
-    const capacity = defaultCapacity
+    const capacity = weekCapacities[weekStartIso] ?? 0
     const variance = weekData.total - capacity
 
     return {
@@ -267,27 +273,33 @@ export function buildWeeklyBucketsFromLeaf(
   })
 }
 
-export function buildMonthlyBuckets(weeklyBuckets: WeeklyBucket[], monthlyCapacity: number): MonthlyBucket[] {
-  const byMonth = new Map<string, number>()
+export function buildMonthlyBuckets(
+  weeklyBuckets: WeeklyBucket[],
+  monthlyCapacities: Record<string, number>,
+): MonthlyBucket[] {
+  const byMonth = new Map<string, { planned: number; capacity: number }>()
 
   for (const bucket of weeklyBuckets) {
     const monthKey = format(localDateFromIso(bucket.weekStartIso), 'yyyy-MM')
-    byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + bucket.totalHours)
+    const entry = byMonth.get(monthKey) ?? { planned: 0, capacity: 0 }
+    entry.planned += bucket.totalHours
+    entry.capacity = (entry.capacity ?? 0) + (monthlyCapacities[monthKey] ?? 0)
+    byMonth.set(monthKey, entry)
   }
 
   return [...byMonth.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([monthKey, plannedHours]) => {
+    .map(([monthKey, data]) => {
       const monthDate = parseISO(`${monthKey}-01`)
-      const variance = plannedHours - monthlyCapacity
+      const variance = data.planned - data.capacity
       const overCapacity = variance > 0
       const underCapacity = variance < 0
 
       return {
         monthKey,
         monthLabel: format(monthDate, 'MMM yyyy'),
-        plannedHours,
-        capacity: monthlyCapacity,
+        plannedHours: data.planned,
+        capacity: data.capacity,
         variance,
         overCapacity,
         underCapacity,
