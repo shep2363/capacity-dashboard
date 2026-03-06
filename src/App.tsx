@@ -5,7 +5,6 @@ import { ForecastTable } from './components/ForecastTable'
 import { MonthlyForecastTable } from './components/MonthlyForecastTable'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
-import { MultiSelectProjects } from './components/MultiSelectProjects'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { downloadCsv, weeklyBucketsToCsv } from './utils/csv'
 import { parseSpreadsheet } from './utils/excel'
@@ -158,17 +157,6 @@ function App() {
     () => buildBaseLeafCells(tasks, filters, selectedWeekendDates, enabledResourceSet),
     [tasks, filters, selectedWeekendDates, enabledResourceSet],
   )
-  const weekendOptions = useMemo(() => {
-    const set = new Set<string>()
-    baseLayer.weekKeys.forEach((weekIso) => {
-      const monday = parseISO(weekIso)
-      const sat = format(addDays(monday, 5), 'yyyy-MM-dd')
-      const sun = format(addDays(monday, 6), 'yyyy-MM-dd')
-      set.add(sat)
-      set.add(sun)
-    })
-    return [...set].sort()
-  }, [baseLayer.weekKeys])
   const availableProjects = useMemo(() => {
     const totals = new Map<string, number>()
     baseLayer.leafCells.forEach((cell) => {
@@ -509,16 +497,54 @@ function App() {
             </select>
           </label>
 
-          <MultiSelectProjects
-            options={weekendOptions}
-            selectedValues={[...selectedWeekendDates]}
-            onChange={(nextSelected) => setSelectedWeekendDates(new Set(nextSelected))}
-            placeholder="Working Weekends"
-            entityPlural="Weekends"
-            searchPlaceholder="Search weekend dates..."
-            noMatchingText="No weekends"
-            ariaLabel="Working weekends"
-          />
+          <label>
+            Working Weekends
+            <input
+              type="date"
+              value=""
+              onChange={(event) => {
+                const iso = event.target.value
+                if (!iso) return
+                if (selectedWeekendDates.has(iso)) {
+                  setSelectedWeekendDates((current) => {
+                    const next = new Set(current)
+                    next.delete(iso)
+                    return next
+                  })
+                } else {
+                  setSelectedWeekendDates((current) => {
+                    const next = new Set(current)
+                    next.add(iso)
+                    return next
+                  })
+                }
+                event.target.value = ''
+              }}
+              min={filters.year ? `${filters.year}-01-01` : undefined}
+              max={filters.year ? `${filters.year}-12-31` : undefined}
+            />
+            <div className="weekend-pills">
+              {[...selectedWeekendDates]
+                .filter((iso) => !filters.year || iso.startsWith(filters.year))
+                .sort()
+                .map((iso) => (
+                  <button
+                    key={iso}
+                    type="button"
+                    className="chip-toggle chip-on"
+                    onClick={() =>
+                      setSelectedWeekendDates((current) => {
+                        const next = new Set(current)
+                        next.delete(iso)
+                        return next
+                      })
+                    }
+                  >
+                    {iso}
+                  </button>
+                ))}
+            </div>
+          </label>
 
           <label>
             Week Range Start (Monday)

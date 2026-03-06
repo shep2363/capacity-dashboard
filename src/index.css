@@ -367,6 +367,13 @@ button:disabled {
   cursor: pointer;
 }
 
+.weekend-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
 .chip-toggle:hover {
   border-color: #60a5fa;
 }
