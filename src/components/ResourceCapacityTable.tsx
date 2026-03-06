@@ -2,9 +2,10 @@ import { useState } from 'react'
 
 interface ResourceCapacityTableProps {
   resources: string[]
-  selectedResources: Set<string>
+  enabledResources: Record<string, boolean>
   weeklyCapacitiesByResource: Record<string, number>
   onWeeklyCapacityChange: (resource: string, weeklyCapacity: number) => void
+  onToggleResource: (resource: string, enabled: boolean) => void
 }
 
 const WEEKS_PER_MONTH = 52 / 12
@@ -15,9 +16,10 @@ function monthlyFromWeekly(weekly: number): number {
 
 export function ResourceCapacityTable({
   resources,
-  selectedResources,
+  enabledResources,
   weeklyCapacitiesByResource,
   onWeeklyCapacityChange,
+  onToggleResource,
 }: ResourceCapacityTableProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
@@ -40,6 +42,7 @@ export function ResourceCapacityTable({
           <table>
             <thead>
               <tr>
+                <th>Enabled</th>
                 <th>Resource Name</th>
                 <th>Weekly Capacity Hours</th>
                 <th>Monthly Capacity Hours</th>
@@ -49,10 +52,21 @@ export function ResourceCapacityTable({
               {resources.map((resource) => {
                 const weekly = weeklyCapacitiesByResource[resource] ?? 0
                 const monthly = monthlyFromWeekly(weekly)
-                const isSelected = selectedResources.has(resource)
+                const isEnabled = enabledResources[resource] !== false
 
                 return (
-                  <tr key={resource} className={isSelected ? 'capacity-selected-row' : ''}>
+                  <tr key={resource} className={isEnabled ? 'capacity-selected-row' : ''}>
+                    <td>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={(event) => onToggleResource(resource, event.target.checked)}
+                          aria-label={`Toggle ${resource}`}
+                        />
+                        <span className="toggle-slider" />
+                      </label>
+                    </td>
                     <td>{resource}</td>
                     <td>
                       <input

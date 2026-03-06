@@ -44,10 +44,9 @@ function App() {
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({})
   const [isPivotCollapsed, setIsPivotCollapsed] = useState(false)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
-  const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set())
   const [resourceWeeklyCapacities, setResourceWeeklyCapacities] = useState<Record<string, number>>({})
+  const [enabledResources, setEnabledResources] = useState<Record<string, boolean>>({})
   const [projectsInitialized, setProjectsInitialized] = useState(false)
-  const [resourcesInitialized, setResourcesInitialized] = useState(false)
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
 
@@ -116,19 +115,19 @@ function App() {
 
   useEffect(() => {
     if (resources.length === 0) {
-      setSelectedResources(new Set())
-      setResourcesInitialized(false)
+      setEnabledResources({})
+      setResourceWeeklyCapacities({})
       return
     }
 
-    if (!resourcesInitialized) {
-      setSelectedResources(new Set(resources))
-      setResourcesInitialized(true)
-      return
-    }
-
-    setSelectedResources((current) => new Set([...current].filter((resource) => resources.includes(resource))))
-  }, [resources, resourcesInitialized])
+    setEnabledResources((current) => {
+      const next: Record<string, boolean> = {}
+      for (const resource of resources) {
+        next[resource] = current[resource] !== false
+      }
+      return next
+    })
+  }, [resources])
 
   useEffect(() => {
     if (resources.length === 0) {
@@ -148,10 +147,9 @@ function App() {
     })
   }, [resources])
 
-  const selectedResourcesForCalc = useMemo(() => selectedResources, [selectedResources])
   const baseLayer = useMemo(
-    () => buildBaseLeafCells(tasks, filters, includeWeekends, selectedResourcesForCalc),
-    [tasks, filters, includeWeekends, selectedResourcesForCalc],
+    () => buildBaseLeafCells(tasks, filters, includeWeekends),
+    [tasks, filters, includeWeekends],
   )
   const selectedProjectsForCalc = useMemo(() => selectedProjects, [selectedProjects])
 
@@ -160,27 +158,27 @@ function App() {
     [baseLayer.leafCells, manualOverrides, selectedProjectsForCalc],
   )
 
-  const selectedResourceList = useMemo(
-    () => resources.filter((resource) => selectedResources.has(resource)),
-    [resources, selectedResources],
+  const enabledResourceList = useMemo(
+    () => resources.filter((resource) => enabledResources[resource] !== false),
+    [resources, enabledResources],
   )
 
   const selectedWeeklyCapacity = useMemo(
     () =>
-      selectedResourceList.reduce((sum, resource) => {
+      enabledResourceList.reduce((sum, resource) => {
         const weekly = resourceWeeklyCapacities[resource] ?? 0
         return sum + weekly
       }, 0),
-    [selectedResourceList, resourceWeeklyCapacities],
+    [enabledResourceList, resourceWeeklyCapacities],
   )
 
   const selectedMonthlyCapacity = useMemo(
     () =>
-      selectedResourceList.reduce((sum, resource) => {
+      enabledResourceList.reduce((sum, resource) => {
         const weekly = resourceWeeklyCapacities[resource] ?? 0
         return sum + monthlyFromWeekly(weekly)
       }, 0),
-    [selectedResourceList, resourceWeeklyCapacities],
+    [enabledResourceList, resourceWeeklyCapacities],
   )
 
   const weeklyBuckets = useMemo(
@@ -276,15 +274,19 @@ function App() {
       setFileName(file.name)
       setManualOverrides({})
       setResourceWeeklyCapacities({})
+      setEnabledResources({})
       setFilters({ dateFrom: '', dateTo: '', year: '' })
       setProjectsInitialized(false)
-      setResourcesInitialized(false)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
     } finally {
       setIsLoading(false)
       event.target.value = ''
     }
+  }
+
+  function handleToggleResource(resource: string, enabled: boolean): void {
+    setEnabledResources((current) => ({ ...current, [resource]: enabled }))
   }
 
   function handleResourceWeeklyCapacityChange(resource: string, weeklyCapacity: number): void {
@@ -366,7 +368,13 @@ function App() {
   function resetFilters(): void {
     setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year }))
     setSelectedProjects(new Set(allProjects))
-    setSelectedResources(new Set(resources))
+    setEnabledResources(() => {
+      const next: Record<string, boolean> = {}
+      resources.forEach((resource) => {
+        next[resource] = true
+      })
+      return next
+    })
   }
 
   function resetManualEdits(): void {
@@ -413,17 +421,6 @@ function App() {
               <option value="resource">Resource</option>
             </select>
           </label>
-
-          <MultiSelectProjects
-            options={resources}
-            selectedValues={resources.filter((resource) => selectedResources.has(resource))}
-            onChange={(nextSelected) => setSelectedResources(new Set(nextSelected))}
-            placeholder="Resource Filter"
-            entityPlural="Resources"
-            searchPlaceholder="Search resources..."
-            noMatchingText="No matching resources"
-            ariaLabel="Resources"
-          />
 
           <MultiSelectProjects
             options={allProjects}
@@ -490,7 +487,7 @@ function App() {
             <strong>Weeks in View:</strong> {baseLayer.weekKeys.length}
           </div>
           <div>
-            <strong>Selected Resources:</strong> {selectedResourceList.length}
+            <strong>Enabled Resources:</strong> {enabledResourceList.length}
           </div>
           <div>
             <strong>Data Date Span:</strong>{' '}
@@ -546,9 +543,10 @@ function App() {
       {!isLoading && !error && allResourcesVisible && (
         <ResourceCapacityTable
           resources={resources}
-          selectedResources={selectedResources}
+          enabledResources={enabledResources}
           weeklyCapacitiesByResource={resourceWeeklyCapacities}
           onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
+          onToggleResource={handleToggleResource}
         />
       )}
 
