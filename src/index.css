@@ -1,10 +1,10 @@
 :root {
   font-family: 'Manrope', 'Segoe UI', 'Avenir Next', sans-serif;
-  color: #0f172a;
+  color: #e5e7eb;
   background:
-    radial-gradient(circle at 12% 8%, rgba(37, 99, 235, 0.11), transparent 32%),
-    radial-gradient(circle at 90% 10%, rgba(16, 185, 129, 0.09), transparent 36%),
-    linear-gradient(180deg, #f5f8ff 0%, #edf2fb 100%);
+    radial-gradient(circle at 14% 10%, rgba(59, 130, 246, 0.12), transparent 32%),
+    radial-gradient(circle at 86% 12%, rgba(16, 185, 129, 0.1), transparent 36%),
+    linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -18,6 +18,7 @@ body {
   margin: 0;
   min-width: 320px;
   font-size: 16px;
+  background: transparent;
 }
 
 h1,
@@ -35,11 +36,11 @@ p {
 }
 
 .panel {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid #d4dcef;
+  background: #111827;
+  border: 1px solid #1f2937;
   border-radius: 16px;
   padding: 1.15rem 1.2rem;
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
 }
 
 .control-panel {
@@ -54,7 +55,7 @@ p {
 }
 
 .subtitle {
-  color: #334155;
+  color: #cbd5e1;
   margin-top: 0.35rem;
   margin-bottom: 1rem;
   font-size: 1.03rem;
@@ -83,7 +84,7 @@ p {
 
 .section-header p {
   margin-top: 0.35rem;
-  color: #475569;
+  color: #cbd5e1;
   font-size: 0.98rem;
 }
 
@@ -98,8 +99,8 @@ p {
 
 .controls-grid > label,
 .controls-grid > .multi-select {
-  background: #f8fbff;
-  border: 1px solid #d6e1f4;
+  background: #0f172a;
+  border: 1px solid #1f2937;
   border-radius: 12px;
   padding: 0.72rem 0.78rem;
   width: 100%;
@@ -135,7 +136,7 @@ p {
 
 .multi-label {
   font-size: 0.97rem;
-  color: #1e293b;
+  color: #e5e7eb;
   font-weight: 600;
 }
 
@@ -146,15 +147,15 @@ p {
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  background: #fff;
-  border: 1px solid #a7b6d6;
+  background: #0b1625;
+  border: 1px solid #334155;
   border-radius: 10px;
-  color: #0f172a;
+  color: #e5e7eb;
   font-weight: 600;
 }
 
 .multi-trigger:focus-visible {
-  outline: 3px solid rgba(29, 78, 216, 0.3);
+  outline: 3px solid rgba(59, 130, 246, 0.35);
   outline-offset: 2px;
 }
 
@@ -166,7 +167,7 @@ p {
 
 .multi-caret {
   font-size: 0.8rem;
-  color: #334155;
+  color: #cbd5e1;
 }
 
 .multi-menu {
@@ -175,10 +176,10 @@ p {
   left: 0;
   right: 0;
   z-index: 20;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: #0f172a;
+  border: 1px solid #1f2937;
   border-radius: 12px;
-  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
   padding: 0.65rem;
 }
 
@@ -211,16 +212,16 @@ p {
   padding: 0.45rem 0.5rem;
   border-radius: 8px;
   font-weight: 500;
-  color: #1e293b;
+  color: #e5e7eb;
 }
 
 .multi-option:hover {
-  background: #f1f5f9;
+  background: #1f2937;
 }
 
 .multi-empty {
   padding: 0.6rem 0.5rem;
-  color: #64748b;
+  color: #cbd5e1;
   font-size: 0.92rem;
 }
 
@@ -229,7 +230,7 @@ label {
   flex-direction: column;
   gap: 0.45rem;
   font-size: 0.97rem;
-  color: #1e293b;
+  color: #e5e7eb;
   font-weight: 600;
 }
 
@@ -240,24 +241,24 @@ label {
 input,
 select,
 button {
-  border: 1px solid #a7b6d6;
+  border: 1px solid #334155;
   border-radius: 10px;
   font: inherit;
   padding: 0.56rem 0.68rem;
-  background: #ffffff;
-  color: #0f172a;
+  background: #0b1625;
+  color: #e5e7eb;
 }
 
 button {
   cursor: pointer;
-  border-color: #1d4ed8;
-  background: #1d4ed8;
+  border-color: #2563eb;
+  background: #2563eb;
   color: #ffffff;
   font-weight: 700;
 }
 
 button:hover {
-  background: #1e40af;
+  background: #1d4ed8;
 }
 
 button:disabled {
@@ -266,9 +267,9 @@ button:disabled {
 }
 
 .ghost-btn {
-  background: #ffffff;
-  color: #1d4ed8;
-  border: 1px solid #a5b4fc;
+  background: #0b1625;
+  color: #c7d2fe;
+  border: 1px solid #3b82f6;
 }
 
 .meta-row {
@@ -278,7 +279,7 @@ button:disabled {
   gap: 0.7rem 1rem;
   align-items: center;
   font-size: 0.95rem;
-  color: #334155;
+  color: #cbd5e1;
 }
 
 .summary-grid {
@@ -289,17 +290,17 @@ button:disabled {
 }
 
 .summary-grid > div {
-  border: 1px solid #d7dfef;
+  border: 1px solid #1f2937;
   border-radius: 12px;
   padding: 0.78rem;
   display: grid;
   gap: 0.2rem;
-  background: #f8fbff;
+  background: #0f172a;
 }
 
 .summary-grid span {
   font-size: 0.9rem;
-  color: #475569;
+  color: #cbd5e1;
 }
 
 .summary-grid strong {
@@ -308,19 +309,19 @@ button:disabled {
 }
 
 .positive {
-  color: #166534;
+  color: #22c55e;
 }
 
 .negative {
-  color: #b91c1c;
+  color: #f87171;
 }
 
 .chart-wrap {
   width: 100%;
   height: 470px;
-  border: 1px solid #d2dcef;
+  border: 1px solid #1f2937;
   border-radius: 12px;
-  background: linear-gradient(180deg, #f8fbff 0%, #f0f5ff 100%);
+  background: linear-gradient(180deg, #0f172a 0%, #0b1322 100%);
   padding: 0.2rem;
 }
 
@@ -343,8 +344,8 @@ button:disabled {
   max-width: 220px;
   padding: 0.16rem 0.46rem;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #1f2a44;
+  background: #1f2937;
+  color: #e5e7eb;
   font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
@@ -360,13 +361,13 @@ button:disabled {
 }
 
 .legend-chip-more {
-  background: #e2e8f0;
+  background: #334155;
 }
 
 .chart-note {
   margin-top: 0.5rem;
   font-size: 0.92rem;
-  color: #475569;
+  color: #cbd5e1;
 }
 
 .pivot-wrap,
@@ -394,20 +395,22 @@ table {
 .pivot-table td,
 th,
 td {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #1f2937;
   text-align: center;
   vertical-align: middle;
   padding: 0.58rem 0.52rem;
   font-size: 0.95rem;
   white-space: normal;
   word-break: break-word;
+  background: #0b1625;
+  color: #e5e7eb;
 }
 
 .pivot-table thead th,
 .pivot-table tfoot th,
 th {
-  background: #eef3ff;
-  color: #1e293b;
+  background: #1f2937;
+  color: #e5e7eb;
   position: sticky;
   top: 0;
   z-index: 2;
@@ -423,7 +426,7 @@ th {
   position: sticky;
   left: 0;
   z-index: 3;
-  background: #f8fbff;
+  background: #111827;
 }
 
 .row-label {
@@ -442,6 +445,9 @@ th {
   padding: 0.3rem 0.35rem;
   font-size: 0.92rem;
   border-radius: 8px;
+  background: #0f172a;
+  color: #e5e7eb;
+  border: 1px solid #334155;
 }
 
 .cell-display {
@@ -449,24 +455,24 @@ th {
   padding: 0.3rem 0.35rem;
   border: 1px solid transparent;
   border-radius: 8px;
-  background: #ffffff;
-  color: #0f172a;
+  background: #0f172a;
+  color: #e5e7eb;
   text-align: center;
   font-weight: 600;
 }
 
 .cell-display:hover {
-  border-color: #bfdbfe;
-  background: #f8fbff;
+  border-color: #3b82f6;
+  background: #111827;
 }
 
 .editing {
-  background: #dbeafe;
+  background: #1e293b;
 }
 
 .editing input {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
 }
 
 .inline-field {
@@ -481,11 +487,11 @@ th {
 }
 
 .edited {
-  background: #ecfeff;
+  background: rgba(56, 189, 248, 0.16);
 }
 
 .over-week {
-  background: #fff1f2;
+  background: rgba(248, 113, 113, 0.25);
 }
 
 button.sortable {
@@ -502,30 +508,30 @@ button.sortable {
 }
 
 .capacity-selected-row {
-  background: #eff6ff;
+  background: rgba(59, 130, 246, 0.18);
 }
 
 .weekly-over-row td,
 .monthly-over-row td {
-  background: #ffedd5;
+  background: rgba(245, 158, 11, 0.26);
 }
 
 .weekly-under-row td,
 .monthly-under-row td {
-  background: #fee2e2;
+  background: rgba(248, 113, 113, 0.3);
 }
 
 .status {
   text-align: center;
-  color: #1e40af;
+  color: #cbd5e1;
   font-size: 1.02rem;
   padding: 1.1rem;
 }
 
 .status.error {
-  color: #b91c1c;
-  border-color: #fecaca;
-  background: #fff1f2;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+  background: #2b0f13;
 }
 
 @media (max-width: 980px) {

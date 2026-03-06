@@ -121,7 +121,7 @@ export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProp
             barGap={0}
             barSize={barSize}
           >
-            <CartesianGrid vertical={false} stroke="#d7deec" />
+            <CartesianGrid vertical={false} stroke="#334155" />
             <XAxis
               dataKey="weekLabel"
               angle={-34}
@@ -130,12 +130,12 @@ export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProp
               minTickGap={0}
               height={116}
               tickMargin={10}
-              tick={{ fontSize: 12, fill: '#21314f', fontWeight: 600 }}
-              axisLine={{ stroke: '#b8c5df' }}
+              tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+              axisLine={{ stroke: '#475569' }}
               tickLine={false}
             />
             <YAxis
-              tick={{ fontSize: 13, fill: '#21314f', fontWeight: 600 }}
+              tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
               tickFormatter={(value: number) => `${value}`}
               axisLine={false}
               tickLine={false}
@@ -143,8 +143,14 @@ export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProp
             <Tooltip
               formatter={(value) => formatHours(value)}
               labelFormatter={(label: unknown, payload) => payload?.[0]?.payload?.weekRangeLabel ?? String(label ?? '')}
-              contentStyle={{ borderRadius: 12, border: '1px solid #c7d2eb', fontSize: '0.95rem' }}
-              labelStyle={{ fontWeight: 700, color: '#0f172a' }}
+              contentStyle={{
+                borderRadius: 12,
+                border: '1px solid #1f2937',
+                fontSize: '0.95rem',
+                backgroundColor: '#0f172a',
+                color: '#e5e7eb',
+              }}
+              labelStyle={{ fontWeight: 700, color: '#e5e7eb' }}
             />
             <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
 
@@ -162,7 +168,7 @@ export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProp
               type="monotone"
               dataKey="capacity"
               name="Capacity"
-              stroke="#1d4ed8"
+              stroke="#93c5fd"
               strokeWidth={3}
               dot={false}
               strokeDasharray="6 4"
