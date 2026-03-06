@@ -86,7 +86,6 @@ function App() {
     void loadInitialWorkbook()
   }, [])
 
-  const allProjects = useMemo(() => uniqueSorted(tasks.map((task) => task.project)), [tasks])
   const resources = useMemo(() => uniqueSorted(tasks.map((task) => task.resourceName)), [tasks])
   const years = useMemo(() => getAvailableYears(tasks), [tasks])
 
@@ -104,20 +103,12 @@ function App() {
   }, [years])
 
   useEffect(() => {
-    if (allProjects.length === 0) {
+    if (tasks.length === 0) {
       setSelectedProjects(new Set())
       setProjectsInitialized(false)
       return
     }
-
-    if (!projectsInitialized) {
-      setSelectedProjects(new Set(allProjects))
-      setProjectsInitialized(true)
-      return
-    }
-
-    setSelectedProjects((current) => new Set([...current].filter((project) => allProjects.includes(project))))
-  }, [allProjects, projectsInitialized])
+  }, [tasks])
 
   useEffect(() => {
     if (resources.length === 0) {
@@ -170,6 +161,32 @@ function App() {
     () => buildBaseLeafCells(tasks, filters, includeWeekends, enabledResourceSet),
     [tasks, filters, includeWeekends, enabledResourceSet],
   )
+  const availableProjects = useMemo(() => {
+    const totals = new Map<string, number>()
+    baseLayer.leafCells.forEach((cell) => {
+      totals.set(cell.project, (totals.get(cell.project) ?? 0) + cell.hours)
+    })
+    return [...totals.entries()]
+      .filter(([, hours]) => hours > 0)
+      .map(([project]) => project)
+      .sort((a, b) => a.localeCompare(b))
+  }, [baseLayer.leafCells])
+
+  useEffect(() => {
+    if (availableProjects.length === 0) {
+      setSelectedProjects(new Set())
+      setProjectsInitialized(false)
+      return
+    }
+
+    if (!projectsInitialized) {
+      setSelectedProjects(new Set(availableProjects))
+      setProjectsInitialized(true)
+      return
+    }
+
+    setSelectedProjects((current) => new Set([...current].filter((project) => availableProjects.includes(project))))
+  }, [availableProjects, projectsInitialized])
   const selectedProjectsForCalc = useMemo(() => selectedProjects, [selectedProjects])
 
   const { baseByKey, finalByKey } = useMemo(
@@ -381,7 +398,7 @@ function App() {
 
   function resetFilters(): void {
     setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year, resources: [] }))
-    setSelectedProjects(new Set(allProjects))
+    setSelectedProjects(new Set(availableProjects))
     setEnabledResources(() => {
       const next: Record<string, boolean> = {}
       resources.forEach((resource) => {
@@ -568,7 +585,7 @@ function App() {
           <ForecastChart
             weeklyBuckets={weeklyBuckets}
             categoryKeys={categoryKeys}
-            projects={allProjects}
+            projects={availableProjects}
             selectedProjects={selectedProjects}
             onToggleProject={(project) =>
               setSelectedProjects((current) => {
