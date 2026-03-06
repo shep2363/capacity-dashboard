@@ -463,17 +463,6 @@ function App() {
             </select>
           </label>
 
-          <MultiSelectProjects
-            options={resources}
-            selectedValues={filters.resources}
-            onChange={(nextSelected) => setFilters((current) => ({ ...current, resources: nextSelected }))}
-            placeholder="Resources"
-            entityPlural="Resources"
-            searchPlaceholder="Search resources..."
-            noMatchingText="No matching resources"
-            ariaLabel="Resources"
-          />
-
           <label className="checkbox-label">
             <input
               type="checkbox"
