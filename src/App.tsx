@@ -60,6 +60,7 @@ function App() {
     dateFrom: '',
     dateTo: '',
     year: '',
+    resource: '',
   })
 
   useEffect(() => {
@@ -289,7 +290,7 @@ function App() {
       setManualOverrides({})
       setResourceWeeklyCapacities({})
       setEnabledResources({})
-      setFilters({ dateFrom: '', dateTo: '', year: '' })
+      setFilters({ dateFrom: '', dateTo: '', year: '', resource: '' })
       setProjectsInitialized(false)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
@@ -380,7 +381,7 @@ function App() {
   }
 
   function resetFilters(): void {
-    setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year }))
+    setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year, resource: '' }))
     setSelectedProjects(new Set(allProjects))
     setEnabledResources(() => {
       const next: Record<string, boolean> = {}
@@ -457,6 +458,21 @@ function App() {
               {years.map((year) => (
                 <option key={year} value={year}>
                   {year}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Resource Filter
+            <select
+              value={filters.resource}
+              onChange={(event) => setFilters((current) => ({ ...current, resource: event.target.value }))}
+            >
+              <option value="">All resources</option>
+              {resources.map((resource) => (
+                <option key={resource} value={resource}>
+                  {resource}
                 </option>
               ))}
             </select>

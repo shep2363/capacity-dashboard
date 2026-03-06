@@ -111,7 +111,15 @@ export function buildBaseLeafCells(
 ): { leafCells: LeafCell[]; weekKeys: string[]; projects: string[]; resources: string[] } {
   const filteredTasks =
     enabledResources.size > 0
-      ? tasks.filter((task) => enabledResources.has(task.resourceName))
+      ? tasks.filter((task) => {
+          if (!enabledResources.has(task.resourceName)) {
+            return false
+          }
+          if (filters.resource && task.resourceName !== filters.resource) {
+            return false
+          }
+          return true
+        })
       : []
   const leafMap = new Map<string, number>()
 

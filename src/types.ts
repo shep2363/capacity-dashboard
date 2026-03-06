@@ -15,6 +15,7 @@ export interface AppFilters {
   dateFrom: string
   dateTo: string
   year: string
+  resource: string
 }
 
 export interface WeeklyBucket {
