@@ -60,7 +60,7 @@ function App() {
     dateFrom: '',
     dateTo: '',
     year: '',
-    resource: '',
+    resources: [],
   })
 
   useEffect(() => {
@@ -290,7 +290,7 @@ function App() {
       setManualOverrides({})
       setResourceWeeklyCapacities({})
       setEnabledResources({})
-      setFilters({ dateFrom: '', dateTo: '', year: '', resource: '' })
+      setFilters({ dateFrom: '', dateTo: '', year: '', resources: [] })
       setProjectsInitialized(false)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
@@ -381,7 +381,7 @@ function App() {
   }
 
   function resetFilters(): void {
-    setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year, resource: '' }))
+    setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year, resources: [] }))
     setSelectedProjects(new Set(allProjects))
     setEnabledResources(() => {
       const next: Record<string, boolean> = {}
@@ -463,20 +463,16 @@ function App() {
             </select>
           </label>
 
-          <label>
-            Resource Filter
-            <select
-              value={filters.resource}
-              onChange={(event) => setFilters((current) => ({ ...current, resource: event.target.value }))}
-            >
-              <option value="">All resources</option>
-              {resources.map((resource) => (
-                <option key={resource} value={resource}>
-                  {resource}
-                </option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectProjects
+            options={resources}
+            selectedValues={filters.resources}
+            onChange={(nextSelected) => setFilters((current) => ({ ...current, resources: nextSelected }))}
+            placeholder="Resources"
+            entityPlural="Resources"
+            searchPlaceholder="Search resources..."
+            noMatchingText="No matching resources"
+            ariaLabel="Resources"
+          />
 
           <label className="checkbox-label">
             <input

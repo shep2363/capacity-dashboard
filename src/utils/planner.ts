@@ -115,7 +115,7 @@ export function buildBaseLeafCells(
           if (!enabledResources.has(task.resourceName)) {
             return false
           }
-          if (filters.resource && task.resourceName !== filters.resource) {
+          if (filters.resources && filters.resources.length > 0 && !filters.resources.includes(task.resourceName)) {
             return false
           }
           return true
