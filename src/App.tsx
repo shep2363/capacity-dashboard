@@ -21,9 +21,15 @@ import {
   makeSyntheticLeafKey,
 } from './utils/planner'
 
-const DEFAULT_CAPACITY = 260
 const WEEKS_PER_MONTH = 52 / 12
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
+const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
+  Fabrication: 1400,
+  Assembly: 40,
+  Processing: 280,
+  Paint: 60,
+  Shipping: 200,
+}
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b))
@@ -135,13 +141,20 @@ function App() {
       return
     }
 
-    const defaultPerResource = Number((DEFAULT_CAPACITY / resources.length).toFixed(2))
-
     setResourceWeeklyCapacities((current) => {
       const next: Record<string, number> = {}
       for (const resource of resources) {
         const candidate = current[resource]
-        next[resource] = Number.isFinite(candidate) ? candidate : defaultPerResource
+        if (Number.isFinite(candidate)) {
+          next[resource] = candidate
+          continue
+        }
+        const mapped = DEFAULT_RESOURCE_WEEKLY[resource]
+        if (Number.isFinite(mapped)) {
+          next[resource] = mapped
+          continue
+        }
+        next[resource] = 0
       }
       return next
     })
