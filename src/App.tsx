@@ -3,7 +3,6 @@ import { format } from 'date-fns'
 import { ForecastChart } from './components/ForecastChart'
 import { ForecastTable } from './components/ForecastTable'
 import { MonthlyForecastTable } from './components/MonthlyForecastTable'
-import { MultiSelectProjects } from './components/MultiSelectProjects'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
@@ -406,17 +405,21 @@ function App() {
   return (
     <div className="app-shell">
       <header className="panel control-panel">
-        <h1>Production Capacity Planning Dashboard</h1>
-        <p className="subtitle">
-          Import forecast data, edit weekly hours in the planning pivot, and watch chart/table/capacity metrics update
-          instantly.
-        </p>
-
-        <div className="controls-grid">
-          <label>
+        <div className="title-bar">
+          <div className="title-stack">
+            <h1>Production Capacity Planning Dashboard</h1>
+            <p className="subtitle">
+              Import forecast data, edit weekly hours in the planning pivot, and watch chart/table/capacity metrics update
+              instantly.
+            </p>
+          </div>
+          <label className="upload-inline">
             Upload or Replace Workbook (.xlsx)
             <input type="file" accept=".xlsx" onChange={handleUpload} />
           </label>
+        </div>
+
+        <div className="controls-grid">
 
           <label>
             Planning Rows
@@ -436,17 +439,6 @@ function App() {
               <option value="resource">Resource</option>
             </select>
           </label>
-
-          <MultiSelectProjects
-            options={allProjects}
-            selectedValues={allProjects.filter((project) => selectedProjects.has(project))}
-            onChange={(nextSelected) => setSelectedProjects(new Set(nextSelected))}
-            placeholder="Projects"
-            entityPlural="Projects"
-            searchPlaceholder="Search projects..."
-            noMatchingText="No matching projects"
-            ariaLabel="Projects"
-          />
 
           <label>
             Year
@@ -573,7 +565,23 @@ function App() {
 
       {!isLoading && !error && weeklyBuckets.length > 0 && (
         <>
-          <ForecastChart weeklyBuckets={weeklyBuckets} categoryKeys={categoryKeys} />
+          <ForecastChart
+            weeklyBuckets={weeklyBuckets}
+            categoryKeys={categoryKeys}
+            projects={allProjects}
+            selectedProjects={selectedProjects}
+            onToggleProject={(project) =>
+              setSelectedProjects((current) => {
+                const next = new Set(current)
+                if (next.has(project)) {
+                  next.delete(project)
+                } else {
+                  next.add(project)
+                }
+                return next
+              })
+            }
+          />
           <PivotPlanningTable
             model={pivotModel}
             rowGrouping={pivotRowGrouping}

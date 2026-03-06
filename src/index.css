@@ -48,6 +48,27 @@ p {
   padding: 1.55rem 1.6rem 1.4rem;
 }
 
+.title-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.title-stack {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.upload-inline {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 260px;
+  align-items: flex-start;
+}
+
 .control-panel h1 {
   font-size: 2.05rem;
   line-height: 1.12;
@@ -327,6 +348,37 @@ button:disabled {
 
 .chart-panel {
   overflow: hidden;
+}
+
+.toggle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.chip-toggle {
+  border: 1px solid #334155;
+  border-radius: 999px;
+  padding: 0.28rem 0.8rem;
+  background: #0f172a;
+  color: #e5e7eb;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chip-toggle:hover {
+  border-color: #60a5fa;
+}
+
+.chip-on {
+  background: #1e293b;
+  border-color: #60a5fa;
+  color: #e0f2fe;
+}
+
+.chip-off {
+  opacity: 0.65;
 }
 
 .compact-legend {

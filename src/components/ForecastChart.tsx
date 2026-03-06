@@ -16,6 +16,9 @@ import { shortWeekLabel } from '../utils/planner'
 interface ForecastChartProps {
   weeklyBuckets: WeeklyBucket[]
   categoryKeys: string[]
+  projects: string[]
+  selectedProjects: Set<string>
+  onToggleProject: (project: string) => void
 }
 
 const COLOR_PALETTE = [
@@ -65,7 +68,7 @@ function CompactLegend({
   )
 }
 
-export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProps) {
+export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedProjects, onToggleProject }: ForecastChartProps) {
   const categoryOrder = useMemo(() => {
     const totals = new Map<string, number>()
 
@@ -110,6 +113,22 @@ export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProp
       <div className="section-header">
         <h2>Weekly Capacity Forecast</h2>
         <p>Stacked weekly forecast hours with total capacity from selected resources.</p>
+        <div className="toggle-chips">
+          {projects.map((project) => {
+            const on = selectedProjects.has(project)
+            return (
+              <button
+                key={project}
+                type="button"
+                className={`chip-toggle ${on ? 'chip-on' : 'chip-off'}`}
+                onClick={() => onToggleProject(project)}
+                aria-pressed={on}
+              >
+                {project}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="chart-wrap">
