@@ -172,6 +172,8 @@ export function ForecastChart({ weeklyBuckets, categoryKeys }: ForecastChartProp
               strokeWidth={3}
               dot={false}
               strokeDasharray="6 4"
+              connectNulls
+              strokeLinecap="round"
               isAnimationActive={false}
             />
           </ComposedChart>
