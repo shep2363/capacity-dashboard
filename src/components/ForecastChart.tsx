@@ -69,6 +69,17 @@ function CompactLegend({
 }
 
 export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedProjects, onToggleProject }: ForecastChartProps) {
+  const Y_AXIS_STEP = 500
+  const DEFAULT_Y_AXIS_MAX = 3500
+
+  function buildYAxisTicks(maxValue: number): number[] {
+    const ticks: number[] = []
+    for (let value = 0; value <= maxValue; value += Y_AXIS_STEP) {
+      ticks.push(value)
+    }
+    return ticks
+  }
+
   const categoryOrder = useMemo(() => {
     const totals = new Map<string, number>()
 
@@ -107,6 +118,19 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
     }
     return 30
   }, [chartData.length])
+
+  const { yAxisMax, yAxisTicks } = useMemo(() => {
+    const peak = chartData.reduce((max, row) => {
+      const weekPeak = Math.max(Number(row.totalHours ?? 0), Number(row.capacity ?? 0))
+      return Math.max(max, weekPeak)
+    }, 0)
+    const boundedMax = Math.max(DEFAULT_Y_AXIS_MAX, Math.ceil(peak / Y_AXIS_STEP) * Y_AXIS_STEP)
+
+    return {
+      yAxisMax: boundedMax,
+      yAxisTicks: buildYAxisTicks(boundedMax),
+    }
+  }, [chartData])
 
   return (
     <div className="panel chart-panel">
@@ -154,6 +178,8 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
               tickLine={false}
             />
             <YAxis
+              domain={[0, yAxisMax]}
+              ticks={yAxisTicks}
               tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
               tickFormatter={(value: number) => `${value}`}
               axisLine={false}
