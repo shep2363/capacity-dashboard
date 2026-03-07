@@ -58,7 +58,6 @@ function App() {
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
   const [collapseResetToken, setCollapseResetToken] = useState(0)
-  const [weekendPickerValue, setWeekendPickerValue] = useState('')
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
       return false
@@ -526,24 +525,6 @@ function App() {
     })
   }
 
-  function handleWeekendDateSelection(iso: string): void {
-    if (!iso) {
-      return
-    }
-
-    setSelectedWeekendDates((current) => {
-      const next = new Set(current)
-      if (next.has(iso)) {
-        next.delete(iso)
-      } else {
-        next.add(iso)
-      }
-      return next
-    })
-    // Reset the picker so selecting the same date again still triggers a change event.
-    setWeekendPickerValue('')
-  }
-
   function openChartInNewTab(): void {
     const url = new URL(window.location.href)
     url.searchParams.set('reportTab', 'snapshot')
@@ -662,8 +643,25 @@ function App() {
             Working Weekends
             <input
               type="date"
-              value={weekendPickerValue}
-              onChange={(event) => handleWeekendDateSelection(event.target.value)}
+              value=""
+              onChange={(event) => {
+                const iso = event.target.value
+                if (!iso) return
+                if (selectedWeekendDates.has(iso)) {
+                  setSelectedWeekendDates((current) => {
+                    const next = new Set(current)
+                    next.delete(iso)
+                    return next
+                  })
+                } else {
+                  setSelectedWeekendDates((current) => {
+                    const next = new Set(current)
+                    next.add(iso)
+                    return next
+                  })
+                }
+                event.target.value = ''
+              }}
               min={filters.year ? `${filters.year}-01-01` : undefined}
               max={filters.year ? `${filters.year}-12-31` : undefined}
             />
