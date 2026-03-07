@@ -143,7 +143,9 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
         </div>
       </div>
       <div style={{ display: 'grid', gap: 4 }}>
-        {payload.map((entry: TooltipEntry) => {
+        {payload
+          .filter((entry) => entry.dataKey !== 'capacity')
+          .map((entry: TooltipEntry) => {
           const value = Array.isArray(entry.value) ? entry.value[0] : entry.value
           const numeric = typeof value === 'number' ? value : Number(value ?? 0)
           const safeValue = Number.isFinite(numeric) ? numeric : 0
