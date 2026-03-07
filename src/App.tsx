@@ -34,6 +34,7 @@ function uniqueSorted(values: string[]): string[] {
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'planning' | 'snapshot'>('planning')
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [fileName, setFileName] = useState(INITIAL_FILE_NAME)
   const [isLoading, setIsLoading] = useState(false)
@@ -460,6 +461,18 @@ function App() {
     setManualOverrides({})
   }
 
+  function handleToggleProject(project: string): void {
+    setSelectedProjects((current) => {
+      const next = new Set(current)
+      if (next.has(project)) {
+        next.delete(project)
+      } else {
+        next.add(project)
+      }
+      return next
+    })
+  }
+
   const overCapacityWeeks = useMemo(
     () => new Set(weeklyBuckets.filter((bucket) => bucket.overCapacity).map((bucket) => bucket.weekStartIso)),
     [weeklyBuckets],
@@ -614,117 +627,160 @@ function App() {
         </div>
       </header>
 
-      <section className="panel summary-panel">
-        <div className="section-header">
-          <h2>Summary</h2>
-          <p>All metrics below are driven by the final adjusted planning dataset.</p>
-        </div>
-
-        <div className="summary-grid">
-          <div>
-            <span>Total Forecast Hours</span>
-            <strong>{totals.hours.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Total Capacity Hours</span>
-            <strong>{totals.capacity.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Selected Weekly Capacity</span>
-            <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Total Monthly Capacity (visible months)</span>
-            <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
-          </div>
-          <div>
-            <span>Variance (Forecast - Capacity)</span>
-            <strong className={totals.variance > 0 ? 'negative' : 'positive'}>{totals.variance.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Over-Capacity Weeks</span>
-            <strong>{totals.overCount}</strong>
-          </div>
-          <div>
-            <span>Manual Overrides</span>
-            <strong>{Object.keys(manualOverrides).length}</strong>
-          </div>
-        </div>
+      <section className="panel view-tabs" aria-label="Dashboard Views">
+        <button
+          type="button"
+          className={activeTab === 'planning' ? 'tab-btn tab-btn-active' : 'tab-btn'}
+          onClick={() => setActiveTab('planning')}
+        >
+          Planning Dashboard
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'snapshot' ? 'tab-btn tab-btn-active' : 'tab-btn'}
+          onClick={() => setActiveTab('snapshot')}
+        >
+          Weekly Capacity Snapshot
+        </button>
       </section>
 
-      {!isLoading && !error && allResourcesVisible && (
-        <ResourceCapacityTable
-          resources={resources}
-          enabledResources={enabledResources}
-          weeklyCapacitiesByResource={resourceWeeklyCapacities}
-          onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
-          onToggleResource={handleToggleResource}
-          weekendExtraByResource={weekendExtraByResource}
-          onWeekendExtraChange={(resource, hours) =>
-            setWeekendExtraByResource((current) => ({
-              ...current,
-              [resource]: Number.isFinite(hours) && hours >= 0 ? hours : 0,
-            }))
-          }
-        />
-      )}
-
-      {isLoading && <div className="panel status">Loading workbook...</div>}
-      {!isLoading && error && <div className="panel status error">{error}</div>}
-      {!isLoading && !error && weeklyBuckets.length === 0 && (
-        <div className="panel status">No weekly forecast buckets match current filter and project toggle settings.</div>
-      )}
-
-      {!isLoading && !error && weeklyBuckets.length > 0 && (
+      {activeTab === 'planning' && (
         <>
-          <ForecastChart
-            weeklyBuckets={weeklyBuckets}
-            categoryKeys={categoryKeys}
-            projects={availableProjects}
-            selectedProjects={selectedProjects}
-            onToggleProject={(project) =>
-              setSelectedProjects((current) => {
-                const next = new Set(current)
-                if (next.has(project)) {
-                  next.delete(project)
-                } else {
-                  next.add(project)
-                }
-                return next
-              })
-            }
-          />
-          <PivotPlanningTable
-            model={pivotModel}
-            rowGrouping={pivotRowGrouping}
-            overCapacityWeeks={overCapacityWeeks}
-            visibleWeekKeys={visiblePivotWeekKeys}
-            weekWindowLabel={pivotWeekWindowLabel}
-            canPageBack={safePivotStartIndex > 0}
-            canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
-            onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
-            onPageForward={() =>
-              setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
-            }
-            weekWindowSize={pivotWeekWindowSize}
-            onWeekWindowSizeChange={(size) => {
-              if (!Number.isFinite(size) || size <= 0) {
-                return
+          <section className="panel summary-panel">
+            <div className="section-header">
+              <h2>Summary</h2>
+              <p>All metrics below are driven by the final adjusted planning dataset.</p>
+            </div>
+
+            <div className="summary-grid">
+              <div>
+                <span>Total Forecast Hours</span>
+                <strong>{totals.hours.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Total Capacity Hours</span>
+                <strong>{totals.capacity.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Selected Weekly Capacity</span>
+                <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Total Monthly Capacity (visible months)</span>
+                <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
+              </div>
+              <div>
+                <span>Variance (Forecast - Capacity)</span>
+                <strong className={totals.variance > 0 ? 'negative' : 'positive'}>{totals.variance.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Over-Capacity Weeks</span>
+                <strong>{totals.overCount}</strong>
+              </div>
+              <div>
+                <span>Manual Overrides</span>
+                <strong>{Object.keys(manualOverrides).length}</strong>
+              </div>
+            </div>
+          </section>
+
+          {!isLoading && !error && allResourcesVisible && (
+            <ResourceCapacityTable
+              resources={resources}
+              enabledResources={enabledResources}
+              weeklyCapacitiesByResource={resourceWeeklyCapacities}
+              onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
+              onToggleResource={handleToggleResource}
+              weekendExtraByResource={weekendExtraByResource}
+              onWeekendExtraChange={(resource, hours) =>
+                setWeekendExtraByResource((current) => ({
+                  ...current,
+                  [resource]: Number.isFinite(hours) && hours >= 0 ? hours : 0,
+                }))
               }
-              setPivotWeekWindowSize(size)
-            }}
-            isCollapsed={isPivotCollapsed}
-            onToggleCollapsed={() => setIsPivotCollapsed((current) => !current)}
-            onEditCell={handlePivotCellEdit}
-            onResetEdits={resetManualEdits}
-          />
-          <ForecastTable weeklyBuckets={weeklyBuckets} />
-          <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
+            />
+          )}
+
+          {isLoading && <div className="panel status">Loading workbook...</div>}
+          {!isLoading && error && <div className="panel status error">{error}</div>}
+          {!isLoading && !error && weeklyBuckets.length === 0 && (
+            <div className="panel status">No weekly forecast buckets match current filter and project toggle settings.</div>
+          )}
+
+          {!isLoading && !error && weeklyBuckets.length > 0 && (
+            <>
+              <ForecastChart
+                weeklyBuckets={weeklyBuckets}
+                categoryKeys={categoryKeys}
+                projects={availableProjects}
+                selectedProjects={selectedProjects}
+                onToggleProject={handleToggleProject}
+              />
+              <PivotPlanningTable
+                model={pivotModel}
+                rowGrouping={pivotRowGrouping}
+                overCapacityWeeks={overCapacityWeeks}
+                visibleWeekKeys={visiblePivotWeekKeys}
+                weekWindowLabel={pivotWeekWindowLabel}
+                canPageBack={safePivotStartIndex > 0}
+                canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
+                onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
+                onPageForward={() =>
+                  setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
+                }
+                weekWindowSize={pivotWeekWindowSize}
+                onWeekWindowSizeChange={(size) => {
+                  if (!Number.isFinite(size) || size <= 0) {
+                    return
+                  }
+                  setPivotWeekWindowSize(size)
+                }}
+                isCollapsed={isPivotCollapsed}
+                onToggleCollapsed={() => setIsPivotCollapsed((current) => !current)}
+                onEditCell={handlePivotCellEdit}
+                onResetEdits={resetManualEdits}
+              />
+              <ForecastTable weeklyBuckets={weeklyBuckets} />
+              <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
+            </>
+          )}
+
+          {!allResourcesVisible && !isLoading && (
+            <div className="panel status">No resources available in the current data scope.</div>
+          )}
         </>
       )}
 
-      {!allResourcesVisible && !isLoading && (
-        <div className="panel status">No resources available in the current data scope.</div>
+      {activeTab === 'snapshot' && (
+        <>
+          {isLoading && <div className="panel status">Loading workbook...</div>}
+          {!isLoading && error && <div className="panel status error">{error}</div>}
+          {!isLoading && !error && weeklyBuckets.length === 0 && (
+            <div className="panel status">No weekly forecast buckets match current filter and project toggle settings.</div>
+          )}
+          {!isLoading && !error && weeklyBuckets.length > 0 && (
+            <section className="panel snapshot-panel">
+              <div className="section-header section-header-row">
+                <div>
+                  <h2>Weekly Capacity Snapshot</h2>
+                  <p>Live snapshot of the weekly capacity chart using current filters, project selection, and planning edits.</p>
+                </div>
+                <div className="section-actions">
+                  <button type="button" className="ghost-btn" onClick={() => window.print()}>
+                    Print Snapshot
+                  </button>
+                </div>
+              </div>
+              <ForecastChart
+                weeklyBuckets={weeklyBuckets}
+                categoryKeys={categoryKeys}
+                projects={availableProjects}
+                selectedProjects={selectedProjects}
+                onToggleProject={handleToggleProject}
+              />
+            </section>
+          )}
+        </>
       )}
     </div>
   )

@@ -43,6 +43,39 @@ p {
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
 }
 
+.view-tabs {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  background: #0b1625;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-weight: 700;
+  padding: 0.52rem 0.9rem;
+}
+
+.tab-btn-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.snapshot-panel {
+  padding: 1.3rem;
+  border-color: #334155;
+  background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+}
+
+.snapshot-panel .chart-panel {
+  margin-top: 0.55rem;
+  border-color: #334155;
+  box-shadow: none;
+}
+
 .control-panel {
   min-height: 560px;
   padding: 1.55rem 1.6rem 1.4rem;
