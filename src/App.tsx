@@ -860,12 +860,6 @@ function App() {
     handleToggleProject(project)
   }
 
-  function openChartInNewTab(): void {
-    const url = new URL(window.location.href)
-    url.searchParams.set('reportTab', 'snapshot')
-    window.open(url.toString(), '_blank', 'noopener,noreferrer')
-  }
-
   const overCapacityWeeks = useMemo(
     () => new Set(weeklyBuckets.filter((bucket) => bucket.overCapacity).map((bucket) => bucket.weekStartIso)),
     [weeklyBuckets],
@@ -1072,9 +1066,6 @@ function App() {
           </div>
           <button type="button" className="ghost-btn" onClick={resetFilters}>
             Reset Filters
-          </button>
-          <button type="button" className="ghost-btn" onClick={openChartInNewTab}>
-            Open Chart in New Tab
           </button>
           <button type="button" onClick={() => void exportReportExcel()}>
             Export Report Excel
