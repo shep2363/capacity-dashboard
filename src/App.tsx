@@ -20,7 +20,6 @@ import {
   makeSyntheticLeafKey,
 } from './utils/planner'
 
-const WEEKS_PER_MONTH = 52 / 12
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1400,
@@ -230,25 +229,15 @@ function App() {
     return baseLayer.weekKeys.reduce((sum, week) => sum + (weekCapacities[week] ?? 0), 0) / baseLayer.weekKeys.length
   }, [baseLayer.weekKeys, weekCapacities])
 
-  const selectedMonthlyCapacity = useMemo(() => selectedWeeklyCapacity * WEEKS_PER_MONTH, [selectedWeeklyCapacity])
-
   const weeklyBuckets = useMemo(
     () => buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy),
     [finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy],
   )
 
-  const monthlyCapacities = useMemo(() => {
-    const map: Record<string, number> = {}
-    baseLayer.weekKeys.forEach((weekIso) => {
-      const monthKey = weekIso.slice(0, 7)
-      map[monthKey] = (map[monthKey] ?? 0) + (weekCapacities[weekIso] ?? 0)
-    })
-    return map
-  }, [baseLayer.weekKeys, weekCapacities])
-
-  const monthlyBuckets = useMemo(
-    () => buildMonthlyBuckets(weeklyBuckets, monthlyCapacities),
-    [weeklyBuckets, monthlyCapacities],
+  const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
+  const monthlyCapacityTotal = useMemo(
+    () => monthlyBuckets.reduce((sum, m) => sum + m.capacity, 0),
+    [monthlyBuckets],
   )
 
   const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
@@ -285,6 +274,16 @@ function App() {
       { hours: 0, capacity: 0, variance: 0, overCount: 0 },
     )
   }, [weeklyBuckets])
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      const weeklyCapacitySum = weeklyBuckets.reduce((sum, bucket) => sum + bucket.capacity, 0)
+      const monthlyCapacitySum = monthlyBuckets.reduce((sum, month) => sum + month.capacity, 0)
+      // Debug helper: monthly capacity should reconcile to weekly capacity totals (after day split).
+      console.debug('[capacity-debug] weekly capacity sum', weeklyCapacitySum.toFixed(2))
+      console.debug('[capacity-debug] monthly capacity sum', monthlyCapacitySum.toFixed(2))
+    }
+  }, [weeklyBuckets, monthlyBuckets])
 
   const taskDateSpan = useMemo(() => {
     if (tasks.length === 0) {
@@ -619,8 +618,8 @@ function App() {
             <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
           </div>
           <div>
-            <span>Selected Monthly Capacity</span>
-            <strong>{selectedMonthlyCapacity.toFixed(2)}</strong>
+            <span>Total Monthly Capacity (visible months)</span>
+            <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
           </div>
           <div>
             <span>Variance (Forecast - Capacity)</span>
@@ -703,7 +702,7 @@ function App() {
             onEditCell={handlePivotCellEdit}
             onResetEdits={resetManualEdits}
           />
-          <ForecastTable weeklyBuckets={weeklyBuckets} />
+          <ForecastTable weeklyBuckets={weeklyBuckets} onWeekCapacityChange={handleWeekCapacityChange} />
           <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
         </>
       )}
