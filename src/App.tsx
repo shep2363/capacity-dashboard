@@ -336,6 +336,7 @@ function App() {
   )
 
   const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
+  const salesMonthlyBuckets = useMemo(() => buildMonthlyBuckets(salesWeeklyBuckets), [salesWeeklyBuckets])
   const monthlyCapacityTotal = useMemo(
     () => monthlyBuckets.reduce((sum, m) => sum + m.capacity, 0),
     [monthlyBuckets],
@@ -1141,6 +1142,7 @@ function App() {
             weeklyBuckets={weeklyBuckets}
             combinedWeeklyBuckets={combinedWeeklyBuckets}
             salesWeeklyBuckets={salesWeeklyBuckets}
+            salesMonthlyBuckets={salesMonthlyBuckets}
             monthlyBuckets={monthlyBuckets}
             categoryKeys={categoryKeys}
             combinedCategoryKeys={combinedCategoryKeys}

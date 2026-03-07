@@ -6,13 +6,14 @@ import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
 
-export type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary' | 'sales' | 'combined'
+export type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary' | 'sales' | 'combined' | 'sales-monthly'
 
 interface ReportWorkspaceProps {
   weeklyBuckets: WeeklyBucket[]
   salesWeeklyBuckets: WeeklyBucket[]
   combinedWeeklyBuckets: WeeklyBucket[]
   monthlyBuckets: MonthlyBucket[]
+  salesMonthlyBuckets: MonthlyBucket[]
   categoryKeys: string[]
   salesCategoryKeys: string[]
   combinedCategoryKeys: string[]
@@ -35,6 +36,7 @@ export function ReportWorkspace({
   salesWeeklyBuckets,
   combinedWeeklyBuckets,
   monthlyBuckets,
+  salesMonthlyBuckets,
   categoryKeys,
   salesCategoryKeys,
   combinedCategoryKeys,
@@ -110,7 +112,7 @@ export function ReportWorkspace({
           className={activeReportTab === 'weekly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
           onClick={() => setActiveReportTab('weekly')}
         >
-          Weekly Forecast
+          Shop Forecast
         </button>
         <button
           type="button"
@@ -138,7 +140,14 @@ export function ReportWorkspace({
           className={activeReportTab === 'combined' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
           onClick={() => setActiveReportTab('combined')}
         >
-          Combined Charts
+          Shop and Sales Forecast
+        </button>
+        <button
+          type="button"
+          className={activeReportTab === 'sales-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveReportTab('sales-monthly')}
+        >
+          Sales Monthly Forecast
         </button>
       </div>
 
@@ -203,6 +212,12 @@ export function ReportWorkspace({
       {activeReportTab === 'monthly' && (
         <div className="report-tab-panel">
           <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
+        </div>
+      )}
+
+      {activeReportTab === 'sales-monthly' && (
+        <div className="report-tab-panel">
+          <MonthlyForecastTable monthlyBuckets={salesMonthlyBuckets} />
         </div>
       )}
 
