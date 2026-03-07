@@ -123,7 +123,7 @@ export function ResourceCapacityTable({
   }
 
   return (
-    <section className="panel table-panel">
+    <section className="panel table-panel resource-panel">
       <div className="section-header section-header-row">
         <div>
           <h2>Resource Capacity Input</h2>

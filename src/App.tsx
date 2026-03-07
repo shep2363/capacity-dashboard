@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO, startOfWeek } from 'date-fns'
-import { ForecastChart } from './components/ForecastChart'
-import { ForecastTable } from './components/ForecastTable'
-import { MonthlyForecastTable } from './components/MonthlyForecastTable'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
+import { ReportSnapshot } from './components/ReportSnapshot'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { downloadCsv, weeklyBucketsToCsv } from './utils/csv'
@@ -598,6 +596,27 @@ function App() {
         </div>
       </header>
 
+      {!isLoading && !error && weeklyBuckets.length > 0 && (
+        <ReportSnapshot
+          weeklyBuckets={weeklyBuckets}
+          monthlyBuckets={monthlyBuckets}
+          categoryKeys={categoryKeys}
+          projects={availableProjects}
+          selectedProjects={selectedProjects}
+          onToggleProject={(project) =>
+            setSelectedProjects((current) => {
+              const next = new Set(current)
+              if (next.has(project)) {
+                next.delete(project)
+              } else {
+                next.add(project)
+              }
+              return next
+            })
+          }
+        />
+      )}
+
       <section className="panel summary-panel">
         <div className="section-header">
           <h2>Summary</h2>
@@ -661,23 +680,6 @@ function App() {
 
       {!isLoading && !error && weeklyBuckets.length > 0 && (
         <>
-          <ForecastChart
-            weeklyBuckets={weeklyBuckets}
-            categoryKeys={categoryKeys}
-            projects={availableProjects}
-            selectedProjects={selectedProjects}
-            onToggleProject={(project) =>
-              setSelectedProjects((current) => {
-                const next = new Set(current)
-                if (next.has(project)) {
-                  next.delete(project)
-                } else {
-                  next.add(project)
-                }
-                return next
-              })
-            }
-          />
           <PivotPlanningTable
             model={pivotModel}
             rowGrouping={pivotRowGrouping}
@@ -702,8 +704,6 @@ function App() {
             onEditCell={handlePivotCellEdit}
             onResetEdits={resetManualEdits}
           />
-          <ForecastTable weeklyBuckets={weeklyBuckets} />
-          <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
         </>
       )}
 
