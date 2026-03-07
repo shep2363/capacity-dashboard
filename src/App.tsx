@@ -439,13 +439,7 @@ function App() {
     exportReportWorkbook({
       weeklyBuckets,
       monthlyBuckets,
-      snapshotSummary: [
-        { metric: 'File Name', value: fileName },
-        { metric: 'Selected Year', value: filters.year || 'All years' },
-        { metric: 'Total Forecast Hours', value: totals.hours },
-        { metric: 'Total Capacity Hours', value: totals.capacity },
-        { metric: 'Over-Capacity Weeks', value: totals.overCount },
-      ],
+      chartCategoryKeys: categoryKeys,
       summary: summaryMetrics,
       fileName: `capacity-report-${dateStamp}.xlsx`,
     })

@@ -9,7 +9,7 @@ export interface SummaryMetric {
 interface ExportReportWorkbookInput {
   weeklyBuckets: WeeklyBucket[]
   monthlyBuckets: MonthlyBucket[]
-  snapshotSummary: SummaryMetric[]
+  chartCategoryKeys: string[]
   summary: SummaryMetric[]
   fileName: string
 }
@@ -50,17 +50,32 @@ function setHeaderRowFeatures(sheet: XLSX.WorkSheet): void {
 export function exportReportWorkbook(input: ExportReportWorkbookInput): void {
   const workbook = XLSX.utils.book_new()
 
-  const snapshotSummaryRows: Array<Array<string | number>> = [
-    ['Metric', 'Value'],
-    ...input.snapshotSummary.map((item) => [
-      item.metric,
-      typeof item.value === 'number' ? normalizeNumber(item.value) : item.value,
+  const chartRows: Array<Array<string | number>> = [
+    [
+      'Week Start',
+      'Week End',
+      'Week Label',
+      'Total Forecast Hours',
+      'Capacity',
+      'Variance',
+      'Status',
+      ...input.chartCategoryKeys,
+    ],
+    ...input.weeklyBuckets.map((bucket) => [
+      bucket.weekStartIso,
+      bucket.weekEndIso,
+      bucket.weekLabel,
+      normalizeNumber(bucket.totalHours),
+      normalizeNumber(bucket.capacity),
+      normalizeNumber(bucket.variance),
+      bucket.status,
+      ...input.chartCategoryKeys.map((key) => normalizeNumber(bucket.groups[key] ?? 0)),
     ]),
   ]
-  const snapshotSummarySheet = XLSX.utils.aoa_to_sheet(snapshotSummaryRows)
-  snapshotSummarySheet['!cols'] = autoWidth(snapshotSummaryRows)
-  setHeaderRowFeatures(snapshotSummarySheet)
-  XLSX.utils.book_append_sheet(workbook, snapshotSummarySheet, 'Snapshot Summary')
+  const chartSheet = XLSX.utils.aoa_to_sheet(chartRows)
+  chartSheet['!cols'] = autoWidth(chartRows)
+  setHeaderRowFeatures(chartSheet)
+  XLSX.utils.book_append_sheet(workbook, chartSheet, 'Weekly Capacity Chart')
 
   const weeklyRows: Array<Array<string | number>> = [
     ['Week Start', 'Week End', 'Week Label', 'Forecast Hours', 'Capacity', 'Variance', 'Status'],
