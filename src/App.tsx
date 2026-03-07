@@ -702,7 +702,7 @@ function App() {
             onEditCell={handlePivotCellEdit}
             onResetEdits={resetManualEdits}
           />
-          <ForecastTable weeklyBuckets={weeklyBuckets} onWeekCapacityChange={handleWeekCapacityChange} />
+          <ForecastTable weeklyBuckets={weeklyBuckets} />
           <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
         </>
       )}

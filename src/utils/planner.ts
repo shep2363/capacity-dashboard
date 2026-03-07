@@ -260,7 +260,7 @@ export function buildWeeklyBucketsFromLeaf(
     // Capacity is counted only for active weeks (weeks with selected-project forecast > 0).
     // This keeps weekly and monthly capacity aligned to the active planning scope.
     const hasActiveForecast = weekData.total > 0
-    const capacity = hasActiveForecast ? (weekCapacities[weekStartIso] ?? globalCapacity) : 0
+    const capacity = hasActiveForecast ? (weekCapacities[weekStartIso] ?? 0) : 0
     const variance = weekData.total - capacity
 
     return {
@@ -399,38 +399,4 @@ export function shortWeekLabel(weekStartIso: string): string {
 
 export function rowWeekEditedKey(rowKey: string, weekStartIso: string): string {
   return `${rowKey}${KEY_SEPARATOR}${weekStartIso}`
-}
-
-export function buildMonthlyTotalsFromWeekly(weeklyBuckets: WeeklyBucket[]): MonthlyTotals[] {
-  const monthMap = new Map<string, { forecastHours: number; capacityHours: number }>()
-
-  for (const bucket of weeklyBuckets) {
-    const monday = localDateFromIso(bucket.weekStartIso)
-    const weekdays = Array.from({ length: 5 }, (_, offset) => addDays(monday, offset))
-    const dailyForecast = bucket.totalHours / weekdays.length
-    const dailyCapacity = bucket.capacity / weekdays.length
-
-    // Monthly totals are derived from weekly totals by splitting each Mon-Fri week
-    // into 5 weekday portions and assigning each day to its actual calendar month.
-    // This is more accurate than using a flat 4.0 or 4.33 multiplier.
-    // Weekly capacity remains the source of truth.
-    for (const day of weekdays) {
-      const monthKey = format(day, 'yyyy-MM')
-      const month = monthMap.get(monthKey) ?? { forecastHours: 0, capacityHours: 0 }
-      month.forecastHours += dailyForecast
-      month.capacityHours += dailyCapacity
-      monthMap.set(monthKey, month)
-    }
-  }
-
-  return [...monthMap.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([monthKey, totals]) => ({
-      monthKey,
-      monthLabel: format(parseISO(`${monthKey}-01`), 'MMM yyyy'),
-      // Monthly values are rounded to whole hours for planning readability.
-      forecastHours: Math.round(totals.forecastHours),
-      capacityHours: Math.round(totals.capacityHours),
-      variance: Math.round(totals.forecastHours - totals.capacityHours),
-    }))
 }
