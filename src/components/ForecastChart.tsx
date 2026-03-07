@@ -21,6 +21,8 @@ interface ForecastChartProps {
   onToggleProject: (project: string) => void
   title?: string
   subtitle?: string
+  hoveredProject?: string | null
+  onHoverProject?: (project: string | null) => void
 }
 
 const COLOR_PALETTE = [
@@ -174,6 +176,8 @@ export function ForecastChart({
   onToggleProject,
   title = 'Weekly Capacity Forecast',
   subtitle = 'Stacked weekly forecast hours with total capacity from selected resources.',
+  hoveredProject = null,
+  onHoverProject,
 }: ForecastChartProps) {
   const Y_AXIS_STEP = 500
   const MIN_Y_AXIS_MAX = 1000
@@ -261,6 +265,8 @@ export function ForecastChart({
                 type="button"
                 className={`chip-toggle ${on ? 'chip-on' : 'chip-off'}`}
                 onClick={() => onToggleProject(project)}
+                onMouseEnter={() => onHoverProject?.(project)}
+                onMouseLeave={() => onHoverProject?.(null)}
                 aria-pressed={on}
               >
                 {project}
@@ -312,6 +318,7 @@ export function ForecastChart({
                 dataKey={category}
                 stackId="weekly"
                 fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                fillOpacity={hoveredProject && hoveredProject !== category ? 0.25 : 1}
                 name={category}
               />
             ))}

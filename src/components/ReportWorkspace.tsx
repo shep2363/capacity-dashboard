@@ -26,6 +26,8 @@ interface ReportWorkspaceProps {
   onToggleProject: (project: string) => void
   onToggleSalesProject: (project: string) => void
   onToggleCombinedProject: (project: string) => void
+  hoveredProject: string | null
+  onHoverProject: (project: string | null) => void
   summaryMetrics: SummaryMetric[]
   reportContext: string[]
   initialTab?: ReportTab
@@ -49,6 +51,8 @@ export function ReportWorkspace({
   onToggleProject,
   onToggleSalesProject,
   onToggleCombinedProject,
+  hoveredProject,
+  onHoverProject,
   summaryMetrics,
   reportContext,
   initialTab = 'snapshot',
@@ -163,6 +167,8 @@ export function ReportWorkspace({
             projects={projects}
             selectedProjects={selectedProjects}
             onToggleProject={onToggleProject}
+            hoveredProject={hoveredProject}
+            onHoverProject={onHoverProject}
           />
         </div>
       )}
@@ -181,6 +187,8 @@ export function ReportWorkspace({
             onToggleProject={onToggleSalesProject}
             title="Weekly Sales Forecast"
             subtitle="Stacked weekly sales forecast hours with capacity overlay."
+            hoveredProject={hoveredProject}
+            onHoverProject={onHoverProject}
           />
         </div>
       )}
@@ -199,6 +207,8 @@ export function ReportWorkspace({
             onToggleProject={onToggleCombinedProject}
             title="Combined Weekly Forecast"
             subtitle="Operational + Sales projects together with capacity overlay."
+            hoveredProject={hoveredProject}
+            onHoverProject={onHoverProject}
           />
         </div>
       )}

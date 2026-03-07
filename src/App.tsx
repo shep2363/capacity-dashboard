@@ -82,6 +82,7 @@ function App() {
   })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [hoveredProject, setHoveredProject] = useState<string | null>(null)
 
   const [filters, setFilters] = useState<AppFilters>({
     dateFrom: '',
@@ -1160,6 +1161,8 @@ function App() {
             onToggleProject={handleToggleProject}
             onToggleCombinedProject={handleToggleCombinedProject}
             onToggleSalesProject={handleToggleSalesProject}
+            hoveredProject={hoveredProject}
+            onHoverProject={setHoveredProject}
             summaryMetrics={summaryMetrics}
             reportContext={reportContext}
             initialTab={initialReportTab}
