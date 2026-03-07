@@ -19,6 +19,8 @@ interface ForecastChartProps {
   projects: string[]
   selectedProjects: Set<string>
   onToggleProject: (project: string) => void
+  title?: string
+  subtitle?: string
 }
 
 const COLOR_PALETTE = [
@@ -164,7 +166,15 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   )
 }
 
-export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedProjects, onToggleProject }: ForecastChartProps) {
+export function ForecastChart({
+  weeklyBuckets,
+  categoryKeys,
+  projects,
+  selectedProjects,
+  onToggleProject,
+  title = 'Weekly Capacity Forecast',
+  subtitle = 'Stacked weekly forecast hours with total capacity from selected resources.',
+}: ForecastChartProps) {
   const Y_AXIS_STEP = 500
   const MIN_Y_AXIS_MAX = 1000
 
@@ -240,8 +250,8 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
   return (
     <div className="panel chart-panel">
       <div className="section-header">
-        <h2>Weekly Capacity Forecast</h2>
-        <p>Stacked weekly forecast hours with total capacity from selected resources.</p>
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
         <div className="toggle-chips">
           {projects.map((project) => {
             const on = selectedProjects.has(project)

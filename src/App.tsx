@@ -4,7 +4,7 @@ import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
-import { parseSpreadsheet } from './utils/excel'
+import { parseSalesSpreadsheet, parseSpreadsheet } from './utils/excel'
 import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
 import { exportReportWorkbookWithChartApi } from './utils/reportExportApi'
 import {
@@ -38,26 +38,40 @@ function App() {
   const reportTabParam =
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('reportTab') : null
   const initialReportTab: ReportTab =
-    reportTabParam === 'weekly' || reportTabParam === 'monthly' || reportTabParam === 'summary'
+    reportTabParam === 'weekly' ||
+    reportTabParam === 'monthly' ||
+    reportTabParam === 'summary' ||
+    reportTabParam === 'sales' ||
+    reportTabParam === 'combined'
       ? reportTabParam
       : 'snapshot'
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [fileName, setFileName] = useState(INITIAL_FILE_NAME)
+  const [salesTasks, setSalesTasks] = useState<TaskRow[]>([])
+  const [salesFileName, setSalesFileName] = useState('2026 Sales Production Report.xlsx')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [pivotRowGrouping, setPivotRowGrouping] = useState<PivotRowGrouping>('project')
   const [chartGroupBy, setChartGroupBy] = useState<ChartGroupBy>('project')
   const [selectedWeekendDates, setSelectedWeekendDates] = useState<Set<string>>(new Set())
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({})
+  const [salesManualOverrides, setSalesManualOverrides] = useState<Record<string, number>>({})
   const [isPivotCollapsed, setIsPivotCollapsed] = useState(true)
+  const [isSalesPivotCollapsed, setIsSalesPivotCollapsed] = useState(true)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
+  const [salesSelectedProjects, setSalesSelectedProjects] = useState<Set<string>>(new Set())
   const [resourceWeeklyCapacities, setResourceWeeklyCapacities] = useState<Record<string, number>>({})
   const [enabledResources, setEnabledResources] = useState<Record<string, boolean>>({})
+  const [salesEnabledResources, setSalesEnabledResources] = useState<Record<string, boolean>>({})
   const [weekendExtraByResource, setWeekendExtraByResource] = useState<Record<string, number>>({})
   const [projectsInitialized, setProjectsInitialized] = useState(false)
+  const [salesProjectsInitialized, setSalesProjectsInitialized] = useState(false)
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
   const [collapseResetToken, setCollapseResetToken] = useState(0)
+  const [salesCollapseResetToken, setSalesCollapseResetToken] = useState(0)
+  const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
+  const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
       return false
@@ -99,6 +113,7 @@ function App() {
   }, [])
 
   const resources = useMemo(() => uniqueSorted(tasks.map((task) => task.resourceName)), [tasks])
+  const salesResources = useMemo(() => uniqueSorted(salesTasks.map((task) => task.resourceName)), [salesTasks])
   const years = useMemo(() => getAvailableYears(tasks), [tasks])
 
   useEffect(() => {
@@ -147,6 +162,21 @@ function App() {
   }, [resources])
 
   useEffect(() => {
+    if (salesResources.length === 0) {
+      setSalesEnabledResources({})
+      return
+    }
+
+    setSalesEnabledResources((current) => {
+      const next: Record<string, boolean> = {}
+      for (const resource of salesResources) {
+        next[resource] = current[resource] !== false
+      }
+      return next
+    })
+  }, [salesResources])
+
+  useEffect(() => {
     if (resources.length === 0) {
       setResourceWeeklyCapacities({})
       return
@@ -176,10 +206,19 @@ function App() {
     [resources, enabledResources],
   )
   const enabledResourceSet = useMemo(() => new Set(enabledResourceList), [enabledResourceList])
+  const salesEnabledResourceList = useMemo(
+    () => salesResources.filter((resource) => salesEnabledResources[resource] !== false),
+    [salesResources, salesEnabledResources],
+  )
+  const salesEnabledResourceSet = useMemo(() => new Set(salesEnabledResourceList), [salesEnabledResourceList])
 
   const baseLayer = useMemo(
     () => buildBaseLeafCells(tasks, filters, selectedWeekendDates, enabledResourceSet),
     [tasks, filters, selectedWeekendDates, enabledResourceSet],
+  )
+  const salesBaseLayer = useMemo(
+    () => buildBaseLeafCells(salesTasks, filters, selectedWeekendDates, salesEnabledResourceSet),
+    [salesTasks, filters, selectedWeekendDates, salesEnabledResourceSet],
   )
   const availableProjects = useMemo(() => {
     const totals = new Map<string, number>()
@@ -191,6 +230,16 @@ function App() {
       .map(([project]) => project)
       .sort((a, b) => a.localeCompare(b))
   }, [baseLayer.leafCells])
+  const salesAvailableProjects = useMemo(() => {
+    const totals = new Map<string, number>()
+    salesBaseLayer.leafCells.forEach((cell) => {
+      totals.set(cell.project, (totals.get(cell.project) ?? 0) + cell.hours)
+    })
+    return [...totals.entries()]
+      .filter(([, hours]) => hours > 0)
+      .map(([project]) => project)
+      .sort((a, b) => a.localeCompare(b))
+  }, [salesBaseLayer.leafCells])
 
   useEffect(() => {
     if (availableProjects.length === 0) {
@@ -207,11 +256,32 @@ function App() {
 
     setSelectedProjects((current) => new Set([...current].filter((project) => availableProjects.includes(project))))
   }, [availableProjects, projectsInitialized])
+
+  useEffect(() => {
+    if (salesAvailableProjects.length === 0) {
+      setSalesSelectedProjects(new Set())
+      setSalesProjectsInitialized(false)
+      return
+    }
+
+    if (!salesProjectsInitialized) {
+      setSalesSelectedProjects(new Set(salesAvailableProjects))
+      setSalesProjectsInitialized(true)
+      return
+    }
+
+    setSalesSelectedProjects((current) => new Set([...current].filter((project) => salesAvailableProjects.includes(project))))
+  }, [salesAvailableProjects, salesProjectsInitialized])
   const selectedProjectsForCalc = useMemo(() => selectedProjects, [selectedProjects])
+  const salesSelectedProjectsForCalc = useMemo(() => salesSelectedProjects, [salesSelectedProjects])
 
   const { baseByKey, finalByKey } = useMemo(
     () => buildLeafValueMap(baseLayer.leafCells, manualOverrides, selectedProjectsForCalc),
     [baseLayer.leafCells, manualOverrides, selectedProjectsForCalc],
+  )
+  const { baseByKey: salesBaseByKey, finalByKey: salesFinalByKey } = useMemo(
+    () => buildLeafValueMap(salesBaseLayer.leafCells, salesManualOverrides, salesSelectedProjectsForCalc),
+    [salesBaseLayer.leafCells, salesManualOverrides, salesSelectedProjectsForCalc],
   )
 
   const weekendWeeks = useMemo(() => {
@@ -249,6 +319,10 @@ function App() {
     () => buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy),
     [finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy],
   )
+  const salesWeeklyBuckets = useMemo(
+    () => buildWeeklyBucketsFromLeaf(salesFinalByKey, salesBaseLayer.weekKeys, weekCapacities, chartGroupBy),
+    [salesFinalByKey, salesBaseLayer.weekKeys, weekCapacities, chartGroupBy],
+  )
 
   const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
   const monthlyCapacityTotal = useMemo(
@@ -257,10 +331,15 @@ function App() {
   )
 
   const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
+  const salesCategoryKeys = useMemo(() => computeCategoryKeys(salesWeeklyBuckets), [salesWeeklyBuckets])
 
   const pivotModel = useMemo(
     () => buildPivotModel(finalByKey, baseByKey, baseLayer.weekKeys, pivotRowGrouping),
     [finalByKey, baseByKey, baseLayer.weekKeys, pivotRowGrouping],
+  )
+  const salesPivotModel = useMemo(
+    () => buildPivotModel(salesFinalByKey, salesBaseByKey, salesBaseLayer.weekKeys, pivotRowGrouping),
+    [salesFinalByKey, salesBaseByKey, salesBaseLayer.weekKeys, pivotRowGrouping],
   )
 
   useEffect(() => {
@@ -276,6 +355,21 @@ function App() {
   const pivotWeekWindowLabel =
     visiblePivotWeekKeys.length > 0
       ? `${visiblePivotWeekKeys[0]} to ${visiblePivotWeekKeys[visiblePivotWeekKeys.length - 1]}`
+      : 'No weeks'
+
+  useEffect(() => {
+    setSalesPivotWeekStartIndex(0)
+  }, [salesBaseLayer.weekKeys, salesPivotWeekWindowSize])
+
+  const salesMaxPivotStartIndex = Math.max(0, salesBaseLayer.weekKeys.length - salesPivotWeekWindowSize)
+  const salesSafePivotStartIndex = Math.min(salesPivotWeekStartIndex, salesMaxPivotStartIndex)
+  const salesVisiblePivotWeekKeys = salesBaseLayer.weekKeys.slice(
+    salesSafePivotStartIndex,
+    salesSafePivotStartIndex + salesPivotWeekWindowSize,
+  )
+  const salesPivotWeekWindowLabel =
+    salesVisiblePivotWeekKeys.length > 0
+      ? `${salesVisiblePivotWeekKeys[0]} to ${salesVisiblePivotWeekKeys[salesVisiblePivotWeekKeys.length - 1]}`
       : 'No weeks'
 
   const totals = useMemo(() => {
@@ -358,6 +452,14 @@ function App() {
     Object.keys(manualOverrides).forEach((key) => keys.add(key))
     return [...keys]
   }, [baseLayer.leafCells, manualOverrides])
+  const salesLeafKeys = useMemo(() => {
+    const keys = new Set<string>()
+    salesBaseLayer.leafCells.forEach((cell) => {
+      keys.add([cell.project, cell.resource, cell.weekStartIso].join('\u0001'))
+    })
+    Object.keys(salesManualOverrides).forEach((key) => keys.add(key))
+    return [...keys]
+  }, [salesBaseLayer.leafCells, salesManualOverrides])
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0]
@@ -385,6 +487,34 @@ function App() {
       setCollapseResetToken((current) => current + 1)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
+    } finally {
+      setIsLoading(false)
+      event.target.value = ''
+    }
+  }
+
+  async function handleSalesUpload(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const parsed = parseSalesSpreadsheet(arrayBuffer)
+      setSalesTasks(parsed)
+      setSalesFileName(file.name)
+      setSalesManualOverrides({})
+      setSalesEnabledResources({})
+      setSalesSelectedProjects(new Set())
+      setSalesProjectsInitialized(false)
+      setIsSalesPivotCollapsed(true)
+      setSalesCollapseResetToken((current) => current + 1)
+    } catch {
+      setError('Failed to parse sales workbook. Please upload a valid Sales Production Report with the expected columns.')
     } finally {
       setIsLoading(false)
       event.target.value = ''
@@ -465,6 +595,65 @@ function App() {
     })
   }
 
+  function handleSalesPivotCellEdit(rowKey: string, weekStartIso: string, newValue: number): void {
+    if (!Number.isFinite(newValue) || newValue < 0) {
+      return
+    }
+
+    const matchingLeafKeys = editableLeafKeysForRowWeek(
+      rowKey,
+      weekStartIso,
+      pivotRowGrouping,
+      salesLeafKeys,
+      salesSelectedProjects,
+    )
+
+    const targetLeafKeys =
+      matchingLeafKeys.length > 0
+        ? matchingLeafKeys
+        : [makeSyntheticLeafKey(rowKey, weekStartIso, pivotRowGrouping, salesSelectedProjects)]
+
+    setSalesManualOverrides((current) => {
+      const next = { ...current }
+
+      const currentValues = targetLeafKeys.map((leafKey) => {
+        if (leafKey in current) {
+          return current[leafKey]
+        }
+        return salesBaseByKey[leafKey] ?? 0
+      })
+
+      const currentSum = currentValues.reduce((sum, value) => sum + value, 0)
+
+      if (targetLeafKeys.length === 1) {
+        next[targetLeafKeys[0]] = newValue
+        return next
+      }
+
+      if (currentSum <= 0) {
+        targetLeafKeys.forEach((leafKey, index) => {
+          next[leafKey] = index === 0 ? newValue : 0
+        })
+        return next
+      }
+
+      let assigned = 0
+      targetLeafKeys.forEach((leafKey, index) => {
+        if (index === targetLeafKeys.length - 1) {
+          next[leafKey] = Math.max(0, newValue - assigned)
+          return
+        }
+
+        const source = currentValues[index]
+        const allocated = (source / currentSum) * newValue
+        next[leafKey] = allocated
+        assigned += allocated
+      })
+
+      return next
+    })
+  }
+
   async function exportReportExcel(): Promise<void> {
     const dateStamp = format(new Date(), 'yyyy-MM-dd')
     const fileName = `capacity-report-${dateStamp}.xlsx`
@@ -498,6 +687,7 @@ function App() {
   function resetFilters(): void {
     setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year, resources: [] }))
     setSelectedProjects(new Set(availableProjects))
+    setSalesSelectedProjects(new Set(salesAvailableProjects))
     setSelectedWeekendDates(new Set())
     setEnabledResources(() => {
       const next: Record<string, boolean> = {}
@@ -512,9 +702,23 @@ function App() {
   function resetManualEdits(): void {
     setManualOverrides({})
   }
+  function resetSalesManualEdits(): void {
+    setSalesManualOverrides({})
+  }
 
   function handleToggleProject(project: string): void {
     setSelectedProjects((current) => {
+      const next = new Set(current)
+      if (next.has(project)) {
+        next.delete(project)
+      } else {
+        next.add(project)
+      }
+      return next
+    })
+  }
+  function handleToggleSalesProject(project: string): void {
+    setSalesSelectedProjects((current) => {
       const next = new Set(current)
       if (next.has(project)) {
         next.delete(project)
@@ -534,6 +738,10 @@ function App() {
   const overCapacityWeeks = useMemo(
     () => new Set(weeklyBuckets.filter((bucket) => bucket.overCapacity).map((bucket) => bucket.weekStartIso)),
     [weeklyBuckets],
+  )
+  const salesOverCapacityWeeks = useMemo(
+    () => new Set(salesWeeklyBuckets.filter((bucket) => bucket.overCapacity).map((bucket) => bucket.weekStartIso)),
+    [salesWeeklyBuckets],
   )
 
   const allResourcesVisible = resources.length > 0
@@ -596,6 +804,10 @@ function App() {
             <label className="upload-inline">
               Upload or Replace Workbook (.xlsx)
               <input type="file" accept=".xlsx" onChange={handleUpload} />
+            </label>
+            <label className="upload-inline">
+              Upload Sales Workbook (.xlsx)
+              <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
             </label>
             <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
               Lock
@@ -712,6 +924,9 @@ function App() {
             <strong>File:</strong> {fileName}
           </div>
           <div>
+            <strong>Sales File:</strong> {salesFileName}
+          </div>
+          <div>
             <strong>Parsed Rows:</strong> {tasks.length}
           </div>
           <div>
@@ -798,40 +1013,78 @@ function App() {
         <div className="panel status">No weekly forecast buckets match current filter and project toggle settings.</div>
       )}
 
-      {!isLoading && !error && weeklyBuckets.length > 0 && (
+      {!isLoading && !error && (weeklyBuckets.length > 0 || salesWeeklyBuckets.length > 0) && (
         <>
-          <PivotPlanningTable
-            model={pivotModel}
-            rowGrouping={pivotRowGrouping}
-            overCapacityWeeks={overCapacityWeeks}
-            visibleWeekKeys={visiblePivotWeekKeys}
-            weekWindowLabel={pivotWeekWindowLabel}
-            canPageBack={safePivotStartIndex > 0}
-            canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
-            onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
-            onPageForward={() =>
-              setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
-            }
-            weekWindowSize={pivotWeekWindowSize}
-            onWeekWindowSizeChange={(size) => {
-              if (!Number.isFinite(size) || size <= 0) {
-                return
+          {weeklyBuckets.length > 0 && (
+            <PivotPlanningTable
+              model={pivotModel}
+              rowGrouping={pivotRowGrouping}
+              overCapacityWeeks={overCapacityWeeks}
+              visibleWeekKeys={visiblePivotWeekKeys}
+              weekWindowLabel={pivotWeekWindowLabel}
+              canPageBack={safePivotStartIndex > 0}
+              canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
+              onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
+              onPageForward={() =>
+                setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
               }
-              setPivotWeekWindowSize(size)
-            }}
-            isCollapsed={isPivotCollapsed}
-            onToggleCollapsed={() => setIsPivotCollapsed((current) => !current)}
-            onEditCell={handlePivotCellEdit}
-            onResetEdits={resetManualEdits}
-          />
+              weekWindowSize={pivotWeekWindowSize}
+              onWeekWindowSizeChange={(size) => {
+                if (!Number.isFinite(size) || size <= 0) {
+                  return
+                }
+                setPivotWeekWindowSize(size)
+              }}
+              isCollapsed={isPivotCollapsed}
+              onToggleCollapsed={() => setIsPivotCollapsed((current) => !current)}
+              onEditCell={handlePivotCellEdit}
+              onResetEdits={resetManualEdits}
+            />
+          )}
+          {salesWeeklyBuckets.length > 0 && (
+            <PivotPlanningTable
+              key={`sales-pivot-${salesCollapseResetToken}`}
+              model={salesPivotModel}
+              rowGrouping={pivotRowGrouping}
+              overCapacityWeeks={salesOverCapacityWeeks}
+              visibleWeekKeys={salesVisiblePivotWeekKeys}
+              weekWindowLabel={salesPivotWeekWindowLabel}
+              canPageBack={salesSafePivotStartIndex > 0}
+              canPageForward={salesSafePivotStartIndex + salesPivotWeekWindowSize < salesBaseLayer.weekKeys.length}
+              onPageBack={() => setSalesPivotWeekStartIndex((current) => Math.max(0, current - salesPivotWeekWindowSize))}
+              onPageForward={() =>
+                setSalesPivotWeekStartIndex((current) =>
+                  Math.min(salesMaxPivotStartIndex, current + salesPivotWeekWindowSize),
+                )
+              }
+              weekWindowSize={salesPivotWeekWindowSize}
+              onWeekWindowSizeChange={(size) => {
+                if (!Number.isFinite(size) || size <= 0) {
+                  return
+                }
+                setSalesPivotWeekWindowSize(size)
+              }}
+              isCollapsed={isSalesPivotCollapsed}
+              onToggleCollapsed={() => setIsSalesPivotCollapsed((current) => !current)}
+              onEditCell={handleSalesPivotCellEdit}
+              onResetEdits={resetSalesManualEdits}
+              title="Sales Pivot Planning"
+              subtitle="Editable sales forecast planning grid using Sales Production Report data."
+            />
+          )}
           <ReportWorkspace
-            key={`report-workspace-${collapseResetToken}`}
+            key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
             weeklyBuckets={weeklyBuckets}
+            salesWeeklyBuckets={salesWeeklyBuckets}
             monthlyBuckets={monthlyBuckets}
             categoryKeys={categoryKeys}
+            salesCategoryKeys={salesCategoryKeys}
             projects={availableProjects}
+            salesProjects={salesAvailableProjects}
             selectedProjects={selectedProjects}
+            selectedSalesProjects={salesSelectedProjects}
             onToggleProject={handleToggleProject}
+            onToggleSalesProject={handleToggleSalesProject}
             summaryMetrics={summaryMetrics}
             reportContext={reportContext}
             initialTab={initialReportTab}

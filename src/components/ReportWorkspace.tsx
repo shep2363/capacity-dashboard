@@ -6,15 +6,20 @@ import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
 
-export type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary'
+export type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary' | 'sales' | 'combined'
 
 interface ReportWorkspaceProps {
   weeklyBuckets: WeeklyBucket[]
+  salesWeeklyBuckets: WeeklyBucket[]
   monthlyBuckets: MonthlyBucket[]
   categoryKeys: string[]
+  salesCategoryKeys: string[]
   projects: string[]
+  salesProjects: string[]
   selectedProjects: Set<string>
+  selectedSalesProjects: Set<string>
   onToggleProject: (project: string) => void
+  onToggleSalesProject: (project: string) => void
   summaryMetrics: SummaryMetric[]
   reportContext: string[]
   initialTab?: ReportTab
@@ -22,11 +27,16 @@ interface ReportWorkspaceProps {
 
 export function ReportWorkspace({
   weeklyBuckets,
+  salesWeeklyBuckets,
   monthlyBuckets,
   categoryKeys,
+  salesCategoryKeys,
   projects,
+  salesProjects,
   selectedProjects,
+  selectedSalesProjects,
   onToggleProject,
+  onToggleSalesProject,
   summaryMetrics,
   reportContext,
   initialTab = 'snapshot',
@@ -106,6 +116,20 @@ export function ReportWorkspace({
         >
           Summary
         </button>
+        <button
+          type="button"
+          className={activeReportTab === 'sales' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveReportTab('sales')}
+        >
+          Sales Forecast
+        </button>
+        <button
+          type="button"
+          className={activeReportTab === 'combined' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveReportTab('combined')}
+        >
+          Combined Charts
+        </button>
       </div>
 
       {activeReportTab === 'snapshot' && (
@@ -120,6 +144,51 @@ export function ReportWorkspace({
             projects={projects}
             selectedProjects={selectedProjects}
             onToggleProject={onToggleProject}
+          />
+        </div>
+      )}
+
+      {activeReportTab === 'sales' && (
+        <div className="report-tab-panel">
+          <div className="section-header">
+            <h2>Weekly Sales Forecast</h2>
+            <p>Stacked weekly sales forecast with capacity line using current filters and edits.</p>
+          </div>
+          <ForecastChart
+            weeklyBuckets={salesWeeklyBuckets}
+            categoryKeys={salesCategoryKeys}
+            projects={salesProjects}
+            selectedProjects={selectedSalesProjects}
+            onToggleProject={onToggleSalesProject}
+            title="Weekly Sales Forecast"
+            subtitle="Stacked weekly sales forecast hours with capacity overlay."
+          />
+        </div>
+      )}
+
+      {activeReportTab === 'combined' && (
+        <div className="report-tab-panel">
+          <div className="section-header">
+            <h2>Sales & Capacity</h2>
+            <p>View sales forecast alongside operational capacity for the current scope.</p>
+          </div>
+          <ForecastChart
+            weeklyBuckets={salesWeeklyBuckets}
+            categoryKeys={salesCategoryKeys}
+            projects={salesProjects}
+            selectedProjects={selectedSalesProjects}
+            onToggleProject={onToggleSalesProject}
+            title="Weekly Sales Forecast"
+            subtitle="Stacked sales forecast hours."
+          />
+          <ForecastChart
+            weeklyBuckets={weeklyBuckets}
+            categoryKeys={categoryKeys}
+            projects={projects}
+            selectedProjects={selectedProjects}
+            onToggleProject={onToggleProject}
+            title="Weekly Capacity Forecast"
+            subtitle="Operational capacity view."
           />
         </div>
       )}

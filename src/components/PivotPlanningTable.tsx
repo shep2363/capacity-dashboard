@@ -19,6 +19,8 @@ interface PivotPlanningTableProps {
   onToggleCollapsed: () => void
   onEditCell: (rowKey: string, weekStartIso: string, newValue: number) => void
   onResetEdits: () => void
+  title?: string
+  subtitle?: string
 }
 
 export function PivotPlanningTable({
@@ -37,6 +39,8 @@ export function PivotPlanningTable({
   onToggleCollapsed,
   onEditCell,
   onResetEdits,
+  title = 'Pivot Planning Table',
+  subtitle = 'Editable planning grid. Cell edits become the forecast source of truth.',
 }: PivotPlanningTableProps) {
   const [editingCell, setEditingCell] = useState<{ rowKey: string; weekStartIso: string } | null>(null)
   const [draftValue, setDraftValue] = useState('')
@@ -72,8 +76,10 @@ export function PivotPlanningTable({
     <section className="panel pivot-panel">
       <div className="section-header section-header-row">
         <div>
-          <h2>Pivot Planning Table</h2>
-          <p>Editable planning grid. Cell edits become the forecast source of truth. Showing {weekWindowLabel}.</p>
+          <h2>{title}</h2>
+          <p>
+            {subtitle} Showing {weekWindowLabel}.
+          </p>
         </div>
         <div className="section-actions">
           <label className="inline-field">
