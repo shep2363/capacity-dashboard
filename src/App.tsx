@@ -374,7 +374,8 @@ function App() {
         })
       }
 
-      const capacity = ops?.capacity ?? 0
+      // Use unified capacity map so the capacity line remains continuous across all weeks.
+      const capacity = weekCapacities[weekStartIso] ?? ops?.capacity ?? 0
       const totalHours = Object.values(groups).reduce((sum, value) => sum + value, 0)
       const variance = totalHours - capacity
       const status = getCapacityStatus(totalHours, capacity)
