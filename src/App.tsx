@@ -296,6 +296,16 @@ function App() {
     ]
   }, [fileName, filters.year, totals, selectedWeeklyCapacity, monthlyCapacityTotal, manualOverrides])
 
+  const reportContext = useMemo(
+    () => [
+      `Year: ${filters.year || 'All years'}`,
+      `Projects Selected: ${selectedProjects.size}/${availableProjects.length}`,
+      `Resources Enabled: ${enabledResourceList.length}`,
+      `Weeks in View: ${baseLayer.weekKeys.length}`,
+    ],
+    [filters.year, selectedProjects, availableProjects.length, enabledResourceList.length, baseLayer.weekKeys.length],
+  )
+
   useEffect(() => {
     if (import.meta.env.DEV) {
       const weeklyCapacitySum = weeklyBuckets.reduce((sum, bucket) => sum + bucket.capacity, 0)
@@ -759,6 +769,7 @@ function App() {
             selectedProjects={selectedProjects}
             onToggleProject={handleToggleProject}
             summaryMetrics={summaryMetrics}
+            reportContext={reportContext}
             initialTab={initialReportTab}
           />
         </>

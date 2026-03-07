@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { MonthlyBucket, WeeklyBucket } from '../types'
 import type { SummaryMetric } from '../utils/reportExport'
+import { exportReportElementToPdf } from '../utils/exportReportPdf'
 import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
@@ -15,6 +16,7 @@ interface ReportWorkspaceProps {
   selectedProjects: Set<string>
   onToggleProject: (project: string) => void
   summaryMetrics: SummaryMetric[]
+  reportContext: string[]
   initialTab?: ReportTab
 }
 
@@ -26,18 +28,49 @@ export function ReportWorkspace({
   selectedProjects,
   onToggleProject,
   summaryMetrics,
+  reportContext,
   initialTab = 'snapshot',
 }: ReportWorkspaceProps) {
+  const reportRef = useRef<HTMLElement>(null)
   const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab)
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [pdfError, setPdfError] = useState('')
+
+  async function handleExportPdf(): Promise<void> {
+    if (!reportRef.current) {
+      return
+    }
+
+    setIsExportingPdf(true)
+    setPdfError('')
+    try {
+      const dateStamp = new Date().toISOString().slice(0, 10)
+      await exportReportElementToPdf(reportRef.current, {
+        fileName: `capacity-report-${dateStamp}.pdf`,
+      })
+    } catch {
+      setPdfError('Unable to generate PDF. Please try again.')
+    } finally {
+      setIsExportingPdf(false)
+    }
+  }
 
   return (
-    <section className="panel report-workspace">
+    <section ref={reportRef} className="panel report-workspace">
       <div className="section-header section-header-row">
         <div>
           <h2>Report Workspace</h2>
           <p>Switch between snapshot, weekly, monthly, and summary views using the same live planning dataset.</p>
+          <div className="report-context">
+            {reportContext.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </div>
         </div>
         <div className="section-actions">
+          <button type="button" className="ghost-btn" disabled={isExportingPdf} onClick={() => void handleExportPdf()}>
+            {isExportingPdf ? 'Generating PDF...' : 'Export Report PDF'}
+          </button>
           <button type="button" className="ghost-btn" onClick={() => window.print()}>
             Print Report
           </button>
@@ -131,6 +164,8 @@ export function ReportWorkspace({
           </div>
         </div>
       )}
+
+      {pdfError && <p className="export-error">{pdfError}</p>}
     </section>
   )
 }
