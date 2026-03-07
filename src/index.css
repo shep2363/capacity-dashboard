@@ -288,6 +288,17 @@ p {
   max-width: 100%;
 }
 
+.weekend-control {
+  /* Shift the Working Weekends control right on desktop for clearer separation. */
+  margin-left: 96px;
+}
+
+@media (max-width: 1023px) {
+  .weekend-control {
+    margin-left: 0;
+  }
+}
+
 .multi-select {
   position: relative;
   display: flex;

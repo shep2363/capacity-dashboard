@@ -639,7 +639,7 @@ function App() {
             </select>
           </label>
 
-          <label>
+          <label className="weekend-control">
             Working Weekends
             <input
               type="date"
