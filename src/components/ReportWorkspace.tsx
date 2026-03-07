@@ -105,14 +105,14 @@ export function ReportWorkspace({
           className={activeReportTab === 'snapshot' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
           onClick={() => setActiveReportTab('snapshot')}
         >
-          Snapshot
+          Shop Forecast
         </button>
         <button
           type="button"
           className={activeReportTab === 'weekly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
           onClick={() => setActiveReportTab('weekly')}
         >
-          Shop Forecast
+          Weekly Forecast
         </button>
         <button
           type="button"
@@ -154,7 +154,7 @@ export function ReportWorkspace({
       {activeReportTab === 'snapshot' && (
         <div className="report-tab-panel">
           <div className="section-header">
-            <h2>Weekly Capacity Snapshot</h2>
+            <h2>Shop Forecast</h2>
             <p>Stacked weekly hours with capacity line using your current filters, capacities, and manual edits.</p>
           </div>
           <ForecastChart

@@ -49,7 +49,7 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
     <div className="panel table-panel">
       <div className="section-header section-header-row">
         <div>
-          <h2>Shop Forecast Table</h2>
+          <h2>Weekly Forecast Table</h2>
           <p>Each row compares plan weekly hours against total selected resource capacity.</p>
         </div>
         <div className="section-actions">
