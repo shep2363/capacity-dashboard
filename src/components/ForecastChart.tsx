@@ -96,6 +96,14 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
       return sum + (Number.isFinite(numeric) ? numeric : 0)
     }, 0)
 
+  const capacityEntry = payload.find((entry) => entry.dataKey === 'capacity')
+  const capacityRaw = Array.isArray(capacityEntry?.value) ? capacityEntry?.value[0] : capacityEntry?.value
+  const capacityHours =
+    typeof capacityRaw === 'number' ? capacityRaw : Number.isFinite(Number(capacityRaw)) ? Number(capacityRaw) : 0
+  const variance = totalProjectHours - capacityHours
+  const overCapacityHours = Math.max(variance, 0)
+  const underCapacityHours = Math.max(-variance, 0)
+
   return (
     <div
       style={{
@@ -119,6 +127,20 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
         }}
       >
         Total Project Hours: {totalProjectHours.toFixed(1)} h
+      </div>
+      <div style={{ display: 'grid', gap: 4, marginBottom: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#93c5fd' }}>Capacity</span>
+          <span>{capacityHours.toFixed(1)} h</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Over Capacity Hours</span>
+          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{overCapacityHours.toFixed(1)} h</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#22c55e', fontWeight: 700 }}>Under Capacity Hours</span>
+          <span style={{ color: '#22c55e', fontWeight: 700 }}>{underCapacityHours.toFixed(1)} h</span>
+        </div>
       </div>
       <div style={{ display: 'grid', gap: 4 }}>
         {payload.map((entry: TooltipEntry) => {
