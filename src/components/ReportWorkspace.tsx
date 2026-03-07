@@ -11,15 +11,20 @@ export type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary' | 'sales' 
 interface ReportWorkspaceProps {
   weeklyBuckets: WeeklyBucket[]
   salesWeeklyBuckets: WeeklyBucket[]
+  combinedWeeklyBuckets: WeeklyBucket[]
   monthlyBuckets: MonthlyBucket[]
   categoryKeys: string[]
   salesCategoryKeys: string[]
+  combinedCategoryKeys: string[]
   projects: string[]
   salesProjects: string[]
+  combinedProjects: string[]
   selectedProjects: Set<string>
   selectedSalesProjects: Set<string>
+  selectedCombinedProjects: Set<string>
   onToggleProject: (project: string) => void
   onToggleSalesProject: (project: string) => void
+  onToggleCombinedProject: (project: string) => void
   summaryMetrics: SummaryMetric[]
   reportContext: string[]
   initialTab?: ReportTab
@@ -28,15 +33,20 @@ interface ReportWorkspaceProps {
 export function ReportWorkspace({
   weeklyBuckets,
   salesWeeklyBuckets,
+  combinedWeeklyBuckets,
   monthlyBuckets,
   categoryKeys,
   salesCategoryKeys,
+  combinedCategoryKeys,
   projects,
   salesProjects,
+  combinedProjects,
   selectedProjects,
   selectedSalesProjects,
+  selectedCombinedProjects,
   onToggleProject,
   onToggleSalesProject,
+  onToggleCombinedProject,
   summaryMetrics,
   reportContext,
   initialTab = 'snapshot',
@@ -173,22 +183,13 @@ export function ReportWorkspace({
             <p>View sales forecast alongside operational capacity for the current scope.</p>
           </div>
           <ForecastChart
-            weeklyBuckets={salesWeeklyBuckets}
-            categoryKeys={salesCategoryKeys}
-            projects={salesProjects}
-            selectedProjects={selectedSalesProjects}
-            onToggleProject={onToggleSalesProject}
-            title="Weekly Sales Forecast"
-            subtitle="Stacked sales forecast hours."
-          />
-          <ForecastChart
-            weeklyBuckets={weeklyBuckets}
-            categoryKeys={categoryKeys}
-            projects={projects}
-            selectedProjects={selectedProjects}
-            onToggleProject={onToggleProject}
-            title="Weekly Capacity Forecast"
-            subtitle="Operational capacity view."
+            weeklyBuckets={combinedWeeklyBuckets}
+            categoryKeys={combinedCategoryKeys}
+            projects={combinedProjects}
+            selectedProjects={selectedCombinedProjects}
+            onToggleProject={onToggleCombinedProject}
+            title="Combined Weekly Forecast"
+            subtitle="Operational + Sales projects together with capacity overlay."
           />
         </div>
       )}

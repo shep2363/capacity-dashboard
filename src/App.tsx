@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { format, parseISO, startOfWeek } from 'date-fns'
+import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
@@ -16,7 +16,9 @@ import {
   computeCategoryKeys,
   editableLeafKeysForRowWeek,
   getAvailableYears,
+  getCapacityStatus,
   makeSyntheticLeafKey,
+  weekRangeLabel,
 } from './utils/planner'
 
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
@@ -240,6 +242,10 @@ function App() {
       .map(([project]) => project)
       .sort((a, b) => a.localeCompare(b))
   }, [salesBaseLayer.leafCells])
+  const combinedProjects = useMemo(
+    () => [...availableProjects, ...salesAvailableProjects.map((p) => `Sales - ${p}`)],
+    [availableProjects, salesAvailableProjects],
+  )
 
   useEffect(() => {
     if (availableProjects.length === 0) {
@@ -274,6 +280,11 @@ function App() {
   }, [salesAvailableProjects, salesProjectsInitialized])
   const selectedProjectsForCalc = useMemo(() => selectedProjects, [selectedProjects])
   const salesSelectedProjectsForCalc = useMemo(() => salesSelectedProjects, [salesSelectedProjects])
+  const combinedSelectedProjects = useMemo(() => {
+    const ops = [...selectedProjects].filter((p) => availableProjects.includes(p))
+    const sales = [...salesSelectedProjects].map((p) => `Sales - ${p}`)
+    return new Set<string>([...ops, ...sales])
+  }, [selectedProjects, salesSelectedProjects, availableProjects])
 
   const { baseByKey, finalByKey } = useMemo(
     () => buildLeafValueMap(baseLayer.leafCells, manualOverrides, selectedProjectsForCalc),
@@ -332,6 +343,51 @@ function App() {
 
   const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
   const salesCategoryKeys = useMemo(() => computeCategoryKeys(salesWeeklyBuckets), [salesWeeklyBuckets])
+  const combinedWeeklyBuckets = useMemo(() => {
+    const weekSet = new Set<string>()
+    weeklyBuckets.forEach((b) => weekSet.add(b.weekStartIso))
+    salesWeeklyBuckets.forEach((b) => weekSet.add(b.weekStartIso))
+    const sortedWeeks = [...weekSet].sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime())
+
+    const opsMap = new Map(weeklyBuckets.map((b) => [b.weekStartIso, b]))
+    const salesMap = new Map(salesWeeklyBuckets.map((b) => [b.weekStartIso, b]))
+
+    return sortedWeeks.map((weekStartIso) => {
+      const ops = opsMap.get(weekStartIso)
+      const sales = salesMap.get(weekStartIso)
+      const groups: Record<string, number> = {}
+
+      if (ops) {
+        Object.entries(ops.groups).forEach(([key, value]) => {
+          groups[key] = value
+        })
+      }
+      if (sales) {
+        Object.entries(sales.groups).forEach(([key, value]) => {
+          groups[`Sales - ${key}`] = value
+        })
+      }
+
+      const capacity = ops?.capacity ?? 0
+      const totalHours = Object.values(groups).reduce((sum, value) => sum + value, 0)
+      const variance = totalHours - capacity
+      const status = getCapacityStatus(totalHours, capacity)
+      const weekEndIso = ops?.weekEndIso ?? format(addDays(parseISO(weekStartIso), 4), 'yyyy-MM-dd')
+
+      return {
+        weekStartIso,
+        weekEndIso,
+        weekLabel: weekRangeLabel(weekStartIso),
+        totalHours,
+        capacity,
+        variance,
+        overCapacity: status === 'Over Capacity',
+        status,
+        groups,
+      }
+    })
+  }, [weeklyBuckets, salesWeeklyBuckets])
+  const combinedCategoryKeys = useMemo(() => computeCategoryKeys(combinedWeeklyBuckets), [combinedWeeklyBuckets])
 
   const pivotModel = useMemo(
     () => buildPivotModel(finalByKey, baseByKey, baseLayer.weekKeys, pivotRowGrouping),
@@ -728,6 +784,14 @@ function App() {
       return next
     })
   }
+  function handleToggleCombinedProject(project: string): void {
+    if (project.startsWith('Sales - ')) {
+      const raw = project.replace(/^Sales - /, '')
+      handleToggleSalesProject(raw)
+      return
+    }
+    handleToggleProject(project)
+  }
 
   function openChartInNewTab(): void {
     const url = new URL(window.location.href)
@@ -1072,18 +1136,23 @@ function App() {
               subtitle="Editable sales forecast planning grid using Sales Production Report data."
             />
           )}
-          <ReportWorkspace
-            key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
+            <ReportWorkspace
+              key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
             weeklyBuckets={weeklyBuckets}
+            combinedWeeklyBuckets={combinedWeeklyBuckets}
             salesWeeklyBuckets={salesWeeklyBuckets}
             monthlyBuckets={monthlyBuckets}
             categoryKeys={categoryKeys}
+            combinedCategoryKeys={combinedCategoryKeys}
             salesCategoryKeys={salesCategoryKeys}
             projects={availableProjects}
+            combinedProjects={combinedProjects}
             salesProjects={salesAvailableProjects}
             selectedProjects={selectedProjects}
+            selectedCombinedProjects={combinedSelectedProjects}
             selectedSalesProjects={salesSelectedProjects}
             onToggleProject={handleToggleProject}
+            onToggleCombinedProject={handleToggleCombinedProject}
             onToggleSalesProject={handleToggleSalesProject}
             summaryMetrics={summaryMetrics}
             reportContext={reportContext}
