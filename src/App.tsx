@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO, startOfWeek } from 'date-fns'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
-import { ReportWorkspace } from './components/ReportWorkspace'
+import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { parseSpreadsheet } from './utils/excel'
@@ -33,6 +33,12 @@ function uniqueSorted(values: string[]): string[] {
 }
 
 function App() {
+  const reportTabParam =
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('reportTab') : null
+  const initialReportTab: ReportTab =
+    reportTabParam === 'weekly' || reportTabParam === 'monthly' || reportTabParam === 'summary'
+      ? reportTabParam
+      : 'snapshot'
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [fileName, setFileName] = useState(INITIAL_FILE_NAME)
   const [isLoading, setIsLoading] = useState(false)
@@ -495,6 +501,12 @@ function App() {
     })
   }
 
+  function openChartInNewTab(): void {
+    const url = new URL(window.location.href)
+    url.searchParams.set('reportTab', 'snapshot')
+    window.open(url.toString(), '_blank', 'noopener,noreferrer')
+  }
+
   const overCapacityWeeks = useMemo(
     () => new Set(weeklyBuckets.filter((bucket) => bucket.overCapacity).map((bucket) => bucket.weekStartIso)),
     [weeklyBuckets],
@@ -643,6 +655,9 @@ function App() {
           <button type="button" className="ghost-btn" onClick={resetFilters}>
             Reset Filters
           </button>
+          <button type="button" className="ghost-btn" onClick={openChartInNewTab}>
+            Open Chart in New Tab
+          </button>
           <button type="button" onClick={() => void exportReportExcel()}>
             Export Report Excel
           </button>
@@ -744,6 +759,7 @@ function App() {
             selectedProjects={selectedProjects}
             onToggleProject={handleToggleProject}
             summaryMetrics={summaryMetrics}
+            initialTab={initialReportTab}
           />
         </>
       )}

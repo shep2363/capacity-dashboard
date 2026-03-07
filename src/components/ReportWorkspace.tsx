@@ -5,7 +5,7 @@ import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
 
-type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary'
+export type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary'
 
 interface ReportWorkspaceProps {
   weeklyBuckets: WeeklyBucket[]
@@ -15,6 +15,7 @@ interface ReportWorkspaceProps {
   selectedProjects: Set<string>
   onToggleProject: (project: string) => void
   summaryMetrics: SummaryMetric[]
+  initialTab?: ReportTab
 }
 
 export function ReportWorkspace({
@@ -25,8 +26,9 @@ export function ReportWorkspace({
   selectedProjects,
   onToggleProject,
   summaryMetrics,
+  initialTab = 'snapshot',
 }: ReportWorkspaceProps) {
-  const [activeReportTab, setActiveReportTab] = useState<ReportTab>('snapshot')
+  const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab)
 
   return (
     <section className="panel report-workspace">
