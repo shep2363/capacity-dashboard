@@ -43,30 +43,6 @@ p {
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
 }
 
-.report-snapshot {
-  padding: 1.35rem;
-  border-color: #334155;
-  background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
-}
-
-.report-chart-block .chart-panel {
-  margin-top: 0.6rem;
-  border-color: #334155;
-  box-shadow: none;
-}
-
-.report-tables-grid {
-  margin-top: 0.95rem;
-  display: grid;
-  gap: 0.9rem;
-  grid-template-columns: 1fr;
-}
-
-.report-tables-grid .table-panel {
-  border-color: #334155;
-  box-shadow: none;
-}
-
 .control-panel {
   min-height: 560px;
   padding: 1.55rem 1.6rem 1.4rem;
@@ -712,10 +688,6 @@ button.sortable {
   .controls-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .report-tables-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 640px) {
@@ -744,51 +716,5 @@ button.sortable {
 
   .pivot-table td input {
     width: 100%;
-  }
-}
-
-@media print {
-  :root {
-    color: #0f172a;
-    background: #ffffff;
-  }
-
-  body {
-    background: #ffffff;
-  }
-
-  .app-shell {
-    max-width: none;
-    padding: 0;
-    gap: 0.6rem;
-  }
-
-  .control-panel,
-  .summary-panel,
-  .resource-panel,
-  .pivot-panel,
-  .status {
-    display: none !important;
-  }
-
-  .report-snapshot,
-  .report-snapshot .panel {
-    break-inside: avoid;
-    page-break-inside: avoid;
-    background: #ffffff !important;
-    color: #0f172a;
-    box-shadow: none;
-    border-color: #cbd5e1;
-  }
-
-  .print-report-btn {
-    display: none !important;
-  }
-
-  th,
-  td,
-  .section-header p,
-  .chart-note {
-    color: #0f172a !important;
   }
 }
