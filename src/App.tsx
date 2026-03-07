@@ -24,6 +24,8 @@ import {
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
 const APP_LOCK_PASSWORD = '2431'
 const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
+const SALES_STORAGE_KEY = 'sales_tasks_v1'
+const SALES_META_KEY = 'sales_meta_v1'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1440,
   Assembly: 80,
@@ -84,6 +86,31 @@ function App() {
   const [passwordError, setPasswordError] = useState('')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
 
+  function persistSalesState(
+    tasksToStore: TaskRow[],
+    file: string,
+    overrides: Record<string, number>,
+    selected: Set<string>,
+    enabled: Record<string, boolean>,
+  ): void {
+    if (typeof window === 'undefined') return
+    const plainTasks = tasksToStore.map((t) => ({
+      ...t,
+      start: t.start.toISOString(),
+      finish: t.finish.toISOString(),
+    }))
+    window.sessionStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(plainTasks))
+    window.sessionStorage.setItem(
+      SALES_META_KEY,
+      JSON.stringify({
+        file,
+        overrides,
+        selected: [...selected],
+        enabled,
+      }),
+    )
+  }
+
   const [filters, setFilters] = useState<AppFilters>({
     dateFrom: '',
     dateTo: '',
@@ -113,6 +140,31 @@ function App() {
     }
 
     void loadInitialWorkbook()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const savedTasksRaw = window.sessionStorage.getItem(SALES_STORAGE_KEY)
+      const savedMetaRaw = window.sessionStorage.getItem(SALES_META_KEY)
+      if (!savedTasksRaw || !savedMetaRaw) {
+        return
+      }
+      const parsedTasks: TaskRow[] = JSON.parse(savedTasksRaw).map((t: any) => ({
+        ...t,
+        start: parseISO(t.start),
+        finish: parseISO(t.finish),
+      }))
+      const meta = JSON.parse(savedMetaRaw)
+      setSalesTasks(parsedTasks)
+      setSalesFileName(meta.file ?? salesFileName)
+      setSalesManualOverrides(meta.overrides ?? {})
+      setSalesSelectedProjects(new Set(meta.selected ?? []))
+      setSalesEnabledResources(meta.enabled ?? {})
+      setSalesProjectsInitialized(true)
+    } catch {
+      // Ignore session restore errors and start fresh
+    }
   }, [])
 
   const resources = useMemo(() => uniqueSorted(tasks.map((task) => task.resourceName)), [tasks])
@@ -399,6 +451,10 @@ function App() {
   }, [weeklyBuckets, salesWeeklyBuckets])
   const combinedCategoryKeys = useMemo(() => computeCategoryKeys(combinedWeeklyBuckets), [combinedWeeklyBuckets])
 
+  useEffect(() => {
+    persistSalesState(salesTasks, salesFileName, salesManualOverrides, salesSelectedProjects, salesEnabledResources)
+  }, [salesTasks, salesFileName, salesManualOverrides, salesSelectedProjects, salesEnabledResources])
+
   const pivotModel = useMemo(
     () => buildPivotModel(finalByKey, baseByKey, baseLayer.weekKeys, pivotRowGrouping),
     [finalByKey, baseByKey, baseLayer.weekKeys, pivotRowGrouping],
@@ -579,6 +635,7 @@ function App() {
       setSalesProjectsInitialized(false)
       setIsSalesPivotCollapsed(true)
       setSalesCollapseResetToken((current) => current + 1)
+      persistSalesState(parsed, file.name, {}, new Set(), {})
     } catch {
       setError('Failed to parse sales workbook. Please upload a valid Sales Production Report with the expected columns.')
     } finally {
