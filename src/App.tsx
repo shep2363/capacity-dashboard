@@ -306,8 +306,12 @@ function App() {
   }, [selectedWeekendDates])
 
   const weekCapacities = useMemo(() => {
+    const allWeeks = new Set<string>()
+    baseLayer.weekKeys.forEach((w) => allWeeks.add(w))
+    salesBaseLayer.weekKeys.forEach((w) => allWeeks.add(w))
+
     const map: Record<string, number> = {}
-    for (const weekIso of baseLayer.weekKeys) {
+    for (const weekIso of allWeeks) {
       let weeklyTotal = 0
       let weekendTotal = 0
       for (const resource of enabledResourceList) {
