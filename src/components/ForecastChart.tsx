@@ -70,7 +70,7 @@ function CompactLegend({
 
 export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedProjects, onToggleProject }: ForecastChartProps) {
   const Y_AXIS_STEP = 500
-  const DEFAULT_Y_AXIS_MAX = 3500
+  const MIN_Y_AXIS_MAX = 1000
 
   function buildYAxisTicks(maxValue: number): number[] {
     const ticks: number[] = []
@@ -124,7 +124,8 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
       const weekPeak = Math.max(Number(row.totalHours ?? 0), Number(row.capacity ?? 0))
       return Math.max(max, weekPeak)
     }, 0)
-    const boundedMax = Math.max(DEFAULT_Y_AXIS_MAX, Math.ceil(peak / Y_AXIS_STEP) * Y_AXIS_STEP)
+    const roundedPeak = Math.ceil(peak / Y_AXIS_STEP) * Y_AXIS_STEP
+    const boundedMax = Math.max(MIN_Y_AXIS_MAX, roundedPeak || 0)
 
     return {
       yAxisMax: boundedMax,
