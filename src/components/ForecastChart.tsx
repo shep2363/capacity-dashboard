@@ -169,7 +169,7 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
         <ResponsiveContainer width="100%" height={560}>
           <ComposedChart
             data={chartData}
-            margin={{ top: 22, right: 40, left: 22, bottom: 120 }}
+            margin={{ top: 20, right: 40, left: 22, bottom: 36 }}
             barCategoryGap="2%"
             barGap={0}
             barSize={barSize}
@@ -181,8 +181,8 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
               textAnchor="end"
               interval={0}
               minTickGap={0}
-              height={116}
-              tickMargin={10}
+              height={72}
+              tickMargin={8}
               tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
               axisLine={{ stroke: '#475569' }}
               tickLine={false}
