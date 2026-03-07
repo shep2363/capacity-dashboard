@@ -39,8 +39,10 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 - `src/utils/planner.ts`: planning data model, week aggregation, overrides
 - `src/utils/reportExport.ts`: client-side Excel export helpers (fallback path)
 - `src/utils/reportExportApi.ts`: backend chart-export API client
+- `api/export-report.py`: Vercel serverless API route for embedded chart export
 - `backend/export_api.py`: optional Python API for embedded Excel chart export
 - `backend/requirements.txt`: Python dependencies for export API
+- `requirements.txt`: Python dependencies for Vercel serverless API
 - `src/types.ts`: shared TypeScript models
 - `public/Hours_03-05-26.xlsx`: initial workbook used for development
 - `vercel.json`: Vercel build config
@@ -97,6 +99,14 @@ python backend/export_api.py
 4. In the dashboard, click `Export Report Excel`.
    - If API is running: exported workbook includes embedded chart in `Weekly Capacity Chart`.
    - If API is not running: app falls back to client-side export (chart data sheet without embedded chart object).
+
+## Embedded Chart Export on Public Deploy (Vercel)
+
+This repo includes `api/export-report.py`, so Vercel can host the chart-export API at the same domain:
+
+- `/api/export-report`
+
+After deploying to Vercel, `Export Report Excel` will call this hosted endpoint automatically and generate an Excel file with embedded chart from your public website.
 
 ## Deploying the App Publicly
 

@@ -19,7 +19,9 @@ function triggerDownload(blob: Blob, fileName: string): void {
 }
 
 export async function exportReportWorkbookWithChartApi(input: ExportWithChartApiInput): Promise<boolean> {
-  const apiUrl = import.meta.env.VITE_EXPORT_API_URL ?? 'http://127.0.0.1:8000/api/export-report'
+  const apiUrl =
+    import.meta.env.VITE_EXPORT_API_URL ??
+    (window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000/api/export-report' : '/api/export-report')
   const weeklyCapacityChartRows = input.weeklyBuckets.map((bucket) => [
     bucket.weekStartIso,
     bucket.weekEndIso,
