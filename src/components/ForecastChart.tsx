@@ -132,10 +132,10 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
       </div>
 
       <div className="chart-wrap">
-        <ResponsiveContainer width="100%" height={460}>
+        <ResponsiveContainer width="100%" height={560}>
           <ComposedChart
             data={chartData}
-            margin={{ top: 16, right: 20, left: 16, bottom: 112 }}
+            margin={{ top: 22, right: 24, left: 22, bottom: 120 }}
             barCategoryGap="2%"
             barGap={0}
             barSize={barSize}

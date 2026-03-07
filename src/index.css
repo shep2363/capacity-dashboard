@@ -429,7 +429,7 @@ button:disabled {
 
 .chart-wrap {
   width: 100%;
-  height: 470px;
+  height: 580px;
   border: 1px solid #1f2937;
   border-radius: 12px;
   background: linear-gradient(180deg, #0f172a 0%, #0b1322 100%);
@@ -770,7 +770,7 @@ button.sortable {
   }
 
   .chart-wrap {
-    height: 420px;
+    height: 520px;
   }
 }
 
@@ -786,7 +786,7 @@ button.sortable {
   }
 
   .chart-wrap {
-    height: 390px;
+    height: 460px;
   }
 
   .section-header h2 {
