@@ -200,17 +200,16 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
     return 30
   }, [chartData.length])
 
-  const { leftAxisMax, leftAxisTicks, rightAxisMax, rightAxisTicks } = useMemo(() => {
-    const leftPeak = chartData.reduce((max, row) => Math.max(max, Number(row.totalHours ?? 0)), 0)
-    const rightPeak = chartData.reduce((max, row) => Math.max(max, Number(row.capacity ?? 0)), 0)
-    const leftScale = buildAxisScale(leftPeak)
-    const rightScale = buildAxisScale(rightPeak)
+  const { axisMax, axisTicks } = useMemo(() => {
+    const peak = chartData.reduce(
+      (max, row) => Math.max(max, Number(row.totalHours ?? 0), Number(row.capacity ?? 0)),
+      0,
+    )
+    const scale = buildAxisScale(peak)
 
     return {
-      leftAxisMax: leftScale.max,
-      leftAxisTicks: leftScale.ticks,
-      rightAxisMax: rightScale.max,
-      rightAxisTicks: rightScale.ticks,
+      axisMax: scale.max,
+      axisTicks: scale.ticks,
     }
   }, [chartData])
 
@@ -241,7 +240,7 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
         <ResponsiveContainer width="100%" height={560}>
           <ComposedChart
             data={chartData}
-            margin={{ top: 20, right: 40, left: 22, bottom: 36 }}
+            margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
             barCategoryGap="2%"
             barGap={0}
             barSize={barSize}
@@ -260,24 +259,12 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
               tickLine={false}
             />
             <YAxis
-              yAxisId="left"
-              domain={[0, leftAxisMax]}
-              ticks={leftAxisTicks}
+              domain={[0, axisMax]}
+              ticks={axisTicks}
               tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
               tickFormatter={(value: number) => `${value}`}
               axisLine={false}
               tickLine={false}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              domain={[0, rightAxisMax]}
-              ticks={rightAxisTicks}
-              tick={{ fontSize: 13, fill: '#bfdbfe', fontWeight: 700 }}
-              tickFormatter={(value: number) => `${value}`}
-              axisLine={false}
-              tickLine={false}
-              width={56}
             />
             <Tooltip
               formatter={(value) => formatHours(value)}
@@ -288,7 +275,6 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
             {categoryOrder.map((category, index) => (
               <Bar
                 key={category}
-                yAxisId="left"
                 dataKey={category}
                 stackId="weekly"
                 fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
@@ -297,7 +283,6 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
             ))}
 
             <Line
-              yAxisId="right"
               type="monotone"
               dataKey="capacity"
               name="Capacity"
