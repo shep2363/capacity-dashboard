@@ -37,7 +37,10 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 - `src/components/MultiSelectProjects.tsx`: searchable multi-select project filter
 - `src/utils/excel.ts`: workbook parsing and column normalization
 - `src/utils/planner.ts`: planning data model, week aggregation, overrides
-- `src/utils/csv.ts`: CSV export helpers
+- `src/utils/reportExport.ts`: client-side Excel export helpers (fallback path)
+- `src/utils/reportExportApi.ts`: backend chart-export API client
+- `backend/export_api.py`: optional Python API for embedded Excel chart export
+- `backend/requirements.txt`: Python dependencies for export API
 - `src/types.ts`: shared TypeScript models
 - `public/Hours_03-05-26.xlsx`: initial workbook used for development
 - `vercel.json`: Vercel build config
@@ -70,6 +73,30 @@ npm run build
 ```bash
 npm run preview
 ```
+
+## Embedded Excel Chart Export (Optional Backend)
+
+The app can export with a real embedded Excel chart when the local Python export API is running.
+
+1. Install Python dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+2. Start the export API:
+
+```bash
+python backend/export_api.py
+```
+
+3. Keep it running at `http://127.0.0.1:8000`.
+
+4. In the dashboard, click `Export Report Excel`.
+   - If API is running: exported workbook includes embedded chart in `Weekly Capacity Chart`.
+   - If API is not running: app falls back to client-side export (chart data sheet without embedded chart object).
 
 ## Deploying the App Publicly
 
