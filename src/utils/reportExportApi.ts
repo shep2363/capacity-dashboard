@@ -48,24 +48,28 @@ export async function exportReportWorkbookWithChartApi(input: ExportWithChartApi
   ])
   const summaryRows = input.summary.map((item) => [item.metric, item.value])
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fileName: input.fileName,
-      chartCategoryKeys: input.chartCategoryKeys,
-      weeklyCapacityChartRows,
-      weeklyForecastRows,
-      monthlyForecastRows,
-      summaryRows,
-    }),
-  })
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: input.fileName,
+        chartCategoryKeys: input.chartCategoryKeys,
+        weeklyCapacityChartRows,
+        weeklyForecastRows,
+        monthlyForecastRows,
+        summaryRows,
+      }),
+    })
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return false
+    }
+
+    const blob = await response.blob()
+    triggerDownload(blob, input.fileName)
+    return true
+  } catch {
     return false
   }
-
-  const blob = await response.blob()
-  triggerDownload(blob, input.fileName)
-  return true
 }
