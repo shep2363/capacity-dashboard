@@ -56,7 +56,12 @@ export function ResourceCapacityTable({
           continue
         }
         const weekend = weekendExtraByResource[resource] ?? 0
-        next[resource] = Number.isFinite(weekend) ? String(weekend) : '0'
+        // Keep weekend contribution visually blank when value is zero.
+        if (!Number.isFinite(weekend) || weekend === 0) {
+          next[resource] = ''
+        } else {
+          next[resource] = String(weekend)
+        }
       }
       return next
     })
@@ -105,7 +110,7 @@ export function ResourceCapacityTable({
     onWeekendExtraChange(resource, committed)
     setDraftWeekendByResource((current) => ({
       ...current,
-      [resource]: committed === 0 ? (draft.trim() === '' ? '' : '0') : String(committed),
+      [resource]: committed === 0 ? '' : String(committed),
     }))
   }
 
@@ -122,7 +127,11 @@ export function ResourceCapacityTable({
       return
     }
     const value = weekendExtraByResource[resource] ?? 0
-    setDraftWeekendByResource((current) => ({ ...current, [resource]: String(Math.max(0, value)) }))
+    const normalized = Math.max(0, value)
+    setDraftWeekendByResource((current) => ({
+      ...current,
+      [resource]: normalized === 0 ? '' : String(normalized),
+    }))
   }
 
   return (
