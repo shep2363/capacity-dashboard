@@ -26,7 +26,7 @@ export function ResourceCapacityTable({
   weekendExtraByResource,
   onWeekendExtraChange,
 }: ResourceCapacityTableProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const [draftWeeklyByResource, setDraftWeeklyByResource] = useState<Record<string, string>>({})
   const [draftWeekendByResource, setDraftWeekendByResource] = useState<Record<string, string>>({})
 

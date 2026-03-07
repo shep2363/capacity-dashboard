@@ -47,7 +47,7 @@ function App() {
   const [chartGroupBy, setChartGroupBy] = useState<ChartGroupBy>('project')
   const [selectedWeekendDates, setSelectedWeekendDates] = useState<Set<string>>(new Set())
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({})
-  const [isPivotCollapsed, setIsPivotCollapsed] = useState(false)
+  const [isPivotCollapsed, setIsPivotCollapsed] = useState(true)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
   const [resourceWeeklyCapacities, setResourceWeeklyCapacities] = useState<Record<string, number>>({})
   const [enabledResources, setEnabledResources] = useState<Record<string, boolean>>({})
@@ -55,6 +55,7 @@ function App() {
   const [projectsInitialized, setProjectsInitialized] = useState(false)
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
+  const [collapseResetToken, setCollapseResetToken] = useState(0)
 
   const [filters, setFilters] = useState<AppFilters>({
     dateFrom: '',
@@ -369,6 +370,9 @@ function App() {
       setSelectedWeekendDates(new Set())
       setWeekendExtraByResource({})
       setProjectsInitialized(false)
+      // On new workbook upload, reset all collapsible panels back to collapsed.
+      setIsPivotCollapsed(true)
+      setCollapseResetToken((current) => current + 1)
     } catch {
       setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
     } finally {
@@ -714,6 +718,7 @@ function App() {
 
       {!isLoading && !error && allResourcesVisible && (
         <ResourceCapacityTable
+          key={`resource-capacity-${collapseResetToken}`}
           resources={resources}
           enabledResources={enabledResources}
           weeklyCapacitiesByResource={resourceWeeklyCapacities}
@@ -762,6 +767,7 @@ function App() {
             onResetEdits={resetManualEdits}
           />
           <ReportWorkspace
+            key={`report-workspace-${collapseResetToken}`}
             weeklyBuckets={weeklyBuckets}
             monthlyBuckets={monthlyBuckets}
             categoryKeys={categoryKeys}

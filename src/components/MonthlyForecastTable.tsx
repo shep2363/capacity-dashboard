@@ -20,7 +20,7 @@ function nextDirection(currentKey: SortKey, clickedKey: SortKey, currentDirectio
 export function MonthlyForecastTable({ monthlyBuckets }: MonthlyForecastTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('monthKey')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
 
   const sortedRows = useMemo(() => {
     return [...monthlyBuckets].sort((a, b) => {
