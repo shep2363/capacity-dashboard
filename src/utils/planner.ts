@@ -15,6 +15,7 @@ import {
 } from 'date-fns'
 import type {
   AppFilters,
+  CapacityStatus,
   ChartGroupBy,
   LeafCell,
   MonthlyBucket,
@@ -27,6 +28,22 @@ import type {
 const MANUAL_RESOURCE = '__Manual Resource'
 const MANUAL_PROJECT = '__Manual Project'
 const KEY_SEPARATOR = '\u0001'
+
+export function getCapacityStatus(forecastHours: number, capacityHours: number): CapacityStatus {
+  // Weekly capacity is the source of truth. Status tolerance is +/-10% of capacity.
+  // For zero-capacity weeks/months, only zero forecast counts as within capacity.
+  if (capacityHours === 0) {
+    return forecastHours === 0 ? 'Within Capacity' : 'Over Capacity'
+  }
+
+  const lowerBound = capacityHours * 0.9
+  const upperBound = capacityHours * 1.1
+  if (forecastHours >= lowerBound && forecastHours <= upperBound) {
+    return 'Within Capacity'
+  }
+
+  return forecastHours > upperBound ? 'Over Capacity' : 'Under Capacity'
+}
 
 export function isoFromDate(date: Date): string {
   return format(date, 'yyyy-MM-dd')
@@ -262,6 +279,7 @@ export function buildWeeklyBucketsFromLeaf(
     const hasActiveForecast = weekData.total > 0
     const capacity = hasActiveForecast ? (weekCapacities[weekStartIso] ?? 0) : 0
     const variance = weekData.total - capacity
+    const status = getCapacityStatus(weekData.total, capacity)
 
     return {
       weekStartIso,
@@ -270,7 +288,8 @@ export function buildWeeklyBucketsFromLeaf(
       totalHours: weekData.total,
       capacity,
       variance,
-      overCapacity: variance > 0,
+      overCapacity: status === 'Over Capacity',
+      status,
       groups: weekData.groups,
     }
   })
@@ -304,8 +323,9 @@ export function buildMonthlyBuckets(
       const planned = Math.round(data.planned)
       const capacity = Math.round(data.capacity)
       const variance = planned - capacity
-      const overCapacity = variance > 0
-      const underCapacity = variance < 0
+      const status = getCapacityStatus(planned, capacity)
+      const overCapacity = status === 'Over Capacity'
+      const underCapacity = status === 'Under Capacity'
 
       return {
         monthKey,
@@ -315,7 +335,7 @@ export function buildMonthlyBuckets(
         variance,
         overCapacity,
         underCapacity,
-        status: overCapacity ? 'Over Capacity' : underCapacity ? 'Under Capacity' : 'At Capacity',
+        status,
       }
     })
 }

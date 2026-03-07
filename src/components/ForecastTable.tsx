@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import type { WeeklyBucket } from '../types'
+import { getCapacityStatus } from '../utils/planner'
 
 type SortKey = 'weekStartIso' | 'totalHours' | 'capacity' | 'variance'
 type SortDirection = 'asc' | 'desc'
@@ -87,29 +88,27 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map((bucket) => (
-                <tr
-                  key={bucket.weekStartIso}
-                  className={clsx({
-                    'weekly-over-row': bucket.variance > 0,
-                    'weekly-under-row': bucket.variance < 0,
-                  })}
-                >
-                  <td>{bucket.weekLabel}</td>
-                  <td>{bucket.totalHours.toFixed(2)}</td>
-                  <td>{bucket.capacity.toFixed(2)}</td>
-                  <td className={bucket.variance !== 0 ? 'negative' : ''}>
-                    {bucket.variance.toFixed(2)}
-                  </td>
-                  <td>
-                    {bucket.variance > 0
-                      ? 'Over Capacity'
-                      : bucket.variance < 0
-                        ? 'Under Capacity'
-                        : 'At Capacity'}
-                  </td>
-                </tr>
-              ))}
+              {sortedRows.map((bucket) => {
+                const status = getCapacityStatus(bucket.totalHours, bucket.capacity)
+                return (
+                  <tr
+                    key={bucket.weekStartIso}
+                    className={clsx({
+                      'weekly-over-row': status === 'Over Capacity',
+                      'weekly-under-row': status === 'Under Capacity',
+                      'weekly-within-row': status === 'Within Capacity',
+                    })}
+                  >
+                    <td>{bucket.weekLabel}</td>
+                    <td>{bucket.totalHours.toFixed(2)}</td>
+                    <td>{bucket.capacity.toFixed(2)}</td>
+                    <td className={bucket.variance !== 0 ? 'negative' : ''}>
+                      {bucket.variance.toFixed(2)}
+                    </td>
+                    <td>{status}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

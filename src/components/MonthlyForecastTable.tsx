@@ -91,8 +91,9 @@ export function MonthlyForecastTable({ monthlyBuckets }: MonthlyForecastTablePro
                 <tr
                   key={bucket.monthKey}
                   className={clsx({
-                    'monthly-over-row': bucket.overCapacity,
-                    'monthly-under-row': bucket.underCapacity,
+                    'monthly-over-row': bucket.status === 'Over Capacity',
+                    'monthly-under-row': bucket.status === 'Under Capacity',
+                    'monthly-within-row': bucket.status === 'Within Capacity',
                   })}
                 >
                   <td>{bucket.monthLabel}</td>

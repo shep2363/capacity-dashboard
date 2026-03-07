@@ -1,5 +1,6 @@
 export type ChartGroupBy = 'project' | 'resource'
 export type PivotRowGrouping = 'project' | 'resource'
+export type CapacityStatus = 'Within Capacity' | 'Over Capacity' | 'Under Capacity'
 
 export interface TaskRow {
   id: string
@@ -26,6 +27,7 @@ export interface WeeklyBucket {
   capacity: number
   variance: number
   overCapacity: boolean
+  status: CapacityStatus
   groups: Record<string, number>
 }
 
@@ -37,7 +39,7 @@ export interface MonthlyBucket {
   variance: number
   overCapacity: boolean
   underCapacity: boolean
-  status: 'Over Capacity' | 'Under Capacity' | 'At Capacity'
+  status: CapacityStatus
 }
 
 export interface LeafCell {
