@@ -68,6 +68,78 @@ function CompactLegend({
   )
 }
 
+interface TooltipEntry {
+  name?: string | number
+  dataKey?: string | number
+  value?: number | string | Array<number | string>
+  color?: string
+  payload?: { weekRangeLabel?: string }
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: TooltipEntry[]
+  label?: string | number
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload || payload.length === 0) {
+    return null
+  }
+
+  const weekRangeLabel = String(payload[0]?.payload?.weekRangeLabel ?? label ?? '')
+  const totalProjectHours = payload
+    .filter((entry) => entry.dataKey !== 'capacity')
+    .reduce((sum: number, entry: TooltipEntry) => {
+      const value = Array.isArray(entry.value) ? entry.value[0] : entry.value
+      const numeric = typeof value === 'number' ? value : Number(value ?? 0)
+      return sum + (Number.isFinite(numeric) ? numeric : 0)
+    }, 0)
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: '1px solid #1f2937',
+        fontSize: '0.95rem',
+        backgroundColor: '#0f172a',
+        color: '#e5e7eb',
+        padding: '0.65rem 0.75rem',
+        minWidth: 210,
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>{weekRangeLabel}</div>
+      <div
+        style={{
+          fontWeight: 800,
+          borderTop: '1px solid #334155',
+          paddingTop: 6,
+          marginBottom: 6,
+          color: '#bfdbfe',
+        }}
+      >
+        Total Project Hours: {totalProjectHours.toFixed(1)} h
+      </div>
+      <div style={{ display: 'grid', gap: 4 }}>
+        {payload.map((entry: TooltipEntry) => {
+          const value = Array.isArray(entry.value) ? entry.value[0] : entry.value
+          const numeric = typeof value === 'number' ? value : Number(value ?? 0)
+          const safeValue = Number.isFinite(numeric) ? numeric : 0
+          return (
+            <div
+              key={`${String(entry.name)}-${String(entry.dataKey)}`}
+              style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
+            >
+              <span style={{ color: entry.color ?? '#e5e7eb' }}>{String(entry.name)}</span>
+              <span>{safeValue.toFixed(1)} h</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedProjects, onToggleProject }: ForecastChartProps) {
   const Y_AXIS_STEP = 500
   const MIN_Y_AXIS_MAX = 1000
@@ -209,15 +281,7 @@ export function ForecastChart({ weeklyBuckets, categoryKeys, projects, selectedP
             />
             <Tooltip
               formatter={(value) => formatHours(value)}
-              labelFormatter={(label: unknown, payload) => payload?.[0]?.payload?.weekRangeLabel ?? String(label ?? '')}
-              contentStyle={{
-                borderRadius: 12,
-                border: '1px solid #1f2937',
-                fontSize: '0.95rem',
-                backgroundColor: '#0f172a',
-                color: '#e5e7eb',
-              }}
-              labelStyle={{ fontWeight: 700, color: '#e5e7eb' }}
+              content={<CustomTooltip />}
             />
             <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
 
