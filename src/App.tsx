@@ -6,6 +6,7 @@ import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { parseSpreadsheet } from './utils/excel'
 import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
+import { exportReportWorkbookWithChartApi } from './utils/reportExportApi'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
@@ -434,9 +435,27 @@ function App() {
     })
   }
 
-  function exportReportExcel(): void {
+  async function exportReportExcel(): Promise<void> {
     const dateStamp = format(new Date(), 'yyyy-MM-dd')
     const fileName = `capacity-report-${dateStamp}.xlsx`
+
+    const exportedWithChart = await exportReportWorkbookWithChartApi({
+      weeklyBuckets,
+      monthlyBuckets,
+      chartCategoryKeys: categoryKeys,
+      summary: summaryMetrics,
+      fileName,
+    })
+
+    if (exportedWithChart) {
+      return
+    }
+
+    window.alert(
+      'Embedded chart export is unavailable. Start the local export API (python backend/export_api.py), then export again.',
+    )
+
+    // Optional fallback file (without embedded Excel chart object) so export still works.
     exportReportWorkbook({
       weeklyBuckets,
       monthlyBuckets,
@@ -624,7 +643,7 @@ function App() {
           <button type="button" className="ghost-btn" onClick={resetFilters}>
             Reset Filters
           </button>
-          <button type="button" onClick={exportReportExcel}>
+          <button type="button" onClick={() => void exportReportExcel()}>
             Export Report Excel
           </button>
         </div>
