@@ -30,14 +30,14 @@ const MANUAL_PROJECT = '__Manual Project'
 const KEY_SEPARATOR = '\u0001'
 
 export function getCapacityStatus(forecastHours: number, capacityHours: number): CapacityStatus {
-  // Weekly capacity is the source of truth. Status tolerance is +/-10% of capacity.
+  // Weekly capacity is the source of truth. Status tolerance is +/-5% of capacity.
   // For zero-capacity weeks/months, only zero forecast counts as within capacity.
   if (capacityHours === 0) {
     return forecastHours === 0 ? 'Within Capacity' : 'Over Capacity'
   }
 
-  const lowerBound = capacityHours * 0.9
-  const upperBound = capacityHours * 1.1
+  const lowerBound = capacityHours * 0.95
+  const upperBound = capacityHours * 1.05
   if (forecastHours >= lowerBound && forecastHours <= upperBound) {
     return 'Within Capacity'
   }
