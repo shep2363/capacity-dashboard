@@ -33,38 +33,26 @@ export function ResourceCapacityTable({
   const resourceSet = useMemo(() => new Set(resources), [resources])
 
   useEffect(() => {
-    setDraftWeeklyByResource((current) => {
-      const next: Record<string, string> = {}
-      for (const resource of resources) {
-        if (resource in current) {
-          next[resource] = current[resource]
-          continue
-        }
-        const weekly = weeklyCapacitiesByResource[resource] ?? 0
-        next[resource] = Number.isFinite(weekly) ? String(weekly) : '0'
-      }
-      return next
-    })
+    const next: Record<string, string> = {}
+    for (const resource of resources) {
+      const weekly = weeklyCapacitiesByResource[resource] ?? 0
+      next[resource] = Number.isFinite(weekly) ? String(weekly) : '0'
+    }
+    setDraftWeeklyByResource(next)
   }, [resources, weeklyCapacitiesByResource])
 
   useEffect(() => {
-    setDraftWeekendByResource((current) => {
-      const next: Record<string, string> = {}
-      for (const resource of resources) {
-        if (resource in current) {
-          next[resource] = current[resource]
-          continue
-        }
-        const weekend = weekendExtraByResource[resource] ?? 0
-        // Keep weekend contribution visually blank when value is zero.
-        if (!Number.isFinite(weekend) || weekend === 0) {
-          next[resource] = ''
-        } else {
-          next[resource] = String(weekend)
-        }
+    const next: Record<string, string> = {}
+    for (const resource of resources) {
+      const weekend = weekendExtraByResource[resource] ?? 0
+      // Keep weekend contribution visually blank when value is zero.
+      if (!Number.isFinite(weekend) || weekend === 0) {
+        next[resource] = ''
+      } else {
+        next[resource] = String(weekend)
       }
-      return next
-    })
+    }
+    setDraftWeekendByResource(next)
   }, [resources, weekendExtraByResource])
 
   function parseCommittedHours(draft: string): number {
