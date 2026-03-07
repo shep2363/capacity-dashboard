@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { format, parseISO, startOfWeek } from 'date-fns'
-import { ForecastChart } from './components/ForecastChart'
-import { ForecastTable } from './components/ForecastTable'
-import { MonthlyForecastTable } from './components/MonthlyForecastTable'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
+import { ReportWorkspace } from './components/ReportWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { parseSpreadsheet } from './utils/excel'
-import { exportReportWorkbook } from './utils/reportExport'
+import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
@@ -275,6 +273,22 @@ function App() {
     )
   }, [weeklyBuckets])
 
+  const summaryMetrics = useMemo<SummaryMetric[]>(() => {
+    const reportTimestamp = format(new Date(), 'yyyy-MM-dd HH:mm')
+    return [
+      { metric: 'File Name', value: fileName },
+      { metric: 'Selected Year', value: filters.year || 'All years' },
+      { metric: 'Total Forecast Hours', value: totals.hours.toFixed(2) },
+      { metric: 'Total Capacity Hours', value: totals.capacity.toFixed(2) },
+      { metric: 'Selected Weekly Capacity', value: selectedWeeklyCapacity.toFixed(2) },
+      { metric: 'Total Monthly Capacity', value: monthlyCapacityTotal.toFixed(2) },
+      { metric: 'Variance (Forecast - Capacity)', value: totals.variance.toFixed(2) },
+      { metric: 'Over-Capacity Weeks', value: totals.overCount },
+      { metric: 'Manual Overrides Count', value: Object.keys(manualOverrides).length },
+      { metric: 'Last Updated', value: reportTimestamp },
+    ]
+  }, [fileName, filters.year, totals, selectedWeeklyCapacity, monthlyCapacityTotal, manualOverrides])
+
   useEffect(() => {
     if (import.meta.env.DEV) {
       const weeklyCapacitySum = weeklyBuckets.reduce((sum, bucket) => sum + bucket.capacity, 0)
@@ -422,22 +436,17 @@ function App() {
 
   function exportReportExcel(): void {
     const dateStamp = format(new Date(), 'yyyy-MM-dd')
-    const timestamp = format(new Date(), 'yyyy-MM-dd HH:mm')
     exportReportWorkbook({
       weeklyBuckets,
       monthlyBuckets,
-      summary: [
+      snapshotSummary: [
         { metric: 'File Name', value: fileName },
         { metric: 'Selected Year', value: filters.year || 'All years' },
         { metric: 'Total Forecast Hours', value: totals.hours },
         { metric: 'Total Capacity Hours', value: totals.capacity },
-        { metric: 'Selected Weekly Capacity', value: selectedWeeklyCapacity },
-        { metric: 'Total Monthly Capacity', value: monthlyCapacityTotal },
-        { metric: 'Variance (Forecast - Capacity)', value: totals.variance },
         { metric: 'Over-Capacity Weeks', value: totals.overCount },
-        { metric: 'Manual Overrides Count', value: Object.keys(manualOverrides).length },
-        { metric: 'Export Timestamp', value: timestamp },
       ],
+      summary: summaryMetrics,
       fileName: `capacity-report-${dateStamp}.xlsx`,
     })
   }
@@ -713,30 +722,15 @@ function App() {
             onEditCell={handlePivotCellEdit}
             onResetEdits={resetManualEdits}
           />
-          <section className="panel unified-report">
-            <div className="section-header section-header-row">
-              <div>
-                <h2>Unified Capacity Report</h2>
-                <p>Weekly capacity chart and forecast tables in one report view driven by current planning data.</p>
-              </div>
-              <div className="section-actions">
-                <button type="button" className="ghost-btn" onClick={() => window.print()}>
-                  Print Report
-                </button>
-              </div>
-            </div>
-            <ForecastChart
-              weeklyBuckets={weeklyBuckets}
-              categoryKeys={categoryKeys}
-              projects={availableProjects}
-              selectedProjects={selectedProjects}
-              onToggleProject={handleToggleProject}
-            />
-            <div className="report-table-grid">
-              <ForecastTable weeklyBuckets={weeklyBuckets} />
-              <MonthlyForecastTable monthlyBuckets={monthlyBuckets} />
-            </div>
-          </section>
+          <ReportWorkspace
+            weeklyBuckets={weeklyBuckets}
+            monthlyBuckets={monthlyBuckets}
+            categoryKeys={categoryKeys}
+            projects={availableProjects}
+            selectedProjects={selectedProjects}
+            onToggleProject={handleToggleProject}
+            summaryMetrics={summaryMetrics}
+          />
         </>
       )}
 

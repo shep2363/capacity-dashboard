@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import type { MonthlyBucket, WeeklyBucket } from '../types'
 
-interface SummaryMetric {
+export interface SummaryMetric {
   metric: string
   value: string | number
 }
@@ -9,6 +9,7 @@ interface SummaryMetric {
 interface ExportReportWorkbookInput {
   weeklyBuckets: WeeklyBucket[]
   monthlyBuckets: MonthlyBucket[]
+  snapshotSummary: SummaryMetric[]
   summary: SummaryMetric[]
   fileName: string
 }
@@ -48,6 +49,18 @@ function setHeaderRowFeatures(sheet: XLSX.WorkSheet): void {
 
 export function exportReportWorkbook(input: ExportReportWorkbookInput): void {
   const workbook = XLSX.utils.book_new()
+
+  const snapshotSummaryRows: Array<Array<string | number>> = [
+    ['Metric', 'Value'],
+    ...input.snapshotSummary.map((item) => [
+      item.metric,
+      typeof item.value === 'number' ? normalizeNumber(item.value) : item.value,
+    ]),
+  ]
+  const snapshotSummarySheet = XLSX.utils.aoa_to_sheet(snapshotSummaryRows)
+  snapshotSummarySheet['!cols'] = autoWidth(snapshotSummaryRows)
+  setHeaderRowFeatures(snapshotSummarySheet)
+  XLSX.utils.book_append_sheet(workbook, snapshotSummarySheet, 'Snapshot Summary')
 
   const weeklyRows: Array<Array<string | number>> = [
     ['Week Start', 'Week End', 'Week Label', 'Forecast Hours', 'Capacity', 'Variance', 'Status'],
