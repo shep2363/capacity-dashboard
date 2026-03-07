@@ -4,8 +4,8 @@ import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportSnapshot } from './components/ReportSnapshot'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
-import { downloadCsv, weeklyBucketsToCsv } from './utils/csv'
 import { parseSpreadsheet } from './utils/excel'
+import { exportReportWorkbook } from './utils/reportExport'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
@@ -418,10 +418,26 @@ function App() {
     })
   }
 
-  function exportTableCsv(): void {
-    const csv = weeklyBucketsToCsv(weeklyBuckets)
+  function exportReportExcel(): void {
     const dateStamp = format(new Date(), 'yyyy-MM-dd')
-    downloadCsv(`weekly-forecast-${dateStamp}.csv`, csv)
+    const timestamp = format(new Date(), 'yyyy-MM-dd HH:mm')
+    exportReportWorkbook({
+      weeklyBuckets,
+      monthlyBuckets,
+      summary: [
+        { metric: 'File Name', value: fileName },
+        { metric: 'Selected Year', value: filters.year || 'All years' },
+        { metric: 'Total Forecast Hours', value: totals.hours },
+        { metric: 'Total Capacity Hours', value: totals.capacity },
+        { metric: 'Selected Weekly Capacity', value: selectedWeeklyCapacity },
+        { metric: 'Total Monthly Capacity', value: monthlyCapacityTotal },
+        { metric: 'Variance (Forecast - Capacity)', value: totals.variance },
+        { metric: 'Over-Capacity Weeks', value: totals.overCount },
+        { metric: 'Manual Overrides Count', value: Object.keys(manualOverrides).length },
+        { metric: 'Export Timestamp', value: timestamp },
+      ],
+      fileName: `capacity-report-${dateStamp}.xlsx`,
+    })
   }
 
   function resetFilters(): void {
@@ -590,8 +606,8 @@ function App() {
           <button type="button" className="ghost-btn" onClick={resetFilters}>
             Reset Filters
           </button>
-          <button type="button" onClick={exportTableCsv} disabled={weeklyBuckets.length === 0}>
-            Export Weekly CSV
+          <button type="button" onClick={exportReportExcel}>
+            Export Report Excel
           </button>
         </div>
       </header>
