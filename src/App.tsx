@@ -306,13 +306,16 @@ function App() {
     return set
   }, [selectedWeekendDates])
 
-  const weekCapacities = useMemo(() => {
-    const allWeeks = new Set<string>()
-    baseLayer.weekKeys.forEach((w) => allWeeks.add(w))
-    salesBaseLayer.weekKeys.forEach((w) => allWeeks.add(w))
+  const allWeekKeys = useMemo(() => {
+    const set = new Set<string>()
+    baseLayer.weekKeys.forEach((w) => set.add(w))
+    salesBaseLayer.weekKeys.forEach((w) => set.add(w))
+    return [...set].sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime())
+  }, [baseLayer.weekKeys, salesBaseLayer.weekKeys])
 
+  const weekCapacities = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const weekIso of allWeeks) {
+    for (const weekIso of allWeekKeys) {
       let weeklyTotal = 0
       let weekendTotal = 0
       for (const resource of enabledResourceList) {
@@ -324,7 +327,7 @@ function App() {
       map[weekIso] = weekendWeeks.has(weekIso) ? weeklyTotal + weekendTotal : weeklyTotal
     }
     return map
-  }, [baseLayer.weekKeys, enabledResourceList, resourceWeeklyCapacities, weekendExtraByResource, weekendWeeks])
+  }, [allWeekKeys, enabledResourceList, resourceWeeklyCapacities, weekendExtraByResource, weekendWeeks])
 
   const selectedWeeklyCapacity = useMemo(() => {
     if (baseLayer.weekKeys.length === 0) return 0
@@ -336,8 +339,8 @@ function App() {
     [finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy],
   )
   const salesWeeklyBuckets = useMemo(
-    () => buildWeeklyBucketsFromLeaf(salesFinalByKey, salesBaseLayer.weekKeys, weekCapacities, chartGroupBy),
-    [salesFinalByKey, salesBaseLayer.weekKeys, weekCapacities, chartGroupBy],
+    () => buildWeeklyBucketsFromLeaf(salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy),
+    [salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy],
   )
 
   const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
