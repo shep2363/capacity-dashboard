@@ -274,10 +274,8 @@ export function buildWeeklyBucketsFromLeaf(
     const weekStart = localDateFromIso(weekStartIso)
     const weekEnd = addDays(weekStart, 4)
     const weekData = perWeek.get(weekStartIso) ?? { total: 0, groups: {} }
-    // Capacity is counted only for active weeks (weeks with selected-project forecast > 0).
-    // This keeps weekly and monthly capacity aligned to the active planning scope.
-    const hasActiveForecast = weekData.total > 0
-    const capacity = hasActiveForecast ? (weekCapacities[weekStartIso] ?? 0) : 0
+    // Keep capacity numeric for every visible week so the chart line remains continuous.
+    const capacity = weekCapacities[weekStartIso] ?? 0
     const variance = weekData.total - capacity
     const status = getCapacityStatus(weekData.total, capacity)
 

@@ -138,8 +138,8 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
           <span style={{ color: '#f59e0b', fontWeight: 700 }}>{overCapacityHours.toFixed(1)} h</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ color: '#22c55e', fontWeight: 700 }}>Under Capacity Hours</span>
-          <span style={{ color: '#22c55e', fontWeight: 700 }}>{underCapacityHours.toFixed(1)} h</span>
+          <span style={{ color: '#ef4444', fontWeight: 700 }}>Under Capacity Hours</span>
+          <span style={{ color: '#ef4444', fontWeight: 700 }}>{underCapacityHours.toFixed(1)} h</span>
         </div>
       </div>
       <div style={{ display: 'grid', gap: 4 }}>

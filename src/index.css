@@ -35,6 +35,46 @@ p {
   gap: 1rem;
 }
 
+.lock-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.2rem;
+}
+
+.lock-card {
+  width: min(480px, 100%);
+  padding: 1.4rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.lock-card h1 {
+  font-size: 1.7rem;
+}
+
+.lock-card p {
+  color: #cbd5e1;
+}
+
+.lock-form {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.lock-form label {
+  font-size: 0.95rem;
+}
+
+.lock-form input {
+  width: 100%;
+}
+
+.lock-error {
+  color: #fca5a5 !important;
+  font-weight: 700;
+}
+
 .panel {
   background: #111827;
   border: 1px solid #1f2937;
@@ -146,6 +186,12 @@ p {
   flex-wrap: wrap;
 }
 
+.title-actions {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: end;
+}
+
 .title-stack {
   display: grid;
   gap: 0.45rem;
@@ -157,6 +203,10 @@ p {
   gap: 0.35rem;
   min-width: 260px;
   align-items: flex-start;
+}
+
+.lock-btn {
+  min-width: 120px;
 }
 
 .control-panel h1 {

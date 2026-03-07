@@ -20,6 +20,8 @@ import {
 } from './utils/planner'
 
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
+const APP_LOCK_PASSWORD = '2431'
+const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1440,
   Assembly: 80,
@@ -56,6 +58,14 @@ function App() {
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
   const [collapseResetToken, setCollapseResetToken] = useState(0)
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    return window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true'
+  })
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState('')
 
   const [filters, setFilters] = useState<AppFilters>({
     dateFrom: '',
@@ -370,7 +380,7 @@ function App() {
       setSelectedWeekendDates(new Set())
       setWeekendExtraByResource({})
       setProjectsInitialized(false)
-      // On new workbook upload, reset all collapsible panels back to collapsed.
+      // On new workbook upload, reset panel defaults (pivot/resource collapsed; forecast tables expanded by component default).
       setIsPivotCollapsed(true)
       setCollapseResetToken((current) => current + 1)
     } catch {
@@ -528,6 +538,49 @@ function App() {
 
   const allResourcesVisible = resources.length > 0
 
+  function handleUnlock(event: React.FormEvent<HTMLFormElement>): void {
+    event.preventDefault()
+    if (passwordInput === APP_LOCK_PASSWORD) {
+      setIsUnlocked(true)
+      setPasswordError('')
+      setPasswordInput('')
+      window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
+      return
+    }
+    setPasswordError('Incorrect password. Please try again.')
+  }
+
+  function handleLock(): void {
+    setIsUnlocked(false)
+    setPasswordInput('')
+    setPasswordError('')
+    window.sessionStorage.removeItem(APP_UNLOCK_SESSION_KEY)
+  }
+
+  if (!isUnlocked) {
+    return (
+      <div className="lock-screen">
+        <section className="panel lock-card">
+          <h1>Capacity Dashboard Locked</h1>
+          <p>Enter the access password to open the planning dashboard.</p>
+          <form className="lock-form" onSubmit={handleUnlock}>
+            <label htmlFor="dashboard-password">Password</label>
+            <input
+              id="dashboard-password"
+              type="password"
+              value={passwordInput}
+              onChange={(event) => setPasswordInput(event.target.value)}
+              autoFocus
+              autoComplete="current-password"
+            />
+            {passwordError && <p className="lock-error">{passwordError}</p>}
+            <button type="submit">Unlock Dashboard</button>
+          </form>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
       <header className="panel control-panel">
@@ -539,10 +592,15 @@ function App() {
               instantly.
             </p>
           </div>
-          <label className="upload-inline">
-            Upload or Replace Workbook (.xlsx)
-            <input type="file" accept=".xlsx" onChange={handleUpload} />
-          </label>
+          <div className="title-actions">
+            <label className="upload-inline">
+              Upload or Replace Workbook (.xlsx)
+              <input type="file" accept=".xlsx" onChange={handleUpload} />
+            </label>
+            <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
+              Lock
+            </button>
+          </div>
         </div>
 
         <div className="controls-grid">

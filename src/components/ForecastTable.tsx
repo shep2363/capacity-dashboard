@@ -21,7 +21,7 @@ function nextDirection(currentKey: SortKey, clickedKey: SortKey, currentDirectio
 export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('weekStartIso')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [isCollapsed, setIsCollapsed] = useState(true)
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
   const sortedRows = useMemo(() => {
     return [...weeklyBuckets].sort((a, b) => {
