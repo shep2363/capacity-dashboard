@@ -22,8 +22,8 @@ import {
 
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
-  Fabrication: 1400,
-  Assembly: 40,
+  Fabrication: 1440,
+  Assembly: 80,
   Processing: 280,
   Paint: 60,
   Shipping: 200,
