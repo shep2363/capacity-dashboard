@@ -174,7 +174,7 @@ export function ForecastChart({
   projects,
   selectedProjects,
   onToggleProject,
-  title = 'Weekly Capacity Forecast',
+  title,
   subtitle = 'Stacked weekly forecast hours with total capacity from selected resources.',
   hoveredProject = null,
   onHoverProject,
@@ -254,8 +254,8 @@ export function ForecastChart({
   return (
     <div className="panel chart-panel">
       <div className="section-header">
-        <h2>{title}</h2>
-        <p>{subtitle}</p>
+        {title ? <h2>{title}</h2> : null}
+        {subtitle ? <p>{subtitle}</p> : null}
         <div className="toggle-chips">
           {projects.map((project) => {
             const on = selectedProjects.has(project)
