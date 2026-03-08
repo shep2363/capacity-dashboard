@@ -395,15 +395,6 @@ function App() {
     [salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy],
   )
 
-  const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
-  const salesMonthlyBuckets = useMemo(() => buildMonthlyBuckets(salesWeeklyBuckets), [salesWeeklyBuckets])
-  const monthlyCapacityTotal = useMemo(
-    () => monthlyBuckets.reduce((sum, m) => sum + m.capacity, 0),
-    [monthlyBuckets],
-  )
-
-  const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
-  const salesCategoryKeys = useMemo(() => computeCategoryKeys(salesWeeklyBuckets), [salesWeeklyBuckets])
   const combinedWeeklyBuckets = useMemo(() => {
     const weekSet = new Set<string>()
     weeklyBuckets.forEach((b) => weekSet.add(b.weekStartIso))
@@ -449,6 +440,16 @@ function App() {
       }
     })
   }, [weeklyBuckets, salesWeeklyBuckets])
+  const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
+  const salesMonthlyBuckets = useMemo(() => buildMonthlyBuckets(salesWeeklyBuckets), [salesWeeklyBuckets])
+  const combinedMonthlyBuckets = useMemo(() => buildMonthlyBuckets(combinedWeeklyBuckets), [combinedWeeklyBuckets])
+  const monthlyCapacityTotal = useMemo(
+    () => monthlyBuckets.reduce((sum, m) => sum + m.capacity, 0),
+    [monthlyBuckets],
+  )
+
+  const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
+  const salesCategoryKeys = useMemo(() => computeCategoryKeys(salesWeeklyBuckets), [salesWeeklyBuckets])
   const combinedCategoryKeys = useMemo(() => computeCategoryKeys(combinedWeeklyBuckets), [combinedWeeklyBuckets])
 
   useEffect(() => {
@@ -1200,6 +1201,7 @@ function App() {
             combinedWeeklyBuckets={combinedWeeklyBuckets}
             salesWeeklyBuckets={salesWeeklyBuckets}
             salesMonthlyBuckets={salesMonthlyBuckets}
+            combinedMonthlyBuckets={combinedMonthlyBuckets}
             monthlyBuckets={monthlyBuckets}
             categoryKeys={categoryKeys}
             combinedCategoryKeys={combinedCategoryKeys}

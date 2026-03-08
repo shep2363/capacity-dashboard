@@ -6,7 +6,15 @@ import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
 
-export type ReportTab = 'snapshot' | 'weekly' | 'monthly' | 'summary' | 'sales' | 'combined' | 'sales-monthly'
+export type ReportTab =
+  | 'snapshot'
+  | 'weekly'
+  | 'monthly'
+  | 'summary'
+  | 'sales'
+  | 'combined'
+  | 'sales-monthly'
+  | 'combined-monthly'
 
 interface ReportWorkspaceProps {
   weeklyBuckets: WeeklyBucket[]
@@ -14,6 +22,7 @@ interface ReportWorkspaceProps {
   combinedWeeklyBuckets: WeeklyBucket[]
   monthlyBuckets: MonthlyBucket[]
   salesMonthlyBuckets: MonthlyBucket[]
+  combinedMonthlyBuckets: MonthlyBucket[]
   categoryKeys: string[]
   salesCategoryKeys: string[]
   combinedCategoryKeys: string[]
@@ -39,6 +48,7 @@ export function ReportWorkspace({
   combinedWeeklyBuckets,
   monthlyBuckets,
   salesMonthlyBuckets,
+  combinedMonthlyBuckets,
   categoryKeys,
   salesCategoryKeys,
   combinedCategoryKeys,
@@ -153,6 +163,13 @@ export function ReportWorkspace({
         >
           Sales Monthly Forecast
         </button>
+        <button
+          type="button"
+          className={activeReportTab === 'combined-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveReportTab('combined-monthly')}
+        >
+          Shop and Sales Monthly Forecast
+        </button>
       </div>
 
       {activeReportTab === 'snapshot' && (
@@ -228,6 +245,12 @@ export function ReportWorkspace({
       {activeReportTab === 'sales-monthly' && (
         <div className="report-tab-panel">
           <MonthlyForecastTable monthlyBuckets={salesMonthlyBuckets} />
+        </div>
+      )}
+
+      {activeReportTab === 'combined-monthly' && (
+        <div className="report-tab-panel">
+          <MonthlyForecastTable monthlyBuckets={combinedMonthlyBuckets} />
         </div>
       )}
 
