@@ -477,6 +477,10 @@ button:disabled {
   color: #f87171;
 }
 
+.warning {
+  color: #f59e0b;
+}
+
 .chart-wrap {
   width: 100%;
   height: 580px;

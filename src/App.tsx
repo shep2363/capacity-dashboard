@@ -1182,7 +1182,7 @@ function App() {
               </div>
               <div>
                 <span>Variance (Forecast - Capacity)</span>
-                <strong className={totals.variance > 0 ? 'negative' : 'positive'}>
+                <strong className={totals.variance < 0 ? 'negative' : 'warning'}>
                   {totals.variance.toFixed(2)}
                 </strong>
               </div>
