@@ -100,6 +100,7 @@ export function PivotPlanningTable({
     })
     return total
   }, [selectedCells, model.rows])
+  const selectedCount = selectedCells.size
 
   return (
     <section className="panel pivot-panel">
@@ -133,11 +134,27 @@ export function PivotPlanningTable({
           </button>
           <div className="inline-field" style={{ marginLeft: 12 }}>
             <span style={{ color: '#9ca3af', marginRight: 8 }}>Ctrl+click cells to total</span>
-            <strong>{selectedTotal.toFixed(2)}</strong>
-            <button type="button" className="ghost-btn" style={{ marginLeft: 8 }} onClick={clearSelection}>
-              Clear Selection
-            </button>
           </div>
+          {selectedCount > 0 && (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 10px',
+                borderRadius: 12,
+                background: '#0b1220',
+                border: '1px solid #38bdf8',
+                color: '#e5e7eb',
+              }}
+            >
+              <span>Selected: {selectedCount}</span>
+              <strong>{selectedTotal.toFixed(2)} hrs</strong>
+              <button type="button" className="ghost-btn" onClick={clearSelection}>
+                Clear
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -241,6 +258,14 @@ export function PivotPlanningTable({
                 ))}
                 <th>{model.grandTotal.toFixed(2)}</th>
               </tr>
+              {selectedCount > 0 && (
+                <tr>
+                  <th className="sticky-col">Selected Total</th>
+                  <th colSpan={visibleWeekKeys.length + 1} style={{ textAlign: 'left' }}>
+                    {selectedTotal.toFixed(2)} hrs across {selectedCount} cell{selectedCount === 1 ? '' : 's'}
+                  </th>
+                </tr>
+              )}
             </tfoot>
           </table>
         </div>
