@@ -38,6 +38,25 @@ const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Shipping: 200,
 }
 
+// Meeus/Jones/Butcher computus for Gregorian calendar to find Easter Sunday.
+const computeEasterSunday = (year: number): Date => {
+  const a = year % 19
+  const b = Math.floor(year / 100)
+  const c = year % 100
+  const d = Math.floor(b / 4)
+  const e = b % 4
+  const f = Math.floor((b + 8) / 25)
+  const g = Math.floor((b - f + 1) / 3)
+  const h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4)
+  const k = c % 4
+  const l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const month = Math.floor((h + l - 7 * m + 114) / 31) // 3 = March, 4 = April (1-based)
+  const day = ((h + l - 7 * m + 114) % 31) + 1
+  return new Date(year, month - 1, day)
+}
+
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b))
 }
@@ -492,8 +511,12 @@ function App() {
       const thirdMonday = offset + 14
       push(format(addDays(first, thirdMonday - 1), 'yyyy-MM-dd'), 'Family Day')
     }
-    // Good Friday approximation using known 2026? use simple rule: skip accurate calc, fallback none
-    // Skipped to avoid date calc complexity; add here if required.
+    // Good Friday (Friday before Easter Sunday)
+    {
+      const easter = computeEasterSunday(year)
+      const goodFriday = format(addDays(easter, -2), 'yyyy-MM-dd')
+      push(goodFriday, 'Good Friday')
+    }
     // Victoria Day: Monday preceding May 25
     {
       const may25 = parseISO(`${year}-05-25`)
