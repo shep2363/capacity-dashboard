@@ -132,14 +132,18 @@ function DepartmentPage({
     return result
   }, [tasks, resource, selectedProjects, selectedWeekendDates, filterYear, dateFrom, dateTo, resourceEnabled])
 
+  const projectFilteredRows = useMemo(() => {
+    if (projectFilter.length === 0) return rows
+    return rows.filter((row) => projectFilter.includes(row.project))
+  }, [rows, projectFilter])
+
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (projectFilter.length > 0 && !projectFilter.includes(row.project)) return false
+    return projectFilteredRows.filter((row) => {
       if (sequenceFilter.length > 0 && !sequenceFilter.includes(row.sequence)) return false
       if (weekFilter.length > 0 && !weekFilter.includes(row.weekStartIso)) return false
       return true
     })
-  }, [rows, projectFilter, sequenceFilter, weekFilter])
+  }, [projectFilteredRows, sequenceFilter, weekFilter])
 
   const grouped = useMemo(() => {
     const map = new Map<
@@ -165,10 +169,10 @@ function DepartmentPage({
 
   const weekOptions = useMemo(
     () =>
-      [...new Set(rows.map((r) => r.weekStartIso))]
+      [...new Set(projectFilteredRows.map((r) => r.weekStartIso))]
         .sort((a, b) => a.localeCompare(b))
         .map((iso) => ({ value: iso, label: weekRangeLabel(iso) })),
-    [rows],
+    [projectFilteredRows],
   )
   const projectOptions = useMemo(
     () =>
@@ -179,10 +183,10 @@ function DepartmentPage({
   )
   const sequenceOptions = useMemo(
     () =>
-      [...new Set(rows.map((r) => r.sequence))]
+      [...new Set(projectFilteredRows.map((r) => r.sequence))]
         .sort((a, b) => a.localeCompare(b))
         .map((sequence) => ({ value: sequence, label: sequence })),
-    [rows],
+    [projectFilteredRows],
   )
 
   const totalHours = filteredRows.reduce((sum, row) => sum + row.hours, 0)
