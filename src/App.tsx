@@ -160,9 +160,10 @@ function App() {
       setSalesTasks(parsedTasks)
       setSalesFileName(meta.file ?? salesFileName)
       setSalesManualOverrides(meta.overrides ?? {})
-      setSalesSelectedProjects(new Set(meta.selected ?? []))
+      // Always start with all projects visible on refresh; do not restore hidden selections.
+      setSalesSelectedProjects(new Set())
       setSalesEnabledResources(meta.enabled ?? {})
-      setSalesProjectsInitialized(true)
+      setSalesProjectsInitialized(false)
     } catch {
       // Ignore session restore errors and start fresh
     }
