@@ -160,6 +160,31 @@ export function PivotPlanningTable({
 
       {!isCollapsed && (
         <div className="pivot-wrap">
+          {selectedCount > 0 && (
+            <div
+              style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 2,
+                marginBottom: 8,
+                padding: '8px 12px',
+                borderRadius: 10,
+                background: '#0b1220',
+                border: '1px solid #38bdf8',
+                color: '#e5e7eb',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <strong>Selection</strong>
+              <span>{selectedCount} cell{selectedCount === 1 ? '' : 's'}</span>
+              <span>{selectedTotal.toFixed(2)} hrs</span>
+              <button type="button" className="ghost-btn" onClick={clearSelection}>
+                Clear
+              </button>
+            </div>
+          )}
           <table className="pivot-table">
             <thead>
               <tr>
@@ -191,7 +216,15 @@ export function PivotPlanningTable({
                           editing: isEditing,
                           selected: isSelected,
                         })}
-                        style={isSelected ? { outline: '2px solid #38bdf8', outlineOffset: '-2px' } : undefined}
+                        style={
+                          isSelected
+                            ? {
+                                outline: '2px solid #38bdf8',
+                                outlineOffset: '-2px',
+                                background: 'rgba(56, 189, 248, 0.18)',
+                              }
+                            : undefined
+                        }
                       >
                         {isEditing ? (
                           <input
