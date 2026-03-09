@@ -1241,6 +1241,12 @@ function App() {
               onChange={(event) => {
                 const iso = event.target.value
                 if (!iso) return
+                const day = parseISO(iso).getDay()
+                // Only allow Saturdays (6) or Sundays (0)
+                if (day !== 0 && day !== 6) {
+                  event.target.value = ''
+                  return
+                }
                 if (selectedWeekendDates.has(iso)) {
                   setSelectedWeekendDates((current) => {
                     const next = new Set(current)
