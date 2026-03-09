@@ -295,6 +295,30 @@ function App() {
     })
   }, [resources])
 
+  // Persist primary workbook state on any relevant change.
+  useEffect(() => {
+    if (tasks.length === 0) return
+    persistMainState(
+      tasks,
+      fileName,
+      manualOverrides,
+      enabledResources,
+      resourceWeeklyCapacities,
+      filters,
+      selectedWeekendDates,
+      weekendExtraByResource,
+    )
+  }, [
+    tasks,
+    fileName,
+    manualOverrides,
+    enabledResources,
+    resourceWeeklyCapacities,
+    filters,
+    selectedWeekendDates,
+    weekendExtraByResource,
+  ])
+
   useEffect(() => {
     if (salesResources.length === 0) {
       setSalesEnabledResources({})
