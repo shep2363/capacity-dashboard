@@ -12,16 +12,21 @@ import {
   YAxis,
 } from 'recharts'
 
+export interface KpiSet {
+  bookedYtd: number
+  capacityYtd: number
+  utilization: number
+  remaining: number
+  activeProjects: number
+  status: 'green' | 'yellow' | 'red'
+  label: string
+}
+
 export interface ExecutiveData {
-  kpis: {
-    bookedYtd: number
-    capacityYtd: number
-    utilization: number
-    remaining: number
-    activeProjects: number
-    status: 'green' | 'yellow' | 'red'
-  }
-  monthlyBuckets: MonthlyBucket[]
+  combinedKpis: KpiSet
+  opsKpis: KpiSet
+  salesKpis: KpiSet
+  monthlyComparison: Array<{ month: string; opsBooked: number; salesBooked: number; totalBooked: number; capacity: number }>
   quarterlySummary: Array<{ quarter: string; booked: number; capacity: number; utilization: number }>
   annual: { booked: number; capacity: number; utilization: number; status: 'Under Capacity' | 'Within Capacity' | 'Over Capacity' }
   riskMonths: Array<{ monthLabel: string; variance: number }>
@@ -53,13 +58,9 @@ const statusColors: Record<string, string> = {
 }
 
 export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
-  const { kpis, monthlyBuckets, quarterlySummary, annual, riskMonths, topProjects, utilizationTrend } = data
+  const { combinedKpis, opsKpis, salesKpis, monthlyComparison, quarterlySummary, annual, riskMonths, topProjects, utilizationTrend } = data
 
-  const monthlyChartData = monthlyBuckets.map((m) => ({
-    month: m.monthLabel,
-    booked: m.plannedHours,
-    capacity: m.capacity,
-  }))
+  const monthlyChartData = monthlyComparison
 
   const utilizationChartData = utilizationTrend.map((row) => ({
     month: row.monthLabel,
@@ -82,16 +83,16 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
         }}
       >
         {[
-          { label: 'Booked Hours (YTD)', value: kpis.bookedYtd, suffix: '', color: '#38bdf8' },
-          { label: 'Available Capacity (YTD)', value: kpis.capacityYtd, suffix: '', color: '#a855f7' },
+          { label: 'Booked Hours (YTD)', value: combinedKpis.bookedYtd, suffix: '', color: '#38bdf8' },
+          { label: 'Available Capacity (YTD)', value: combinedKpis.capacityYtd, suffix: '', color: '#a855f7' },
           {
             label: 'Utilization',
-            value: kpis.utilization * 100,
+            value: combinedKpis.utilization * 100,
             suffix: '%',
-            color: statusColors[kpis.status],
+            color: statusColors[combinedKpis.status],
           },
-          { label: 'Remaining Capacity', value: kpis.remaining, suffix: '', color: '#facc15' },
-          { label: 'Active Projects', value: kpis.activeProjects, suffix: '', color: '#22c55e' },
+          { label: 'Remaining Capacity', value: combinedKpis.remaining, suffix: '', color: '#facc15' },
+          { label: 'Active Projects', value: combinedKpis.activeProjects, suffix: '', color: '#22c55e' },
         ].map((card) => (
           <div
             key={card.label}
@@ -116,6 +117,39 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
         ))}
       </div>
 
+      <div
+        className="two-column"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}
+      >
+        {[opsKpis, salesKpis].map((kpi) => (
+          <div key={kpi.label} className="panel sub-panel" style={{ background: '#0b1220' }}>
+            <div className="section-header">
+              <h3>{kpi.label} (YTD)</h3>
+            </div>
+            <div className="annual-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+              <div>
+                <span>Booked</span>
+                <strong>{formatHours(kpi.bookedYtd)}</strong>
+              </div>
+              <div>
+                <span>Capacity</span>
+                <strong>{formatHours(kpi.capacityYtd)}</strong>
+              </div>
+              <div>
+                <span>Utilization</span>
+                <strong style={{ color: statusColors[statusLabel(kpi.utilization)] }}>
+                  {(kpi.utilization * 100).toFixed(1)}%
+                </strong>
+              </div>
+              <div>
+                <span>Remaining</span>
+                <strong>{formatHours(kpi.remaining)}</strong>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="two-column" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
         <div className="panel sub-panel" style={{ background: '#0b1220' }}>
           <div className="section-header">
@@ -129,8 +163,9 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
                 <YAxis stroke="#9ca3af" />
                 <Tooltip contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }} />
                 <Legend />
-                <Bar dataKey="booked" name="Booked Hours" fill="#38bdf8" />
-                <Bar dataKey="capacity" name="Capacity" fill="#a855f7" />
+                <Bar dataKey="opsBooked" name="Shop Booked" stackId="booked" fill="#38bdf8" />
+                <Bar dataKey="salesBooked" name="Sales Booked" stackId="booked" fill="#f472b6" />
+                <Line type="monotone" dataKey="capacity" name="Capacity" stroke="#a855f7" strokeWidth={3} dot={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>

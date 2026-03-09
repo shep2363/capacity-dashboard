@@ -589,27 +589,64 @@ function App() {
     return totals
   }, [finalByKey, baseLayer.weekKeys])
 
+  const salesProjectTotals = useMemo(() => {
+    const totals = new Map<string, number>()
+    const weekSet = new Set(salesBaseLayer.weekKeys)
+    Object.entries(salesFinalByKey).forEach(([leafKey, hours]) => {
+      if (!Number.isFinite(hours)) {
+        return
+      }
+      const { project, weekStartIso } = parseLeafKey(leafKey)
+      if (!weekSet.has(weekStartIso)) {
+        return
+      }
+      totals.set(project, (totals.get(project) ?? 0) + hours)
+    })
+    return totals
+  }, [salesFinalByKey, salesBaseLayer.weekKeys])
+
   const topProjects = useMemo(() => {
-    const entries = [...projectTotals.entries()].sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
-    const grandTotal = entries.reduce((sum, [, hours]) => sum + hours, 0)
-    return entries.slice(0, 5).map(([project, hours]) => ({
-      project,
-      hours,
-      percent: grandTotal > 0 ? (hours / grandTotal) * 100 : 0,
+    const combinedEntries: Array<{ project: string; hours: number }> = []
+    projectTotals.forEach((hours, project) => combinedEntries.push({ project, hours }))
+    salesProjectTotals.forEach((hours, project) => combinedEntries.push({ project: `Sales - ${project}`, hours }))
+    const sorted = combinedEntries.sort((a, b) => b.hours - a.hours)
+    const grandTotal = sorted.reduce((sum, item) => sum + item.hours, 0)
+    return sorted.slice(0, 5).map((item) => ({
+      project: item.project,
+      hours: item.hours,
+      percent: grandTotal > 0 ? (item.hours / grandTotal) * 100 : 0,
     }))
-  }, [projectTotals])
+  }, [projectTotals, salesProjectTotals])
 
   const executiveData = useMemo<ExecutiveData>(() => {
-    const bookedYtd = weeklyBuckets.reduce((sum, w) => sum + w.totalHours, 0)
-    const capacityYtd = weeklyBuckets.reduce((sum, w) => sum + w.capacity, 0)
-    const utilization = capacityYtd > 0 ? bookedYtd / capacityYtd : 0
-    const remaining = capacityYtd - bookedYtd
-    const activeProjects = projectTotals.size
-    const kpiStatus = utilization > 1 ? 'red' : utilization >= 0.9 ? 'yellow' : 'green'
+    function buildKpis(buckets: typeof weeklyBuckets, activeProjectsCount: number, label: string): KpiSet {
+      const bookedYtd = buckets.reduce((sum, w) => sum + w.totalHours, 0)
+      const capacityYtd = buckets.reduce((sum, w) => sum + w.capacity, 0)
+      const utilization = capacityYtd > 0 ? bookedYtd / capacityYtd : 0
+      const remaining = capacityYtd - bookedYtd
+      const status: KpiSet['status'] = utilization > 1 ? 'red' : utilization >= 0.9 ? 'yellow' : 'green'
+      return { bookedYtd, capacityYtd, utilization, remaining, activeProjects: activeProjectsCount, status, label }
+    }
+
+    const combinedKpis = buildKpis(combinedWeeklyBuckets, combinedCategoryKeys.length, 'Combined')
+    const opsKpis = buildKpis(weeklyBuckets, categoryKeys.length, 'Shop / Ops')
+    const salesKpis = buildKpis(salesWeeklyBuckets, salesCategoryKeys.length, 'Sales')
+
+    const monthlyComparison = combinedMonthlyBuckets.map((m, idx) => {
+      const ops = monthlyBuckets[idx]
+      const sales = salesMonthlyBuckets[idx]
+      return {
+        month: m.monthLabel,
+        opsBooked: ops?.plannedHours ?? 0,
+        salesBooked: sales?.plannedHours ?? 0,
+        totalBooked: m.plannedHours,
+        capacity: m.capacity,
+      }
+    })
 
     const quarterlySummary = (() => {
       const map = new Map<string, { booked: number; capacity: number }>()
-      monthlyBuckets.forEach((m) => {
+      combinedMonthlyBuckets.forEach((m) => {
         const monthDate = parseISO(`${m.monthKey}-01`)
         const quarter = `Q${Math.floor(monthDate.getMonth() / 3) + 1}`
         const entry = map.get(quarter) ?? { booked: 0, capacity: 0 }
@@ -627,32 +664,49 @@ function App() {
         }))
     })()
 
+    const bookedYtdCombined = combinedWeeklyBuckets.reduce((sum, w) => sum + w.totalHours, 0)
+    const capacityYtdCombined = combinedWeeklyBuckets.reduce((sum, w) => sum + w.capacity, 0)
+    const utilizationCombined = capacityYtdCombined > 0 ? bookedYtdCombined / capacityYtdCombined : 0
+
     const annual = {
-      booked: bookedYtd,
-      capacity: capacityYtd,
-      utilization,
-      status: getCapacityStatus(bookedYtd, capacityYtd),
+      booked: bookedYtdCombined,
+      capacity: capacityYtdCombined,
+      utilization: utilizationCombined,
+      status: getCapacityStatus(bookedYtdCombined, capacityYtdCombined),
     }
 
-    const riskMonths = monthlyBuckets
+    const riskMonths = combinedMonthlyBuckets
       .filter((m) => m.plannedHours > m.capacity)
       .map((m) => ({ monthLabel: m.monthLabel, variance: m.variance }))
 
-    const utilizationTrend = monthlyBuckets.map((m) => ({
+    const utilizationTrend = combinedMonthlyBuckets.map((m) => ({
       monthLabel: m.monthLabel,
       utilization: m.capacity > 0 ? m.plannedHours / m.capacity : 0,
     }))
 
     return {
-      kpis: { bookedYtd, capacityYtd, utilization, remaining, activeProjects, status: kpiStatus },
-      monthlyBuckets,
+      combinedKpis,
+      opsKpis,
+      salesKpis,
+      monthlyComparison,
       quarterlySummary,
       annual,
       riskMonths,
       topProjects,
       utilizationTrend,
     }
-  }, [weeklyBuckets, monthlyBuckets, projectTotals, topProjects])
+  }, [
+    combinedWeeklyBuckets,
+    weeklyBuckets,
+    salesWeeklyBuckets,
+    combinedMonthlyBuckets,
+    monthlyBuckets,
+    salesMonthlyBuckets,
+    combinedCategoryKeys.length,
+    categoryKeys.length,
+    salesCategoryKeys.length,
+    topProjects,
+  ])
 
   useEffect(() => {
     persistSalesState(salesTasks, salesFileName, salesManualOverrides, salesSelectedProjects, salesEnabledResources)
