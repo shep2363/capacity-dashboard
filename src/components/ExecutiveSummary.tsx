@@ -1,4 +1,3 @@
-import type { MonthlyBucket } from '../types'
 import {
   Bar,
   BarChart,
