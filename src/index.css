@@ -187,6 +187,7 @@ p {
   display: inline-flex;
   gap: 0.5rem;
   margin-bottom: 0.9rem;
+  flex-wrap: wrap;
 }
 
 .page-tab {
@@ -231,6 +232,195 @@ p {
 
 .chevron-closed {
   transform: rotate(-90deg);
+}
+
+.department-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.dept-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+}
+
+.dept-summary span {
+  color: #94a3b8;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.dept-summary strong {
+  color: #e2e8f0;
+  font-size: 1.15rem;
+}
+
+.dept-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+
+.dept-filters label {
+  display: grid;
+  gap: 0.25rem;
+  color: #cbd5e1;
+}
+
+.dept-filters select {
+  background: #0b1220;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+  padding: 0.45rem;
+  border-radius: 10px;
+  min-height: 120px;
+}
+
+.dept-week {
+  background: #0b1220;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.dept-week-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.dept-week-header h3 {
+  margin: 0;
+}
+
+.dept-week-header p {
+  margin: 0.1rem 0 0;
+  color: #94a3b8;
+}
+
+.dept-week-totals {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: end;
+}
+
+.dept-project-totals {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.project-chip {
+  color: #0b1220;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.dept-table {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.dept-table-header,
+.dept-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.1fr 0.8fr 1fr 0.9fr 0.9fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dept-table-header {
+  color: #a5b4fc;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-bottom: 1px solid #1f2937;
+  padding-bottom: 0.35rem;
+}
+
+.dept-row {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #0f172a;
+}
+
+.dept-row:last-child {
+  border-bottom: none;
+}
+
+.project-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.4rem;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.6);
+}
+
+.project-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.dept-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dept-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #0f172a;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #1f2937;
+}
+
+.dept-progress-fill {
+  height: 100%;
+  background: linear-gradient(120deg, #22d3ee, #2563eb);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.status-pill.status-completed {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.status-pill.status-in-progress {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+
+.status-pill.status-scheduled {
+  background: rgba(234, 179, 8, 0.2);
+  color: #fbbf24;
+}
+
+.status-pill.status-overdue {
+  background: rgba(248, 113, 113, 0.25);
+  color: #fca5a5;
 }
 
 .title-stack {

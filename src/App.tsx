@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { addDays, format, parseISO, startOfWeek } from 'date-fns'
+import DepartmentPage from './components/DepartmentPage'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
@@ -37,6 +38,27 @@ const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Paint: 60,
   Shipping: 200,
 }
+
+const PROJECT_COLOR_PALETTE = [
+  '#4f46e5',
+  '#0f766e',
+  '#f59e0b',
+  '#0284c7',
+  '#7c3aed',
+  '#16a34a',
+  '#9333ea',
+  '#be123c',
+  '#0ea5e9',
+  '#64748b',
+  '#ea580c',
+  '#047857',
+  '#3b82f6',
+  '#10b981',
+  '#e11d48',
+  '#c084fc',
+]
+
+type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping'
 
 // Meeus/Jones/Butcher computus for Gregorian calendar to find Easter Sunday.
 const computeEasterSunday = (year: number): Date => {
@@ -104,7 +126,7 @@ function App() {
   const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
-  const [activePage, setActivePage] = useState<'planning' | 'report'>('planning')
+  const [activePage, setActivePage] = useState<PageKey>('planning')
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
       return false
@@ -114,6 +136,15 @@ function App() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
+  const pageTabs: Array<{ key: PageKey; label: string }> = [
+    { key: 'planning', label: 'Planning' },
+    { key: 'report', label: 'Report Workspace' },
+    { key: 'processing', label: 'Processing' },
+    { key: 'fabrication', label: 'Fabrication' },
+    { key: 'assembly', label: 'Assembly' },
+    { key: 'paint', label: 'Paint' },
+    { key: 'shipping', label: 'Shipping' },
+  ]
 
   function persistSalesState(
     tasksToStore: TaskRow[],
@@ -423,6 +454,13 @@ function App() {
     () => [...availableProjects, ...salesAvailableProjects.map((p) => `Sales - ${p}`)],
     [availableProjects, salesAvailableProjects],
   )
+  const projectColors = useMemo(() => {
+    const map: Record<string, string> = {}
+    availableProjects.forEach((project, index) => {
+      map[project] = PROJECT_COLOR_PALETTE[index % PROJECT_COLOR_PALETTE.length]
+    })
+    return map
+  }, [availableProjects])
 
   useEffect(() => {
     if (availableProjects.length === 0) {
@@ -1305,20 +1343,16 @@ function App() {
   return (
     <div className="app-shell">
       <div className="page-nav">
-        <button
-          type="button"
-          className={activePage === 'planning' ? 'page-tab page-tab-active' : 'page-tab'}
-          onClick={() => setActivePage('planning')}
-        >
-          Planning
-        </button>
-        <button
-          type="button"
-          className={activePage === 'report' ? 'page-tab page-tab-active' : 'page-tab'}
-          onClick={() => setActivePage('report')}
-        >
-          Report Workspace
-        </button>
+        {pageTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            className={activePage === tab.key ? 'page-tab page-tab-active' : 'page-tab'}
+            onClick={() => setActivePage(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {activePage === 'planning' && (
@@ -1628,6 +1662,62 @@ function App() {
             <div className="panel status">No resources available in the current data scope.</div>
           )}
         </>
+      )}
+
+      {activePage === 'processing' && (
+        <DepartmentPage
+          resource="Processing"
+          tasks={tasks}
+          filters={filters}
+          selectedProjects={selectedProjects}
+          selectedWeekendDates={selectedWeekendDates}
+          projectColors={projectColors}
+          resourceEnabled={enabledResources['Processing'] !== false}
+        />
+      )}
+      {activePage === 'fabrication' && (
+        <DepartmentPage
+          resource="Fabrication"
+          tasks={tasks}
+          filters={filters}
+          selectedProjects={selectedProjects}
+          selectedWeekendDates={selectedWeekendDates}
+          projectColors={projectColors}
+          resourceEnabled={enabledResources['Fabrication'] !== false}
+        />
+      )}
+      {activePage === 'assembly' && (
+        <DepartmentPage
+          resource="Assembly"
+          tasks={tasks}
+          filters={filters}
+          selectedProjects={selectedProjects}
+          selectedWeekendDates={selectedWeekendDates}
+          projectColors={projectColors}
+          resourceEnabled={enabledResources['Assembly'] !== false}
+        />
+      )}
+      {activePage === 'paint' && (
+        <DepartmentPage
+          resource="Paint"
+          tasks={tasks}
+          filters={filters}
+          selectedProjects={selectedProjects}
+          selectedWeekendDates={selectedWeekendDates}
+          projectColors={projectColors}
+          resourceEnabled={enabledResources['Paint'] !== false}
+        />
+      )}
+      {activePage === 'shipping' && (
+        <DepartmentPage
+          resource="Shipping"
+          tasks={tasks}
+          filters={filters}
+          selectedProjects={selectedProjects}
+          selectedWeekendDates={selectedWeekendDates}
+          projectColors={projectColors}
+          resourceEnabled={enabledResources['Shipping'] !== false}
+        />
       )}
 
       {activePage === 'report' && (
