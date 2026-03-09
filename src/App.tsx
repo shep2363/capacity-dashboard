@@ -84,6 +84,7 @@ function App() {
   const [salesCollapseResetToken, setSalesCollapseResetToken] = useState(0)
   const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
       return false
@@ -1300,9 +1301,19 @@ function App() {
             <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
               Lock
             </button>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => setIsHeaderCollapsed((current) => !current)}
+              aria-expanded={!isHeaderCollapsed}
+            >
+              {isHeaderCollapsed ? 'Expand Controls' : 'Collapse Controls'}
+            </button>
           </div>
         </div>
 
+        {!isHeaderCollapsed && (
+          <>
         <div className="controls-grid">
 
           <label>
@@ -1440,6 +1451,8 @@ function App() {
             Export Report Excel
           </button>
         </div>
+          </>
+        )}
       </header>
 
       {!isLoading && !error && allResourcesVisible && (
