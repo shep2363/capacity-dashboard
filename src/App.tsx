@@ -508,41 +508,46 @@ function App() {
     const opsMap = new Map(weeklyBuckets.map((b) => [b.weekStartIso, b]))
     const salesMap = new Map(salesWeeklyBuckets.map((b) => [b.weekStartIso, b]))
 
-    return sortedWeeks.map((weekStartIso) => {
-      const ops = opsMap.get(weekStartIso)
-      const sales = salesMap.get(weekStartIso)
-      const groups: Record<string, number> = {}
+      return sortedWeeks.map((weekStartIso) => {
+        const ops = opsMap.get(weekStartIso)
+        const sales = salesMap.get(weekStartIso)
+        const groups: Record<string, number> = {}
 
-      if (ops) {
-        Object.entries(ops.groups).forEach(([key, value]) => {
-          groups[key] = value
-        })
-      }
-      if (sales) {
-        Object.entries(sales.groups).forEach(([key, value]) => {
-          groups[`Sales - ${key}`] = value
-        })
-      }
+        if (ops) {
+          Object.entries(ops.groups).forEach(([key, value]) => {
+            groups[key] = value
+          })
+        }
+        if (sales) {
+          Object.entries(sales.groups).forEach(([key, value]) => {
+            groups[`Sales - ${key}`] = value
+          })
+        }
 
-      // Use unified capacity map so the capacity line remains continuous across all weeks.
-      const capacity = weekCapacities[weekStartIso] ?? ops?.capacity ?? 0
-      const totalHours = Object.values(groups).reduce((sum, value) => sum + value, 0)
-      const variance = totalHours - capacity
-      const status = getCapacityStatus(totalHours, capacity)
-      const weekEndIso = ops?.weekEndIso ?? format(addDays(parseISO(weekStartIso), 4), 'yyyy-MM-dd')
+        // Use unified capacity map so the capacity line remains continuous across all weeks.
+        const capacity = weekCapacities[weekStartIso] ?? ops?.capacity ?? 0
+        const totalHours = Object.values(groups).reduce((sum, value) => sum + value, 0)
+        const variance = totalHours - capacity
+        const status = getCapacityStatus(totalHours, capacity)
+        const weekEndIso = ops?.weekEndIso ?? format(addDays(parseISO(weekStartIso), 4), 'yyyy-MM-dd')
+        const holidayDetails = [
+          ...(ops?.holidayDetails ?? []),
+          ...(sales?.holidayDetails ?? []),
+        ]
 
-      return {
-        weekStartIso,
-        weekEndIso,
-        weekLabel: weekRangeLabel(weekStartIso),
-        totalHours,
-        capacity,
-        variance,
-        overCapacity: status === 'Over Capacity',
-        status,
-        groups,
-      }
-    })
+        return {
+          weekStartIso,
+          weekEndIso,
+          weekLabel: weekRangeLabel(weekStartIso),
+          totalHours,
+          capacity,
+          variance,
+          overCapacity: status === 'Over Capacity',
+          status,
+          groups,
+          holidayDetails,
+        }
+      })
   }, [weeklyBuckets, salesWeeklyBuckets])
   const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
   const salesMonthlyBuckets = useMemo(() => buildMonthlyBuckets(salesWeeklyBuckets), [salesWeeklyBuckets])

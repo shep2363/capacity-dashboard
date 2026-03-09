@@ -232,7 +232,7 @@ export function ForecastChart({
     overCapacity: bucket.overCapacity,
     holidayTooltip:
       bucket.holidayDetails && bucket.holidayDetails.length > 0
-        ? bucket.holidayDetails.map((h) => `${h.name} — ${h.date}`).join('\n')
+        ? bucket.holidayDetails.map((h) => `${h.name} - ${h.date}`).join('\n')
         : '',
     ...bucket.groups,
   }))
