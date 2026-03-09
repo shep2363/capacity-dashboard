@@ -85,6 +85,7 @@ function App() {
   const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
+  const [activePage, setActivePage] = useState<'planning' | 'report'>('planning')
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
       return false
@@ -1280,341 +1281,370 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header className={`panel control-panel ${isHeaderCollapsed ? 'collapsed' : ''}`}>
-        <div className="title-bar">
-          <div className="title-stack">
-            <h1>Production Capacity Planning Dashboard</h1>
-            <p className="subtitle">
-              Import forecast data, edit weekly hours in the planning pivot, and watch chart/table/capacity metrics update
-              instantly.
-            </p>
-          </div>
-          <div className="title-actions">
-            <label className="upload-inline">
-              Upload or Replace Workbook (.xlsx)
-              <input type="file" accept=".xlsx" onChange={handleUpload} />
-            </label>
-            <label className="upload-inline">
-              Upload Sales Workbook (.xlsx)
-              <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
-            </label>
-            <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
-              Lock
-            </button>
-            <button
-              type="button"
-              className="ghost-btn collapse-toggle"
-              onClick={() => setIsHeaderCollapsed((current) => !current)}
-              aria-expanded={!isHeaderCollapsed}
-            >
-              <span className={`chevron ${isHeaderCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
-                ▾
-              </span>
-              {isHeaderCollapsed ? 'Show Filters' : 'Hide Filters'}
-            </button>
-          </div>
-        </div>
+      <div className="page-nav">
+        <button
+          type="button"
+          className={activePage === 'planning' ? 'page-tab page-tab-active' : 'page-tab'}
+          onClick={() => setActivePage('planning')}
+        >
+          Planning
+        </button>
+        <button
+          type="button"
+          className={activePage === 'report' ? 'page-tab page-tab-active' : 'page-tab'}
+          onClick={() => setActivePage('report')}
+        >
+          Report Workspace
+        </button>
+      </div>
 
-        {!isHeaderCollapsed && (
-          <>
-        <div className="controls-grid">
-
-          <label>
-            Planning Rows
-            <select
-              value={pivotRowGrouping}
-              onChange={(event) => setPivotRowGrouping(event.target.value as PivotRowGrouping)}
-            >
-              <option value="project">Project</option>
-              <option value="resource">Resource</option>
-            </select>
-          </label>
-
-          <label>
-            Chart Stacking
-            <select value={chartGroupBy} onChange={(event) => setChartGroupBy(event.target.value as ChartGroupBy)}>
-              <option value="project">Project</option>
-              <option value="resource">Resource</option>
-            </select>
-          </label>
-
-          <label>
-            Year
-            <select
-              value={filters.year}
-              onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}
-            >
-              <option value="">All years</option>
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Working Weekends
-            <input
-              type="date"
-              value=""
-              onChange={(event) => {
-                const iso = event.target.value
-                if (!iso) return
-                const day = parseISO(iso).getDay()
-                // Only allow Saturdays (6) or Sundays (0)
-                if (day !== 0 && day !== 6) {
-                  event.target.value = ''
-                  return
-                }
-                if (selectedWeekendDates.has(iso)) {
-                  setSelectedWeekendDates((current) => {
-                    const next = new Set(current)
-                    next.delete(iso)
-                    return next
-                  })
-                } else {
-                  setSelectedWeekendDates((current) => {
-                    const next = new Set(current)
-                    next.add(iso)
-                    return next
-                  })
-                }
-                event.target.value = ''
-              }}
-              min={filters.year ? `${filters.year}-01-01` : undefined}
-              max={filters.year ? `${filters.year}-12-31` : undefined}
-            />
-            <div className="weekend-pills">
-              {[...selectedWeekendDates]
-                .filter((iso) => !filters.year || iso.startsWith(filters.year))
-                .sort()
-                .map((iso) => (
-                  <button
-                    key={iso}
-                    type="button"
-                    className="chip-toggle chip-on"
-                    onClick={() =>
-                      setSelectedWeekendDates((current) => {
-                        const next = new Set(current)
-                        next.delete(iso)
-                        return next
-                      })
-                    }
-                  >
-                    {iso}
-                  </button>
-                ))}
-            </div>
-          </label>
-
-          <label>
-            Week Range Start (Monday)
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))}
-            />
-          </label>
-
-          <label>
-            Week Range End (Monday)
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))}
-            />
-          </label>
-        </div>
-
-        <div className="meta-row">
-          <div>
-            <strong>File:</strong> {fileName}
-          </div>
-          <div>
-            <strong>Sales File:</strong> {salesFileName}
-          </div>
-          <div>
-            <strong>Parsed Rows:</strong> {tasks.length}
-          </div>
-          <div>
-            <strong>Weeks in View:</strong> {baseLayer.weekKeys.length}
-          </div>
-          <div>
-            <strong>Enabled Resources:</strong> {enabledResourceList.length}
-          </div>
-          <div>
-            <strong>Data Date Span:</strong>{' '}
-            {taskDateSpan.start && taskDateSpan.end ? `${taskDateSpan.start} to ${taskDateSpan.end}` : 'N/A'}
-          </div>
-          <button type="button" className="ghost-btn" onClick={resetFilters}>
-            Reset Filters
-          </button>
-          <button type="button" onClick={() => void exportReportExcel()}>
-            Export Report Excel
-          </button>
-        </div>
-          </>
-        )}
-      </header>
-
-      {!isLoading && !error && allResourcesVisible && (
-        <ResourceCapacityTable
-          key={`resource-capacity-${collapseResetToken}`}
-          resources={resources}
-          enabledResources={enabledResources}
-          weeklyCapacitiesByResource={resourceWeeklyCapacities}
-          onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
-          onToggleResource={handleToggleResource}
-          weekendExtraByResource={weekendExtraByResource}
-          onWeekendExtraChange={(resource, hours) =>
-            setWeekendExtraByResource((current) => ({
-              ...current,
-              [resource]: Number.isFinite(hours) && hours >= 0 ? hours : 0,
-            }))
-          }
-        />
-      )}
-
-      {isLoading && <div className="panel status">Loading workbook...</div>}
-      {!isLoading && error && <div className="panel status error">{error}</div>}
-      {!isLoading && !error && weeklyBuckets.length === 0 && (
-        <div className="panel status">No weekly forecast buckets match current filter and project toggle settings.</div>
-      )}
-
-      {!isLoading && !error && (weeklyBuckets.length > 0 || salesWeeklyBuckets.length > 0) && (
+      {activePage === 'planning' && (
         <>
-          {weeklyBuckets.length > 0 && (
-            <PivotPlanningTable
-              model={pivotModel}
-              rowGrouping={pivotRowGrouping}
-              overCapacityWeeks={overCapacityWeeks}
-              visibleWeekKeys={visiblePivotWeekKeys}
-              weekWindowLabel={pivotWeekWindowLabel}
-              canPageBack={safePivotStartIndex > 0}
-              canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
-              onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
-              onPageForward={() =>
-                setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
-              }
-              weekWindowSize={pivotWeekWindowSize}
-              onWeekWindowSizeChange={(size) => {
-                if (!Number.isFinite(size) || size <= 0) {
-                  return
-                }
-                setPivotWeekWindowSize(size)
-              }}
-              isCollapsed={isPivotCollapsed}
-              onToggleCollapsed={() => setIsPivotCollapsed((current) => !current)}
-              onEditCell={handlePivotCellEdit}
-              onResetEdits={resetManualEdits}
-            />
-          )}
-          {salesWeeklyBuckets.length > 0 && (
-            <PivotPlanningTable
-              key={`sales-pivot-${salesCollapseResetToken}`}
-              model={salesPivotModel}
-              rowGrouping={pivotRowGrouping}
-              overCapacityWeeks={salesOverCapacityWeeks}
-              visibleWeekKeys={salesVisiblePivotWeekKeys}
-              weekWindowLabel={salesPivotWeekWindowLabel}
-              canPageBack={salesSafePivotStartIndex > 0}
-              canPageForward={salesSafePivotStartIndex + salesPivotWeekWindowSize < salesBaseLayer.weekKeys.length}
-              onPageBack={() => setSalesPivotWeekStartIndex((current) => Math.max(0, current - salesPivotWeekWindowSize))}
-              onPageForward={() =>
-                setSalesPivotWeekStartIndex((current) =>
-                  Math.min(salesMaxPivotStartIndex, current + salesPivotWeekWindowSize),
-                )
-              }
-              weekWindowSize={salesPivotWeekWindowSize}
-              onWeekWindowSizeChange={(size) => {
-                if (!Number.isFinite(size) || size <= 0) {
-                  return
-                }
-                setSalesPivotWeekWindowSize(size)
-              }}
-              isCollapsed={isSalesPivotCollapsed}
-              onToggleCollapsed={() => setIsSalesPivotCollapsed((current) => !current)}
-              onEditCell={handleSalesPivotCellEdit}
-              onResetEdits={resetSalesManualEdits}
-              title="Sales Pivot Planning"
-              subtitle="Editable sales forecast planning grid using Sales Production Report data."
-            />
-          )}
-          <section className="panel summary-panel">
-            <div className="section-header">
-              <h2>Summary</h2>
-              <p>All metrics below are driven by the final adjusted planning dataset.</p>
+          <header className={panel control-panel }>
+            <div className="title-bar">
+              <div className="title-stack">
+                <h1>Production Capacity Planning Dashboard</h1>
+                <p className="subtitle">
+                  Import forecast data, edit weekly hours in the planning pivot, and watch chart/table/capacity metrics
+                  update instantly.
+                </p>
+              </div>
+              <div className="title-actions">
+                <label className="upload-inline">
+                  Upload or Replace Workbook (.xlsx)
+                  <input type="file" accept=".xlsx" onChange={handleUpload} />
+                </label>
+                <label className="upload-inline">
+                  Upload Sales Workbook (.xlsx)
+                  <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
+                </label>
+                <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
+                  Lock
+                </button>
+                <button
+                  type="button"
+                  className="ghost-btn collapse-toggle"
+                  onClick={() => setIsHeaderCollapsed((current) => !current)}
+                  aria-expanded={!isHeaderCollapsed}
+                >
+                  <span className={chevron } aria-hidden="true">
+                    ?
+                  </span>
+                  {isHeaderCollapsed ? 'Show Filters' : 'Hide Filters'}
+                </button>
+              </div>
             </div>
 
-            <div className="summary-grid">
-              <div>
-                <span>Total Forecast Hours</span>
-                <strong>{totals.hours.toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>Total Capacity Hours</span>
-                <strong>{totals.capacity.toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>Selected Weekly Capacity</span>
-                <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>Total Monthly Capacity (visible months)</span>
-                <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
-              </div>
-              <div>
-                <span>Variance (Forecast - Capacity)</span>
-                <strong className={totals.variance < 0 ? 'negative' : 'warning'}>
-                  {totals.variance.toFixed(2)}
-                </strong>
-              </div>
-              <div>
-                <span>Over-Capacity Weeks</span>
-                <strong>{totals.overCount}</strong>
-              </div>
-              <div>
-                <span>Manual Overrides</span>
-                <strong>{Object.keys(manualOverrides).length}</strong>
-              </div>
-            </div>
-          </section>
-          <ReportWorkspace
-            key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
-            weeklyBuckets={weeklyBuckets}
-            combinedWeeklyBuckets={combinedWeeklyBuckets}
-            salesWeeklyBuckets={salesWeeklyBuckets}
-            salesMonthlyBuckets={salesMonthlyBuckets}
-            combinedMonthlyBuckets={combinedMonthlyBuckets}
-            monthlyBuckets={monthlyBuckets}
-            categoryKeys={categoryKeys}
-            combinedCategoryKeys={combinedCategoryKeys}
-            salesCategoryKeys={salesCategoryKeys}
-            projects={availableProjects}
-            combinedProjects={combinedProjects}
-            salesProjects={salesAvailableProjects}
-            selectedProjects={selectedProjects}
-            selectedCombinedProjects={combinedSelectedProjects}
-            selectedSalesProjects={salesSelectedProjects}
-            onToggleProject={handleToggleProject}
-            onToggleCombinedProject={handleToggleCombinedProject}
-            onToggleSalesProject={handleToggleSalesProject}
-            hoveredProject={hoveredProject}
-            onHoverProject={setHoveredProject}
-            summaryMetrics={summaryMetrics}
-            reportContext={reportContext}
-            initialTab={initialReportTab}
-            executiveData={executiveData}
-          />
+            {!isHeaderCollapsed && (
+              <>
+                <div className="controls-grid">
+                  <label>
+                    Planning Rows
+                    <select
+                      value={pivotRowGrouping}
+                      onChange={(event) => setPivotRowGrouping(event.target.value as PivotRowGrouping)}
+                    >
+                      <option value="project">Project</option>
+                      <option value="resource">Resource</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Chart Stacking
+                    <select value={chartGroupBy} onChange={(event) => setChartGroupBy(event.target.value as ChartGroupBy)}>
+                      <option value="project">Project</option>
+                      <option value="resource">Resource</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Year
+                    <select
+                      value={filters.year}
+                      onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))}
+                    >
+                      <option value="">All years</option>
+                      {years.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Working Weekends
+                    <input
+                      type="date"
+                      value=""
+                      onChange={(event) => {
+                        const iso = event.target.value
+                        if (!iso) return
+                        const day = parseISO(iso).getDay()
+                        if (day !== 0 && day !== 6) {
+                          event.target.value = ''
+                          return
+                        }
+                        if (selectedWeekendDates.has(iso)) {
+                          setSelectedWeekendDates((current) => {
+                            const next = new Set(current)
+                            next.delete(iso)
+                            return next
+                          })
+                        } else {
+                          setSelectedWeekendDates((current) => {
+                            const next = new Set(current)
+                            next.add(iso)
+                            return next
+                          })
+                        }
+                        event.target.value = ''
+                      }}
+                      min={filters.year ? ${filters.year}-01-01 : undefined}
+                      max={filters.year ? ${filters.year}-12-31 : undefined}
+                    />
+                    <div className="weekend-pills">
+                      {[...selectedWeekendDates]
+                        .filter((iso) => !filters.year || iso.startsWith(filters.year))
+                        .sort()
+                        .map((iso) => (
+                          <button
+                            key={iso}
+                            type="button"
+                            className="chip-toggle chip-on"
+                            onClick={() =>
+                              setSelectedWeekendDates((current) => {
+                                const next = new Set(current)
+                                next.delete(iso)
+                                return next
+                              })
+                            }
+                          >
+                            {iso}
+                          </button>
+                        ))}
+                    </div>
+                  </label>
+
+                  <label>
+                    Week Range Start (Monday)
+                    <input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))}
+                    />
+                  </label>
+
+                  <label>
+                    Week Range End (Monday)
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="meta-row">
+                  <div>
+                    <strong>File:</strong> {fileName}
+                  </div>
+                  <div>
+                    <strong>Sales File:</strong> {salesFileName}
+                  </div>
+                  <div>
+                    <strong>Parsed Rows:</strong> {tasks.length}
+                  </div>
+                  <div>
+                    <strong>Weeks in View:</strong> {baseLayer.weekKeys.length}
+                  </div>
+                  <div>
+                    <strong>Enabled Resources:</strong> {enabledResourceList.length}
+                  </div>
+                  <div>
+                    <strong>Data Date Span:</strong>{' '}
+                    {taskDateSpan.start && taskDateSpan.end ? ${taskDateSpan.start} to  : 'N/A'}
+                  </div>
+                  <button type="button" className="ghost-btn" onClick={resetFilters}>
+                    Reset Filters
+                  </button>
+                  <button type="button" onClick={() => void exportReportExcel()}>
+                    Export Report Excel
+                  </button>
+                </div>
+              </>
+            )}
+          </header>
+
+          {!isLoading && !error && allResourcesVisible && (
+            <ResourceCapacityTable
+              key={esource-capacity-}
+              resources={resources}
+              enabledResources={enabledResources}
+              weeklyCapacitiesByResource={resourceWeeklyCapacities}
+              onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
+              onToggleResource={handleToggleResource}
+              weekendExtraByResource={weekendExtraByResource}
+              onWeekendExtraChange={(resource, hours) =>
+                setWeekendExtraByResource((current) => ({
+                  ...current,
+                  [resource]: Number.isFinite(hours) && hours >= 0 ? hours : 0,
+                }))
+              }
+            />
+          )}
+
+          {isLoading && <div className="panel status">Loading workbook...</div>}
+          {!isLoading && error && <div className="panel status error">{error}</div>}
+          {!isLoading && !error && weeklyBuckets.length === 0 && (
+            <div className="panel status">No weekly forecast buckets match current filter and project toggle settings.</div>
+          )}
+
+          {!isLoading && !error && (weeklyBuckets.length > 0 || salesWeeklyBuckets.length > 0) && (
+            <>
+              {weeklyBuckets.length > 0 && (
+                <PivotPlanningTable
+                  model={pivotModel}
+                  rowGrouping={pivotRowGrouping}
+                  overCapacityWeeks={overCapacityWeeks}
+                  visibleWeekKeys={visiblePivotWeekKeys}
+                  weekWindowLabel={pivotWeekWindowLabel}
+                  canPageBack={safePivotStartIndex > 0}
+                  canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
+                  onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
+                  onPageForward={() =>
+                    setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
+                  }
+                  weekWindowSize={pivotWeekWindowSize}
+                  onWeekWindowSizeChange={(size) => {
+                    if (!Number.isFinite(size) || size <= 0) {
+                      return
+                    }
+                    setPivotWeekWindowSize(size)
+                  }}
+                  isCollapsed={isPivotCollapsed}
+                  onToggleCollapsed={() => setIsPivotCollapsed((current) => !current)}
+                  onEditCell={handlePivotCellEdit}
+                  onResetEdits={resetManualEdits}
+                />
+              )}
+              {salesWeeklyBuckets.length > 0 && (
+                <PivotPlanningTable
+                  key={sales-pivot-}
+                  model={salesPivotModel}
+                  rowGrouping={pivotRowGrouping}
+                  overCapacityWeeks={salesOverCapacityWeeks}
+                  visibleWeekKeys={salesVisiblePivotWeekKeys}
+                  weekWindowLabel={salesPivotWeekWindowLabel}
+                  canPageBack={salesSafePivotStartIndex > 0}
+                  canPageForward={salesSafePivotStartIndex + salesPivotWeekWindowSize < salesBaseLayer.weekKeys.length}
+                  onPageBack={() => setSalesPivotWeekStartIndex((current) => Math.max(0, current - salesPivotWeekWindowSize))}
+                  onPageForward={() =>
+                    setSalesPivotWeekStartIndex((current) =>
+                      Math.min(salesMaxPivotStartIndex, current + salesPivotWeekWindowSize),
+                    )
+                  }
+                  weekWindowSize={salesPivotWeekWindowSize}
+                  onWeekWindowSizeChange={(size) => {
+                    if (!Number.isFinite(size) || size <= 0) {
+                      return
+                    }
+                    setSalesPivotWeekWindowSize(size)
+                  }}
+                  isCollapsed={isSalesPivotCollapsed}
+                  onToggleCollapsed={() => setIsSalesPivotCollapsed((current) => !current)}
+                  onEditCell={handleSalesPivotCellEdit}
+                  onResetEdits={resetSalesManualEdits}
+                  title="Sales Pivot Planning"
+                  subtitle="Editable sales forecast planning grid using Sales Production Report data."
+                />
+              )}
+              <section className="panel summary-panel">
+                <div className="section-header">
+                  <h2>Summary</h2>
+                  <p>All metrics below are driven by the final adjusted planning dataset.</p>
+                </div>
+
+                <div className="summary-grid">
+                  <div>
+                    <span>Total Forecast Hours</span>
+                    <strong>{totals.hours.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>Total Capacity Hours</span>
+                    <strong>{totals.capacity.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>Selected Weekly Capacity</span>
+                    <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>Total Monthly Capacity (visible months)</span>
+                    <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
+                  </div>
+                  <div>
+                    <span>Variance (Forecast - Capacity)</span>
+                    <strong className={totals.variance < 0 ? 'negative' : 'warning'}>
+                      {totals.variance.toFixed(2)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Over-Capacity Weeks</span>
+                    <strong>{totals.overCount}</strong>
+                  </div>
+                  <div>
+                    <span>Manual Overrides</span>
+                    <strong>{Object.keys(manualOverrides).length}</strong>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+
+          {!allResourcesVisible && !isLoading && (
+            <div className="panel status">No resources available in the current data scope.</div>
+          )}
         </>
       )}
 
-      {!allResourcesVisible && !isLoading && (
-        <div className="panel status">No resources available in the current data scope.</div>
+      {activePage === 'report' && (
+        <>
+          {isLoading && <div className="panel status">Loading workbook...</div>}
+          {!isLoading && error && <div className="panel status error">{error}</div>}
+          {!isLoading && !error && allResourcesVisible && (
+            <ReportWorkspace
+              key={eport-workspace--}
+              weeklyBuckets={weeklyBuckets}
+              combinedWeeklyBuckets={combinedWeeklyBuckets}
+              salesWeeklyBuckets={salesWeeklyBuckets}
+              salesMonthlyBuckets={salesMonthlyBuckets}
+              combinedMonthlyBuckets={combinedMonthlyBuckets}
+              monthlyBuckets={monthlyBuckets}
+              categoryKeys={categoryKeys}
+              combinedCategoryKeys={combinedCategoryKeys}
+              salesCategoryKeys={salesCategoryKeys}
+              projects={availableProjects}
+              combinedProjects={combinedProjects}
+              salesProjects={salesAvailableProjects}
+              selectedProjects={selectedProjects}
+              selectedCombinedProjects={combinedSelectedProjects}
+              selectedSalesProjects={salesSelectedProjects}
+              onToggleProject={handleToggleProject}
+              onToggleCombinedProject={handleToggleCombinedProject}
+              onToggleSalesProject={handleToggleSalesProject}
+              hoveredProject={hoveredProject}
+              onHoverProject={setHoveredProject}
+              summaryMetrics={summaryMetrics}
+              reportContext={reportContext}
+              initialTab={initialReportTab}
+              executiveData={executiveData}
+            />
+          )}
+          {!isLoading && !error && !allResourcesVisible && (
+            <div className="panel status">No resources available in the current data scope.</div>
+          )}
+        </>
       )}
     </div>
   )
-}
-
 export default App
