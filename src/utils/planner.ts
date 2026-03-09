@@ -172,11 +172,31 @@ export function buildBaseLeafCells(
   const weekSet = new Set(leafCells.map((cell) => cell.weekStartIso))
   const sortedExistingWeeks = [...weekSet].sort((a, b) => compareAsc(localDateFromIso(a), localDateFromIso(b)))
 
-  const weekKeys: string[] = []
+  const filterRangeStart = filters.dateFrom
+    ? startOfWeek(localDateFromIso(filters.dateFrom), { weekStartsOn: 1 })
+    : null
+  const filterRangeEnd = filters.dateTo ? startOfWeek(localDateFromIso(filters.dateTo), { weekStartsOn: 1 }) : null
+
+  let rangeStart: Date | null = filterRangeStart
+  let rangeEnd: Date | null = filterRangeEnd
+
   if (sortedExistingWeeks.length > 0) {
     const first = localDateFromIso(sortedExistingWeeks[0])
     const last = localDateFromIso(sortedExistingWeeks[sortedExistingWeeks.length - 1])
-    for (let cursor = first; compareAsc(cursor, last) <= 0; cursor = addWeeks(cursor, 1)) {
+    rangeStart = rangeStart ? (compareAsc(first, rangeStart) < 0 ? first : rangeStart) : first
+    rangeEnd = rangeEnd ? (compareAsc(last, rangeEnd) > 0 ? last : rangeEnd) : last
+  }
+
+  if (rangeStart && !rangeEnd) {
+    rangeEnd = rangeStart
+  }
+  if (rangeEnd && !rangeStart) {
+    rangeStart = rangeEnd
+  }
+
+  const weekKeys: string[] = []
+  if (rangeStart && rangeEnd && compareAsc(rangeStart, rangeEnd) <= 0) {
+    for (let cursor = rangeStart; compareAsc(cursor, rangeEnd) <= 0; cursor = addWeeks(cursor, 1)) {
       weekKeys.push(isoFromDate(cursor))
     }
   }
