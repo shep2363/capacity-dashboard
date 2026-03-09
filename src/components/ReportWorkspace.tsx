@@ -5,6 +5,7 @@ import { exportReportElementToPdf } from '../utils/exportReportPdf'
 import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
+import { ExecutiveSummary, type ExecutiveData } from './ExecutiveSummary'
 
 export type ReportTab =
   | 'snapshot'
@@ -15,6 +16,7 @@ export type ReportTab =
   | 'combined'
   | 'sales-monthly'
   | 'combined-monthly'
+  | 'executive'
 
 interface ReportWorkspaceProps {
   weeklyBuckets: WeeklyBucket[]
@@ -40,6 +42,7 @@ interface ReportWorkspaceProps {
   summaryMetrics: SummaryMetric[]
   reportContext: string[]
   initialTab?: ReportTab
+  executiveData: ExecutiveData
 }
 
 export function ReportWorkspace({
@@ -66,6 +69,7 @@ export function ReportWorkspace({
   summaryMetrics,
   reportContext,
   initialTab = 'snapshot',
+  executiveData,
 }: ReportWorkspaceProps) {
   const reportRef = useRef<HTMLElement>(null)
   const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab)
@@ -144,6 +148,13 @@ export function ReportWorkspace({
         </button>
         <button
           type="button"
+          className={activeReportTab === 'executive' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveReportTab('executive')}
+        >
+          Executive Summary
+        </button>
+        <button
+          type="button"
           className={activeReportTab === 'sales' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
           onClick={() => setActiveReportTab('sales')}
         >
@@ -171,6 +182,12 @@ export function ReportWorkspace({
           Shop and Sales Monthly Forecast
         </button>
       </div>
+
+      {activeReportTab === 'executive' && (
+        <div className="report-tab-panel">
+          <ExecutiveSummary data={executiveData} />
+        </div>
+      )}
 
       {activeReportTab === 'snapshot' && (
         <div className="report-tab-panel">

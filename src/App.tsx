@@ -3,6 +3,7 @@ import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
+import { type ExecutiveData } from './components/ExecutiveSummary'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { parseSalesSpreadsheet, parseSpreadsheet } from './utils/excel'
 import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
@@ -18,6 +19,7 @@ import {
   getAvailableYears,
   getCapacityStatus,
   makeSyntheticLeafKey,
+  parseLeafKey,
   weekRangeLabel,
 } from './utils/planner'
 
@@ -46,7 +48,10 @@ function App() {
     reportTabParam === 'monthly' ||
     reportTabParam === 'summary' ||
     reportTabParam === 'sales' ||
-    reportTabParam === 'combined'
+    reportTabParam === 'combined' ||
+    reportTabParam === 'sales-monthly' ||
+    reportTabParam === 'combined-monthly' ||
+    reportTabParam === 'executive'
       ? reportTabParam
       : 'snapshot'
   const [tasks, setTasks] = useState<TaskRow[]>([])
@@ -567,6 +572,87 @@ function App() {
   const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
   const salesCategoryKeys = useMemo(() => computeCategoryKeys(salesWeeklyBuckets), [salesWeeklyBuckets])
   const combinedCategoryKeys = useMemo(() => computeCategoryKeys(combinedWeeklyBuckets), [combinedWeeklyBuckets])
+
+  const projectTotals = useMemo(() => {
+    const totals = new Map<string, number>()
+    const weekSet = new Set(baseLayer.weekKeys)
+    Object.entries(finalByKey).forEach(([leafKey, hours]) => {
+      if (!Number.isFinite(hours)) {
+        return
+      }
+      const { project, weekStartIso } = parseLeafKey(leafKey)
+      if (!weekSet.has(weekStartIso)) {
+        return
+      }
+      totals.set(project, (totals.get(project) ?? 0) + hours)
+    })
+    return totals
+  }, [finalByKey, baseLayer.weekKeys])
+
+  const topProjects = useMemo(() => {
+    const entries = [...projectTotals.entries()].sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+    const grandTotal = entries.reduce((sum, [, hours]) => sum + hours, 0)
+    return entries.slice(0, 5).map(([project, hours]) => ({
+      project,
+      hours,
+      percent: grandTotal > 0 ? (hours / grandTotal) * 100 : 0,
+    }))
+  }, [projectTotals])
+
+  const executiveData = useMemo<ExecutiveData>(() => {
+    const bookedYtd = weeklyBuckets.reduce((sum, w) => sum + w.totalHours, 0)
+    const capacityYtd = weeklyBuckets.reduce((sum, w) => sum + w.capacity, 0)
+    const utilization = capacityYtd > 0 ? bookedYtd / capacityYtd : 0
+    const remaining = capacityYtd - bookedYtd
+    const activeProjects = projectTotals.size
+    const kpiStatus = utilization > 1 ? 'red' : utilization >= 0.9 ? 'yellow' : 'green'
+
+    const quarterlySummary = (() => {
+      const map = new Map<string, { booked: number; capacity: number }>()
+      monthlyBuckets.forEach((m) => {
+        const monthDate = parseISO(`${m.monthKey}-01`)
+        const quarter = `Q${Math.floor(monthDate.getMonth() / 3) + 1}`
+        const entry = map.get(quarter) ?? { booked: 0, capacity: 0 }
+        entry.booked += m.plannedHours
+        entry.capacity += m.capacity
+        map.set(quarter, entry)
+      })
+      return [...map.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([quarter, values]) => ({
+          quarter,
+          booked: values.booked,
+          capacity: values.capacity,
+          utilization: values.capacity > 0 ? values.booked / values.capacity : 0,
+        }))
+    })()
+
+    const annual = {
+      booked: bookedYtd,
+      capacity: capacityYtd,
+      utilization,
+      status: getCapacityStatus(bookedYtd, capacityYtd),
+    }
+
+    const riskMonths = monthlyBuckets
+      .filter((m) => m.plannedHours > m.capacity)
+      .map((m) => ({ monthLabel: m.monthLabel, variance: m.variance }))
+
+    const utilizationTrend = monthlyBuckets.map((m) => ({
+      monthLabel: m.monthLabel,
+      utilization: m.capacity > 0 ? m.plannedHours / m.capacity : 0,
+    }))
+
+    return {
+      kpis: { bookedYtd, capacityYtd, utilization, remaining, activeProjects, status: kpiStatus },
+      monthlyBuckets,
+      quarterlySummary,
+      annual,
+      riskMonths,
+      topProjects,
+      utilizationTrend,
+    }
+  }, [weeklyBuckets, monthlyBuckets, projectTotals, topProjects])
 
   useEffect(() => {
     persistSalesState(salesTasks, salesFileName, salesManualOverrides, salesSelectedProjects, salesEnabledResources)
@@ -1337,6 +1423,7 @@ function App() {
             summaryMetrics={summaryMetrics}
             reportContext={reportContext}
             initialTab={initialReportTab}
+            executiveData={executiveData}
           />
         </>
       )}
