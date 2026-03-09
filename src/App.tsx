@@ -105,16 +105,18 @@ function App() {
       start: t.start.toISOString(),
       finish: t.finish.toISOString(),
     }))
-    window.sessionStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(plainTasks))
-    window.sessionStorage.setItem(
-      SALES_META_KEY,
-      JSON.stringify({
-        file,
-        overrides,
-        selected: [...selected],
-        enabled,
-      }),
-    )
+    const payload = JSON.stringify(plainTasks)
+    const meta = JSON.stringify({
+      file,
+      overrides,
+      selected: [...selected],
+      enabled,
+    })
+    window.localStorage.setItem(SALES_STORAGE_KEY, payload)
+    window.localStorage.setItem(SALES_META_KEY, meta)
+    // keep sessionStorage in sync for backward compatibility
+    window.sessionStorage.setItem(SALES_STORAGE_KEY, payload)
+    window.sessionStorage.setItem(SALES_META_KEY, meta)
   }
 
   const [filters, setFilters] = useState<AppFilters>({
@@ -151,8 +153,8 @@ function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      const savedTasksRaw = window.sessionStorage.getItem(SALES_STORAGE_KEY)
-      const savedMetaRaw = window.sessionStorage.getItem(SALES_META_KEY)
+      const savedTasksRaw = window.localStorage.getItem(SALES_STORAGE_KEY) ?? window.sessionStorage.getItem(SALES_STORAGE_KEY)
+      const savedMetaRaw = window.localStorage.getItem(SALES_META_KEY) ?? window.sessionStorage.getItem(SALES_META_KEY)
       if (!savedTasksRaw || !savedMetaRaw) {
         return
       }
