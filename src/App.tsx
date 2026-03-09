@@ -1300,7 +1300,7 @@ function App() {
 
       {activePage === 'planning' && (
         <>
-          <header className={panel control-panel }>
+          <header className={`panel control-panel ${isHeaderCollapsed ? 'collapsed' : ''}`}>
             <div className="title-bar">
               <div className="title-stack">
                 <h1>Production Capacity Planning Dashboard</h1>
@@ -1327,7 +1327,7 @@ function App() {
                   onClick={() => setIsHeaderCollapsed((current) => !current)}
                   aria-expanded={!isHeaderCollapsed}
                 >
-                  <span className={chevron } aria-hidden="true">
+                  <span className={`chevron ${isHeaderCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
                     ?
                   </span>
                   {isHeaderCollapsed ? 'Show Filters' : 'Hide Filters'}
@@ -1400,8 +1400,8 @@ function App() {
                         }
                         event.target.value = ''
                       }}
-                      min={filters.year ? ${filters.year}-01-01 : undefined}
-                      max={filters.year ? ${filters.year}-12-31 : undefined}
+                      min={filters.year ? `${filters.year}-01-01` : undefined}
+                      max={filters.year ? `${filters.year}-12-31` : undefined}
                     />
                     <div className="weekend-pills">
                       {[...selectedWeekendDates]
@@ -1463,7 +1463,7 @@ function App() {
                   </div>
                   <div>
                     <strong>Data Date Span:</strong>{' '}
-                    {taskDateSpan.start && taskDateSpan.end ? ${taskDateSpan.start} to  : 'N/A'}
+                    {taskDateSpan.start && taskDateSpan.end ? `${taskDateSpan.start} to ${taskDateSpan.end}` : 'N/A'}
                   </div>
                   <button type="button" className="ghost-btn" onClick={resetFilters}>
                     Reset Filters
@@ -1478,7 +1478,7 @@ function App() {
 
           {!isLoading && !error && allResourcesVisible && (
             <ResourceCapacityTable
-              key={esource-capacity-}
+              key={`resource-capacity-${collapseResetToken}`}
               resources={resources}
               enabledResources={enabledResources}
               weeklyCapacitiesByResource={resourceWeeklyCapacities}
@@ -1528,37 +1528,37 @@ function App() {
                   onResetEdits={resetManualEdits}
                 />
               )}
-              {salesWeeklyBuckets.length > 0 && (
-                <PivotPlanningTable
-                  key={sales-pivot-}
-                  model={salesPivotModel}
-                  rowGrouping={pivotRowGrouping}
-                  overCapacityWeeks={salesOverCapacityWeeks}
-                  visibleWeekKeys={salesVisiblePivotWeekKeys}
-                  weekWindowLabel={salesPivotWeekWindowLabel}
-                  canPageBack={salesSafePivotStartIndex > 0}
-                  canPageForward={salesSafePivotStartIndex + salesPivotWeekWindowSize < salesBaseLayer.weekKeys.length}
-                  onPageBack={() => setSalesPivotWeekStartIndex((current) => Math.max(0, current - salesPivotWeekWindowSize))}
-                  onPageForward={() =>
-                    setSalesPivotWeekStartIndex((current) =>
-                      Math.min(salesMaxPivotStartIndex, current + salesPivotWeekWindowSize),
-                    )
-                  }
-                  weekWindowSize={salesPivotWeekWindowSize}
-                  onWeekWindowSizeChange={(size) => {
-                    if (!Number.isFinite(size) || size <= 0) {
-                      return
+                {salesWeeklyBuckets.length > 0 && (
+                  <PivotPlanningTable
+                    key={`sales-pivot-${salesCollapseResetToken}`}
+                    model={salesPivotModel}
+                    rowGrouping={pivotRowGrouping}
+                    overCapacityWeeks={salesOverCapacityWeeks}
+                    visibleWeekKeys={salesVisiblePivotWeekKeys}
+                    weekWindowLabel={salesPivotWeekWindowLabel}
+                    canPageBack={salesSafePivotStartIndex > 0}
+                    canPageForward={salesSafePivotStartIndex + salesPivotWeekWindowSize < salesBaseLayer.weekKeys.length}
+                    onPageBack={() => setSalesPivotWeekStartIndex((current) => Math.max(0, current - salesPivotWeekWindowSize))}
+                    onPageForward={() =>
+                      setSalesPivotWeekStartIndex((current) =>
+                        Math.min(salesMaxPivotStartIndex, current + salesPivotWeekWindowSize),
+                      )
                     }
-                    setSalesPivotWeekWindowSize(size)
-                  }}
-                  isCollapsed={isSalesPivotCollapsed}
-                  onToggleCollapsed={() => setIsSalesPivotCollapsed((current) => !current)}
-                  onEditCell={handleSalesPivotCellEdit}
-                  onResetEdits={resetSalesManualEdits}
-                  title="Sales Pivot Planning"
-                  subtitle="Editable sales forecast planning grid using Sales Production Report data."
-                />
-              )}
+                    weekWindowSize={salesPivotWeekWindowSize}
+                    onWeekWindowSizeChange={(size) => {
+                      if (!Number.isFinite(size) || size <= 0) {
+                        return
+                      }
+                      setSalesPivotWeekWindowSize(size)
+                    }}
+                    isCollapsed={isSalesPivotCollapsed}
+                    onToggleCollapsed={() => setIsSalesPivotCollapsed((current) => !current)}
+                    onEditCell={handleSalesPivotCellEdit}
+                    onResetEdits={resetSalesManualEdits}
+                    title="Sales Pivot Planning"
+                    subtitle="Editable sales forecast planning grid using Sales Production Report data."
+                  />
+                )}
               <section className="panel summary-panel">
                 <div className="section-header">
                   <h2>Summary</h2>
@@ -1613,7 +1613,7 @@ function App() {
           {!isLoading && error && <div className="panel status error">{error}</div>}
           {!isLoading && !error && allResourcesVisible && (
             <ReportWorkspace
-              key={eport-workspace--}
+              key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
               weeklyBuckets={weeklyBuckets}
               combinedWeeklyBuckets={combinedWeeklyBuckets}
               salesWeeklyBuckets={salesWeeklyBuckets}
@@ -1647,4 +1647,5 @@ function App() {
       )}
     </div>
   )
+}
 export default App
