@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { addDays, format, parseISO, startOfWeek } from 'date-fns'
-import DepartmentPage from './components/DepartmentPage'
+import DepartmentPage, { buildDepartmentRows, type DepartmentFilters, type DepartmentRow } from './components/DepartmentPage'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
@@ -59,6 +60,17 @@ const PROJECT_COLOR_PALETTE = [
 ]
 
 type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping'
+const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
+const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
+  planning: 'Planning',
+  report: 'Report Workspace',
+  processing: 'Processing',
+  fabrication: 'Fabrication',
+  assembly: 'Assembly',
+  paint: 'Paint',
+  shipping: 'Shipping',
+}
+const DEFAULT_DEPT_FILTER: DepartmentFilters = { projects: [], sequences: [], weeks: [] }
 
 // Meeus/Jones/Butcher computus for Gregorian calendar to find Easter Sunday.
 const computeEasterSunday = (year: number): Date => {
@@ -136,15 +148,11 @@ function App() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
-  const pageTabs: Array<{ key: PageKey; label: string }> = [
-    { key: 'planning', label: 'Planning' },
-    { key: 'report', label: 'Report Workspace' },
-    { key: 'processing', label: 'Processing' },
-    { key: 'fabrication', label: 'Fabrication' },
-    { key: 'assembly', label: 'Assembly' },
-    { key: 'paint', label: 'Paint' },
-    { key: 'shipping', label: 'Shipping' },
-  ]
+  const [deptFilters, setDeptFilters] = useState<Record<string, DepartmentFilters>>({})
+  const pageTabs: Array<{ key: PageKey; label: string }> = Object.entries(DEPT_RESOURCE_LABEL).map(([key, label]) => ({
+    key: key as PageKey,
+    label,
+  }))
 
   function persistSalesState(
     tasksToStore: TaskRow[],
@@ -461,6 +469,42 @@ function App() {
     })
     return map
   }, [availableProjects])
+  const getDeptFilter = (resource: string): DepartmentFilters => deptFilters[resource] ?? DEFAULT_DEPT_FILTER
+  const setDeptFilter = (resource: string, next: DepartmentFilters) =>
+    setDeptFilters((current) => ({ ...current, [resource]: next }))
+
+  const applyDeptFilters = (rows: DepartmentRow[], filter: DepartmentFilters): DepartmentRow[] =>
+    rows.filter((row) => {
+      if (filter.projects.length > 0 && !filter.projects.includes(row.project)) return false
+      if (filter.sequences.length > 0 && !filter.sequences.includes(row.sequence)) return false
+      if (filter.weeks.length > 0 && !filter.weeks.includes(row.weekStartIso)) return false
+      return true
+    })
+
+  const departmentRowsByResource = useMemo(() => {
+    const map: Record<string, DepartmentRow[]> = {}
+    const resourceEnabledMap = enabledResources
+    DEPARTMENT_RESOURCES.forEach((pageKey) => {
+      const resource = DEPT_RESOURCE_LABEL[pageKey] ?? ''
+      const baseRows = buildDepartmentRows({
+        resource,
+        tasks,
+        filters,
+        selectedProjects,
+        selectedWeekendDates,
+        resourceEnabled: resourceEnabledMap[resource] !== false,
+      })
+      const filter = getDeptFilter(resource)
+      const filtered = applyDeptFilters(baseRows, filter).sort(
+        (a, b) =>
+          a.weekStartIso.localeCompare(b.weekStartIso) ||
+          a.project.localeCompare(b.project) ||
+          a.sequence.localeCompare(b.sequence),
+      )
+      map[resource] = filtered
+    })
+    return map
+  }, [tasks, filters, selectedProjects, selectedWeekendDates, enabledResources, deptFilters])
 
   useEffect(() => {
     if (availableProjects.length === 0) {
@@ -1297,6 +1341,58 @@ function App() {
 
   const allResourcesVisible = resources.length > 0
 
+  const exportDepartmentWorkbook = (): void => {
+    const workbook = XLSX.utils.book_new()
+    const headers = ['Project', 'Sequence', 'Week', 'Assigned Hours', 'Percent Complete', 'Finish Date', 'Status']
+
+    const autoWidth = (rows: Array<Array<string | number>>): Array<{ wch: number }> => {
+      if (rows.length === 0) return []
+      const widths: number[] = []
+      rows.forEach((row) => {
+        row.forEach((cell, idx) => {
+          const len = String(cell ?? '').length
+          widths[idx] = Math.max(widths[idx] ?? 0, Math.min(60, len + 2))
+        })
+      })
+      return widths.map((wch) => ({ wch }))
+    }
+
+    const setHeaderRowFeatures = (sheet: XLSX.WorkSheet) => {
+      const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1:A1')
+      sheet['!freeze'] = { xSplit: 0, ySplit: 1 }
+      sheet['!autofilter'] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: 0, c: range.s.c },
+          e: { r: 0, c: range.e.c },
+        }),
+      }
+    }
+
+    const resourcesForExport = ['Processing', 'Fabrication', 'Assembly', 'Paint', 'Shipping']
+    resourcesForExport.forEach((resource) => {
+      const rows = departmentRowsByResource[resource] ?? []
+      const aoa: Array<Array<string | number>> = [
+        headers,
+        ...rows.map((row) => [
+          row.project,
+          row.sequence,
+          row.weekLabel,
+          Number(row.hours.toFixed(2)),
+          Number(row.percentComplete.toFixed(1)),
+          row.finishDate,
+          row.status,
+        ]),
+      ]
+      const sheet = XLSX.utils.aoa_to_sheet(aoa)
+      sheet['!cols'] = autoWidth(aoa)
+      setHeaderRowFeatures(sheet)
+      XLSX.utils.book_append_sheet(workbook, sheet, resource)
+    })
+
+    const fileName = `Department_Export_${filters.year || 'all'}.xlsx`
+    XLSX.writeFile(workbook, fileName)
+  }
+
   function handleUnlock(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (passwordInput === APP_LOCK_PASSWORD) {
@@ -1375,6 +1471,9 @@ function App() {
                   Upload Sales Workbook (.xlsx)
                   <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
                 </label>
+                <button type="button" onClick={exportDepartmentWorkbook}>
+                  Export Dept Workbook
+                </button>
                 <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
                   Lock
                 </button>
@@ -1673,6 +1772,8 @@ function App() {
           selectedWeekendDates={selectedWeekendDates}
           projectColors={projectColors}
           resourceEnabled={enabledResources['Processing'] !== false}
+          filter={getDeptFilter('Processing')}
+          onFilterChange={(next) => setDeptFilter('Processing', next)}
         />
       )}
       {activePage === 'fabrication' && (
@@ -1684,6 +1785,8 @@ function App() {
           selectedWeekendDates={selectedWeekendDates}
           projectColors={projectColors}
           resourceEnabled={enabledResources['Fabrication'] !== false}
+          filter={getDeptFilter('Fabrication')}
+          onFilterChange={(next) => setDeptFilter('Fabrication', next)}
         />
       )}
       {activePage === 'assembly' && (
@@ -1695,6 +1798,8 @@ function App() {
           selectedWeekendDates={selectedWeekendDates}
           projectColors={projectColors}
           resourceEnabled={enabledResources['Assembly'] !== false}
+          filter={getDeptFilter('Assembly')}
+          onFilterChange={(next) => setDeptFilter('Assembly', next)}
         />
       )}
       {activePage === 'paint' && (
@@ -1706,6 +1811,8 @@ function App() {
           selectedWeekendDates={selectedWeekendDates}
           projectColors={projectColors}
           resourceEnabled={enabledResources['Paint'] !== false}
+          filter={getDeptFilter('Paint')}
+          onFilterChange={(next) => setDeptFilter('Paint', next)}
         />
       )}
       {activePage === 'shipping' && (
@@ -1717,6 +1824,8 @@ function App() {
           selectedWeekendDates={selectedWeekendDates}
           projectColors={projectColors}
           resourceEnabled={enabledResources['Shipping'] !== false}
+          filter={getDeptFilter('Shipping')}
+          onFilterChange={(next) => setDeptFilter('Shipping', next)}
         />
       )}
 

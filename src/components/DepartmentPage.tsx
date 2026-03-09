@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { eachDayOfInterval, format, getDay, getYear, isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 import type { AppFilters, TaskRow } from '../types'
 import { weekRangeLabel } from '../utils/planner'
@@ -30,16 +30,25 @@ interface DepartmentPageProps {
   selectedWeekendDates: Set<string>
   projectColors: Record<string, string>
   resourceEnabled: boolean
+  filter: DepartmentFilters
+  onFilterChange: (next: DepartmentFilters) => void
 }
 
-interface DepartmentRow {
+export interface DepartmentRow {
   project: string
   sequence: string
   weekStartIso: string
+  weekLabel: string
   hours: number
   percentComplete: number
-  remainingHours: number
+  finishDate: string
   status: string
+}
+
+export interface DepartmentFilters {
+  projects: string[]
+  sequences: string[]
+  weeks: string[]
 }
 
 function distributeTaskWork(task: TaskRow, workingWeekendDates: Set<string>): Array<{ date: Date; hours: number }> {
@@ -62,6 +71,70 @@ function distributeTaskWork(task: TaskRow, workingWeekendDates: Set<string>): Ar
   return days.map((day) => ({ date: day, hours: hoursPerDay }))
 }
 
+export function buildDepartmentRows(params: {
+  resource: string
+  tasks: TaskRow[]
+  filters: AppFilters
+  selectedProjects: Set<string>
+  selectedWeekendDates: Set<string>
+  resourceEnabled: boolean
+}): DepartmentRow[] {
+  const { resource, tasks, filters, selectedProjects, selectedWeekendDates, resourceEnabled } = params
+  if (!resourceEnabled) return []
+  const filterYear = filters.year ? Number(filters.year) : null
+  const parsedFrom = filters.dateFrom ? parseISO(filters.dateFrom) : null
+  const parsedTo = filters.dateTo ? parseISO(filters.dateTo) : null
+  const dateFrom = parsedFrom && !Number.isNaN(parsedFrom.getTime()) ? startOfDay(parsedFrom) : null
+  const dateTo = parsedTo && !Number.isNaN(parsedTo.getTime()) ? startOfDay(parsedTo) : null
+  const weekendSet = selectedWeekendDates
+  const now = startOfDay(new Date())
+  const result: DepartmentRow[] = []
+
+  tasks.forEach((task) => {
+    if (task.resourceName !== resource) return
+    if (selectedProjects.size > 0 && !selectedProjects.has(task.project)) return
+
+    const daily = distributeTaskWork(task, weekendSet)
+    const workedHours = daily
+      .filter(({ date }) => isBefore(date, now))
+      .reduce((sum, { hours }) => sum + hours, 0)
+    const percent = Math.min(100, Math.max(0, (workedHours / task.workHours) * 100))
+    const status =
+      percent >= 99.5
+        ? 'Completed'
+        : isAfter(now, task.finish)
+        ? 'Overdue'
+        : isBefore(now, task.start)
+        ? 'Scheduled'
+        : 'In Progress'
+
+    const hoursByWeek = new Map<string, number>()
+    daily.forEach(({ date, hours }) => {
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 })
+      if (dateFrom && isBefore(weekStart, dateFrom)) return
+      if (dateTo && isAfter(weekStart, dateTo)) return
+      if (filterYear && getYear(weekStart) !== filterYear) return
+      const weekIso = format(weekStart, 'yyyy-MM-dd')
+      hoursByWeek.set(weekIso, (hoursByWeek.get(weekIso) ?? 0) + hours)
+    })
+
+    hoursByWeek.forEach((hours, weekStartIso) => {
+      result.push({
+        project: task.project,
+        sequence: task.name,
+        weekStartIso,
+        weekLabel: weekRangeLabel(weekStartIso),
+        hours,
+        percentComplete: percent,
+        finishDate: format(task.finish, 'yyyy-MM-dd'),
+        status,
+      })
+    })
+  })
+
+  return result
+}
+
 function DepartmentPage({
   resource,
   tasks,
@@ -70,80 +143,34 @@ function DepartmentPage({
   selectedWeekendDates,
   projectColors,
   resourceEnabled,
+  filter,
+  onFilterChange,
 }: DepartmentPageProps) {
-  const [projectFilter, setProjectFilter] = useState<string[]>([])
-  const [sequenceFilter, setSequenceFilter] = useState<string[]>([])
-  const [weekFilter, setWeekFilter] = useState<string[]>([])
-
-  const filterYear = filters.year ? Number(filters.year) : null
-  const parsedFrom = filters.dateFrom ? parseISO(filters.dateFrom) : null
-  const parsedTo = filters.dateTo ? parseISO(filters.dateTo) : null
-  const dateFrom = parsedFrom && !Number.isNaN(parsedFrom.getTime()) ? startOfDay(parsedFrom) : null
-  const dateTo = parsedTo && !Number.isNaN(parsedTo.getTime()) ? startOfDay(parsedTo) : null
-
-  const rows = useMemo<DepartmentRow[]>(() => {
-    if (!resourceEnabled) return []
-    const weekendSet = selectedWeekendDates
-    const now = startOfDay(new Date())
-    const result: DepartmentRow[] = []
-
-    tasks.forEach((task) => {
-      if (task.resourceName !== resource) return
-      if (selectedProjects.size > 0 && !selectedProjects.has(task.project)) return
-
-      const daily = distributeTaskWork(task, weekendSet)
-      const workedHours = daily
-        .filter(({ date }) => isBefore(date, now))
-        .reduce((sum, { hours }) => sum + hours, 0)
-      const percent = Math.min(100, Math.max(0, (workedHours / task.workHours) * 100))
-      const remaining = Math.max(0, task.workHours - workedHours)
-      const status =
-        percent >= 99.5
-          ? 'Completed'
-          : isAfter(now, task.finish)
-          ? 'Overdue'
-          : isBefore(now, task.start)
-          ? 'Scheduled'
-          : 'In Progress'
-
-      const hoursByWeek = new Map<string, number>()
-      daily.forEach(({ date, hours }) => {
-        const weekStart = startOfWeek(date, { weekStartsOn: 1 })
-        if (dateFrom && isBefore(weekStart, dateFrom)) return
-        if (dateTo && isAfter(weekStart, dateTo)) return
-        if (filterYear && getYear(weekStart) !== filterYear) return
-        const weekIso = format(weekStart, 'yyyy-MM-dd')
-        hoursByWeek.set(weekIso, (hoursByWeek.get(weekIso) ?? 0) + hours)
-      })
-
-      hoursByWeek.forEach((hours, weekStartIso) => {
-        result.push({
-          project: task.project,
-          sequence: task.name,
-          weekStartIso,
-          hours,
-          percentComplete: percent,
-          remainingHours: remaining,
-          status,
-        })
-      })
-    })
-
-    return result
-  }, [tasks, resource, selectedProjects, selectedWeekendDates, filterYear, dateFrom, dateTo, resourceEnabled])
+  const rows = useMemo(
+    () =>
+      buildDepartmentRows({
+        resource,
+        tasks,
+        filters,
+        selectedProjects,
+        selectedWeekendDates,
+        resourceEnabled,
+      }),
+    [resource, tasks, filters, selectedProjects, selectedWeekendDates, resourceEnabled],
+  )
 
   const projectFilteredRows = useMemo(() => {
-    if (projectFilter.length === 0) return rows
-    return rows.filter((row) => projectFilter.includes(row.project))
-  }, [rows, projectFilter])
+    if (filter.projects.length === 0) return rows
+    return rows.filter((row) => filter.projects.includes(row.project))
+  }, [rows, filter.projects])
 
   const filteredRows = useMemo(() => {
     return projectFilteredRows.filter((row) => {
-      if (sequenceFilter.length > 0 && !sequenceFilter.includes(row.sequence)) return false
-      if (weekFilter.length > 0 && !weekFilter.includes(row.weekStartIso)) return false
+      if (filter.sequences.length > 0 && !filter.sequences.includes(row.sequence)) return false
+      if (filter.weeks.length > 0 && !filter.weeks.includes(row.weekStartIso)) return false
       return true
     })
-  }, [projectFilteredRows, sequenceFilter, weekFilter])
+  }, [projectFilteredRows, filter.sequences, filter.weeks])
 
   const grouped = useMemo(() => {
     const map = new Map<
@@ -203,11 +230,15 @@ function DepartmentPage({
     setter(values)
   }
 
+  const setProjects = (values: string[]) => onFilterChange({ ...filter, projects: values })
+  const setSequences = (values: string[]) => onFilterChange({ ...filter, sequences: values })
+  const setWeeks = (values: string[]) => onFilterChange({ ...filter, weeks: values })
+
   if (!resourceEnabled) {
     return (
       <section className="panel department-page">
         <div className="section-header">
-          <h2>{resource} â€” Weekly Plan</h2>
+          <h2>{resource} — Weekly Plan</h2>
           <p>This resource is currently disabled in the Resource Capacity Input toggles.</p>
         </div>
       </section>
@@ -218,7 +249,7 @@ function DepartmentPage({
     <section className="panel department-page">
       <div className="section-header-row">
         <div>
-          <h2>{resource} â€” Weekly Production Plan</h2>
+          <h2>{resource} — Weekly Production Plan</h2>
           <p>Project and sequence view filtered to the currently loaded workbook and dashboard filters.</p>
         </div>
         <div className="dept-summary">
@@ -236,7 +267,7 @@ function DepartmentPage({
       <div className="dept-filters">
         <label>
           Project Filter
-          <select multiple value={projectFilter} onChange={(event) => handleMultiSelect(event, setProjectFilter)}>
+          <select multiple value={filter.projects} onChange={(event) => handleMultiSelect(event, setProjects)}>
             {projectOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -246,7 +277,7 @@ function DepartmentPage({
         </label>
         <label>
           Sequence Filter
-          <select multiple value={sequenceFilter} onChange={(event) => handleMultiSelect(event, setSequenceFilter)}>
+          <select multiple value={filter.sequences} onChange={(event) => handleMultiSelect(event, setSequences)}>
             {sequenceOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -256,7 +287,7 @@ function DepartmentPage({
         </label>
         <label>
           Week Filter
-          <select multiple value={weekFilter} onChange={(event) => handleMultiSelect(event, setWeekFilter)}>
+          <select multiple value={filter.weeks} onChange={(event) => handleMultiSelect(event, setWeeks)}>
             {weekOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -301,7 +332,6 @@ function DepartmentPage({
                 <span>Sequence</span>
                 <span>Hours</span>
                 <span>Progress</span>
-                <span>Remaining</span>
                 <span>Status</span>
               </div>
               {week.rows
@@ -323,7 +353,6 @@ function DepartmentPage({
                       </div>
                       <span>{row.percentComplete.toFixed(0)}%</span>
                     </span>
-                    <span>{row.remainingHours.toFixed(1)} h</span>
                     <span className={`status-pill status-${row.status.replace(/\s+/g, '-').toLowerCase()}`}>
                       {row.status}
                     </span>
