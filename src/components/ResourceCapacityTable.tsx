@@ -9,6 +9,8 @@ interface ResourceCapacityTableProps {
   onToggleResource: (resource: string, enabled: boolean) => void
   weekendExtraByResource: Record<string, number>
   onWeekendExtraChange: (resource: string, weekendHours: number) => void
+  // holidayWeeks is unused here but kept for future per-week breakdowns
+  holidayWeeks?: Map<string, number>
 }
 
 const WEEKS_PER_MONTH = 52 / 12
@@ -148,6 +150,7 @@ export function ResourceCapacityTable({
                 <th>Resource Name</th>
                 <th>Weekly Capacity Hours</th>
                 <th>Weekend Capacity Contribution</th>
+                <th>Holiday Impact (per holiday day)</th>
                 <th>Effective Weekly Capacity</th>
                 <th>Monthly Capacity Hours</th>
               </tr>
@@ -156,6 +159,7 @@ export function ResourceCapacityTable({
               {resources.map((resource) => {
                 const weekly = weeklyCapacitiesByResource[resource] ?? 0
                 const manualWeekend = weekendExtraByResource[resource] ?? 0
+                const holidayImpact = weekly / 5
                 const effectiveWeekly = weekly + manualWeekend
                 const monthly = monthlyFromWeekly(effectiveWeekly)
                 const isEnabled = enabledResources[resource] !== false
@@ -220,6 +224,7 @@ export function ResourceCapacityTable({
                         aria-label={`Weekend capacity for ${resource}`}
                       />
                     </td>
+                    <td>{holidayImpact.toFixed(2)}</td>
                     <td>{effectiveWeekly.toFixed(2)}</td>
                     <td>{monthly.toFixed(2)}</td>
                   </tr>
