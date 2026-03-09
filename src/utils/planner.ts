@@ -247,6 +247,7 @@ export function buildWeeklyBucketsFromLeaf(
   weekKeys: string[],
   weekCapacities: Record<string, number>,
   chartGroupBy: ChartGroupBy,
+  holidayDetailsByWeek?: Record<string, Array<{ name: string; date: string }>>,
 ): WeeklyBucket[] {
   const perWeek = new Map<string, { total: number; groups: Record<string, number> }>()
 
@@ -289,6 +290,7 @@ export function buildWeeklyBucketsFromLeaf(
       overCapacity: status === 'Over Capacity',
       status,
       groups: weekData.groups,
+      holidayDetails: holidayDetailsByWeek?.[weekStartIso] ?? [],
     }
   })
 }

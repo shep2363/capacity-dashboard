@@ -90,6 +90,10 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
             <tbody>
               {sortedRows.map((bucket) => {
                 const status = getCapacityStatus(bucket.totalHours, bucket.capacity)
+                const holidayTip =
+                  bucket.holidayDetails && bucket.holidayDetails.length > 0
+                    ? bucket.holidayDetails.map((h) => `${h.name} — ${h.date}`).join('\n')
+                    : ''
                 return (
                   <tr
                     key={bucket.weekStartIso}
@@ -101,8 +105,8 @@ export function ForecastTable({ weeklyBuckets }: ForecastTableProps) {
                   >
                     <td>{bucket.weekLabel}</td>
                     <td>{bucket.totalHours.toFixed(2)}</td>
-                    <td>{bucket.capacity.toFixed(2)}</td>
-                    <td className={bucket.variance !== 0 ? 'negative' : ''}>
+                    <td title={holidayTip || undefined}>{bucket.capacity.toFixed(2)}</td>
+                    <td className={bucket.variance !== 0 ? 'negative' : ''} title={holidayTip || undefined}>
                       {bucket.variance.toFixed(2)}
                     </td>
                     <td>{status}</td>

@@ -77,7 +77,7 @@ interface TooltipEntry {
   dataKey?: string | number
   value?: number | string | Array<number | string>
   color?: string
-  payload?: { weekRangeLabel?: string }
+  payload?: { weekRangeLabel?: string; holidayTooltip?: string }
 }
 
 interface CustomTooltipProps {
@@ -92,6 +92,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   }
 
   const weekRangeLabel = String(payload[0]?.payload?.weekRangeLabel ?? label ?? '')
+  const holidayTooltip = String(payload[0]?.payload?.holidayTooltip ?? '')
   const totalProjectHours = payload
     .filter((entry) => entry.dataKey !== 'capacity')
     .reduce((sum: number, entry: TooltipEntry) => {
@@ -132,6 +133,16 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
       >
         Total Project Hours: {totalProjectHours.toFixed(1)} h
       </div>
+      {holidayTooltip ? (
+        <div style={{ marginBottom: 6, padding: '6px 8px', background: '#111827', borderRadius: 8 }}>
+          <div style={{ fontWeight: 700, color: '#fbbf24', marginBottom: 4 }}>Holidays</div>
+          {holidayTooltip.split('\n').map((line) => (
+            <div key={line} style={{ color: '#e5e7eb', fontSize: '0.93rem', lineHeight: 1.35 }}>
+              {line}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div style={{ display: 'grid', gap: 4, marginBottom: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ color: '#93c5fd' }}>Capacity</span>
@@ -219,6 +230,10 @@ export function ForecastChart({
     capacity: bucket.capacity,
     variance: bucket.variance,
     overCapacity: bucket.overCapacity,
+    holidayTooltip:
+      bucket.holidayDetails && bucket.holidayDetails.length > 0
+        ? bucket.holidayDetails.map((h) => `${h.name} — ${h.date}`).join('\n')
+        : '',
     ...bucket.groups,
   }))
 

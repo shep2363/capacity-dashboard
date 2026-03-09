@@ -29,6 +29,7 @@ export interface WeeklyBucket {
   overCapacity: boolean
   status: CapacityStatus
   groups: Record<string, number>
+  holidayDetails?: Array<{ name: string; date: string }>
 }
 
 export interface MonthlyBucket {

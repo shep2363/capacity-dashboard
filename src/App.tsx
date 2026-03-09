@@ -68,7 +68,7 @@ function App() {
   const [enabledResources, setEnabledResources] = useState<Record<string, boolean>>({})
   const [salesEnabledResources, setSalesEnabledResources] = useState<Record<string, boolean>>({})
   const [weekendExtraByResource, setWeekendExtraByResource] = useState<Record<string, number>>({})
-  const [holidayDates, setHolidayDates] = useState<string[]>([])
+  const [holidayDates, setHolidayDates] = useState<Array<{ iso: string; name: string }>>([])
   const [projectsInitialized, setProjectsInitialized] = useState(false)
   const [salesProjectsInitialized, setSalesProjectsInitialized] = useState(false)
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
@@ -365,70 +365,70 @@ function App() {
       return
     }
     const year = Number(filters.year)
-    const holidays: string[] = []
-    const push = (iso: string) => holidays.push(iso)
-    const observedMonday = (iso: string) => {
+    const holidays: Array<{ iso: string; name: string }> = []
+    const push = (iso: string, name: string) => holidays.push({ iso, name })
+    const observedMonday = (iso: string, name: string) => {
       const d = parseISO(iso)
       const dow = d.getDay()
       if (dow === 6) {
-        push(format(addDays(d, 2), 'yyyy-MM-dd'))
+        push(format(addDays(d, 2), 'yyyy-MM-dd'), `${name} (observed)`)
       } else if (dow === 0) {
-        push(format(addDays(d, 1), 'yyyy-MM-dd'))
+        push(format(addDays(d, 1), 'yyyy-MM-dd'), `${name} (observed)`)
       } else {
-        push(iso)
+        push(iso, name)
       }
     }
 
-    push(`${year}-01-01`) // New Year's
+    push(`${year}-01-01`, "New Year's Day")
     // Family Day - third Monday of February
     {
       const first = parseISO(`${year}-02-01`)
       const dow = first.getDay()
       const offset = (dow === 0 ? 1 : 8 - dow) // first Monday
       const thirdMonday = offset + 14
-      push(format(addDays(first, thirdMonday - 1), 'yyyy-MM-dd'))
+      push(format(addDays(first, thirdMonday - 1), 'yyyy-MM-dd'), 'Family Day')
     }
     // Good Friday approximation using known 2026? use simple rule: skip accurate calc, fallback none
-    // To avoid complexity, leave Good Friday out for now
+    // Skipped to avoid date calc complexity; add here if required.
     // Victoria Day: Monday preceding May 25
     {
       const may25 = parseISO(`${year}-05-25`)
       const dow = may25.getDay()
       const offset = dow === 1 ? 7 : dow === 0 ? 6 : dow - 1
-      push(format(addDays(may25, -offset), 'yyyy-MM-dd'))
+      push(format(addDays(may25, -offset), 'yyyy-MM-dd'), 'Victoria Day')
     }
     // Canada Day observed
-    observedMonday(`${year}-07-01`)
+    observedMonday(`${year}-07-01`, 'Canada Day')
     // Saskatchewan Day first Monday August
     {
       const aug1 = parseISO(`${year}-08-01`)
       const dow = aug1.getDay()
       const offset = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow
-      push(format(addDays(aug1, offset), 'yyyy-MM-dd'))
+      push(format(addDays(aug1, offset), 'yyyy-MM-dd'), 'Saskatchewan Day')
     }
     // Labour Day first Monday September
     {
       const sep1 = parseISO(`${year}-09-01`)
       const dow = sep1.getDay()
       const offset = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow
-      push(format(addDays(sep1, offset), 'yyyy-MM-dd'))
+      push(format(addDays(sep1, offset), 'yyyy-MM-dd'), 'Labour Day')
     }
     // National Day for Truth and Reconciliation (federal) - include if weekday
-    observedMonday(`${year}-09-30`)
+    observedMonday(`${year}-09-30`, 'National Day for Truth and Reconciliation')
     // Thanksgiving second Monday October
     {
       const oct1 = parseISO(`${year}-10-01`)
       const dow = oct1.getDay()
       const firstMondayOffset = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow
       const secondMonday = firstMondayOffset + 7
-      push(format(addDays(oct1, secondMonday), 'yyyy-MM-dd'))
+      push(format(addDays(oct1, secondMonday), 'yyyy-MM-dd'), 'Thanksgiving')
     }
     // Remembrance Day
-    observedMonday(`${year}-11-11`)
+    observedMonday(`${year}-11-11`, 'Remembrance Day')
     // Christmas Day
-    observedMonday(`${year}-12-25`)
+    observedMonday(`${year}-12-25`, 'Christmas Day')
     // Boxing Day
-    observedMonday(`${year}-12-26`)
+    observedMonday(`${year}-12-26`, 'Boxing Day')
 
     setHolidayDates(holidays)
   }, [filters.year])
@@ -441,8 +441,8 @@ function App() {
   }, [baseLayer.weekKeys, salesBaseLayer.weekKeys])
 
   const holidayWeeks = useMemo(() => {
-    const map = new Map<string, number>()
-    holidayDates.forEach((iso) => {
+    const map = new Map<string, Array<{ name: string; iso: string }>>()
+    holidayDates.forEach(({ iso, name }) => {
       const d = parseISO(iso)
       const dow = d.getDay()
       if (dow === 0 || dow === 6) {
@@ -452,20 +452,31 @@ function App() {
       }
       const weekStart = startOfWeek(d, { weekStartsOn: 1 })
       const key = format(weekStart, 'yyyy-MM-dd')
-      map.set(key, (map.get(key) ?? 0) + 1)
+      const arr = map.get(key) ?? []
+      arr.push({ iso, name })
+      map.set(key, arr)
     })
     return map
   }, [holidayDates, selectedWeekendDates])
+
+  const holidayDetailsByWeek = useMemo(() => {
+    const rec: Record<string, Array<{ name: string; date: string }>> = {}
+    holidayWeeks.forEach((arr, key) => {
+      rec[key] = arr.map((entry) => ({ name: entry.name, date: entry.iso }))
+    })
+    return rec
+  }, [holidayWeeks])
 
   const weekCapacities = useMemo(() => {
     const map: Record<string, number> = {}
     for (const weekIso of allWeekKeys) {
       let weeklyTotal = 0
-      const holidayCount = holidayWeeks.get(weekIso) ?? 0
+      const holidays = holidayWeeks.get(weekIso) ?? []
       for (const resource of enabledResourceList) {
         const weekly = resourceWeeklyCapacities[resource] ?? 0
         const weekendExtra = weekendExtraByResource[resource] ?? 0
-        const holidayReduction = holidayCount > 0 ? Math.min(weekly, (weekly / 5) * holidayCount) : 0
+        const holidayReduction =
+          holidays.length > 0 ? Math.min(weekly, (weekly / 5) * holidays.length) : 0
         const weekendApply = weekendWeeks.has(weekIso) ? weekendExtra : 0
         weeklyTotal += weekly + weekendApply - holidayReduction
       }
@@ -480,12 +491,12 @@ function App() {
   }, [baseLayer.weekKeys, weekCapacities])
 
   const weeklyBuckets = useMemo(
-    () => buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy),
-    [finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy],
+    () => buildWeeklyBucketsFromLeaf(finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek),
+    [finalByKey, baseLayer.weekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek],
   )
   const salesWeeklyBuckets = useMemo(
-    () => buildWeeklyBucketsFromLeaf(salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy),
-    [salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy],
+    () => buildWeeklyBucketsFromLeaf(salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek),
+    [salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek],
   )
 
   const combinedWeeklyBuckets = useMemo(() => {
