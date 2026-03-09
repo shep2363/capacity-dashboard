@@ -530,10 +530,16 @@ function App() {
         const variance = totalHours - capacity
         const status = getCapacityStatus(totalHours, capacity)
         const weekEndIso = ops?.weekEndIso ?? format(addDays(parseISO(weekStartIso), 4), 'yyyy-MM-dd')
-        const holidayDetails = [
-          ...(ops?.holidayDetails ?? []),
-          ...(sales?.holidayDetails ?? []),
-        ]
+        const mergedHolidayDetails: Array<{ name: string; date: string }> = []
+        const seenHolidayKeys = new Set<string>()
+        ;[...(ops?.holidayDetails ?? []), ...(sales?.holidayDetails ?? [])].forEach((entry) => {
+          const key = `${entry.name}|${entry.date}`
+          if (seenHolidayKeys.has(key)) {
+            return
+          }
+          seenHolidayKeys.add(key)
+          mergedHolidayDetails.push(entry)
+        })
 
         return {
           weekStartIso,
@@ -545,7 +551,7 @@ function App() {
           overCapacity: status === 'Over Capacity',
           status,
           groups,
-          holidayDetails,
+          holidayDetails: mergedHolidayDetails,
         }
       })
   }, [weeklyBuckets, salesWeeklyBuckets])
