@@ -178,6 +178,11 @@ p {
   padding: 1.55rem 1.6rem 1.4rem;
 }
 
+.control-panel.collapsed {
+  min-height: auto;
+  padding-bottom: 1rem;
+}
+
 .title-bar {
   display: flex;
   justify-content: space-between;
@@ -190,6 +195,21 @@ p {
   display: grid;
   gap: 0.6rem;
   justify-items: end;
+}
+
+.collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chevron {
+  display: inline-block;
+  transition: transform 0.18s ease;
+}
+
+.chevron-closed {
+  transform: rotate(-90deg);
 }
 
 .title-stack {

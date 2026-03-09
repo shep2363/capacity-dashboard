@@ -1280,7 +1280,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header className="panel control-panel">
+      <header className={`panel control-panel ${isHeaderCollapsed ? 'collapsed' : ''}`}>
         <div className="title-bar">
           <div className="title-stack">
             <h1>Production Capacity Planning Dashboard</h1>
@@ -1303,11 +1303,14 @@ function App() {
             </button>
             <button
               type="button"
-              className="ghost-btn"
+              className="ghost-btn collapse-toggle"
               onClick={() => setIsHeaderCollapsed((current) => !current)}
               aria-expanded={!isHeaderCollapsed}
             >
-              {isHeaderCollapsed ? 'Expand Controls' : 'Collapse Controls'}
+              <span className={`chevron ${isHeaderCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
+                ▾
+              </span>
+              {isHeaderCollapsed ? 'Show Filters' : 'Hide Filters'}
             </button>
           </div>
         </div>
