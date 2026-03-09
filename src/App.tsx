@@ -1074,44 +1074,6 @@ function App() {
         </div>
       </header>
 
-      <section className="panel summary-panel">
-        <div className="section-header">
-          <h2>Summary</h2>
-          <p>All metrics below are driven by the final adjusted planning dataset.</p>
-        </div>
-
-        <div className="summary-grid">
-          <div>
-            <span>Total Forecast Hours</span>
-            <strong>{totals.hours.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Total Capacity Hours</span>
-            <strong>{totals.capacity.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Selected Weekly Capacity</span>
-            <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Total Monthly Capacity (visible months)</span>
-            <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
-          </div>
-          <div>
-            <span>Variance (Forecast - Capacity)</span>
-            <strong className={totals.variance > 0 ? 'negative' : 'positive'}>{totals.variance.toFixed(2)}</strong>
-          </div>
-          <div>
-            <span>Over-Capacity Weeks</span>
-            <strong>{totals.overCount}</strong>
-          </div>
-          <div>
-            <span>Manual Overrides</span>
-            <strong>{Object.keys(manualOverrides).length}</strong>
-          </div>
-        </div>
-      </section>
-
       {!isLoading && !error && allResourcesVisible && (
         <ResourceCapacityTable
           key={`resource-capacity-${collapseResetToken}`}
@@ -1195,8 +1157,47 @@ function App() {
               subtitle="Editable sales forecast planning grid using Sales Production Report data."
             />
           )}
-            <ReportWorkspace
-              key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
+          <section className="panel summary-panel">
+            <div className="section-header">
+              <h2>Summary</h2>
+              <p>All metrics below are driven by the final adjusted planning dataset.</p>
+            </div>
+
+            <div className="summary-grid">
+              <div>
+                <span>Total Forecast Hours</span>
+                <strong>{totals.hours.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Total Capacity Hours</span>
+                <strong>{totals.capacity.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Selected Weekly Capacity</span>
+                <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>Total Monthly Capacity (visible months)</span>
+                <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
+              </div>
+              <div>
+                <span>Variance (Forecast - Capacity)</span>
+                <strong className={totals.variance > 0 ? 'negative' : 'positive'}>
+                  {totals.variance.toFixed(2)}
+                </strong>
+              </div>
+              <div>
+                <span>Over-Capacity Weeks</span>
+                <strong>{totals.overCount}</strong>
+              </div>
+              <div>
+                <span>Manual Overrides</span>
+                <strong>{Object.keys(manualOverrides).length}</strong>
+              </div>
+            </div>
+          </section>
+          <ReportWorkspace
+            key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
             weeklyBuckets={weeklyBuckets}
             combinedWeeklyBuckets={combinedWeeklyBuckets}
             salesWeeklyBuckets={salesWeeklyBuckets}
