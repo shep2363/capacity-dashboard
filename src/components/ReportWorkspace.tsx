@@ -6,7 +6,12 @@ import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
 import { ExecutiveSummary, type ExecutiveData } from './ExecutiveSummary'
-import { fetchPipedriveDeals, fetchPipedriveStages, type PipedriveDeal } from '../utils/pipedrive'
+import {
+  fetchDealFieldKeys,
+  fetchPipedriveDeals,
+  fetchPipedriveStages,
+  type PipedriveDeal,
+} from '../utils/pipedrive'
 
 export type ReportTab =
   | 'snapshot'
@@ -138,9 +143,25 @@ export function ReportWorkspace({
     setDealsLoading(true)
     setDealsError('')
 
+    const resolveHoursKeys = async (): Promise<Record<string, string | undefined>> => {
+      const provided = hoursFieldKeys
+      const missingKeys = Object.values(provided).every((v) => !v)
+      if (missingKeys) {
+        try {
+          const auto = await fetchDealFieldKeys(pipedriveToken, controller.signal)
+          return { fab: auto.fab, blast: auto.blast, paint: auto.paint, ship: auto.ship }
+        } catch {
+          return provided
+        }
+      }
+      return provided
+    }
+
     Promise.all([
       fetchPipedriveStages(pipedriveToken, controller.signal).catch(() => ({} as Record<number, string>)),
-      fetchPipedriveDeals(pipedriveToken, { signal: controller.signal, hoursFieldKeys }),
+      resolveHoursKeys().then((resolvedHours) =>
+        fetchPipedriveDeals(pipedriveToken, { signal: controller.signal, hoursFieldKeys: resolvedHours }),
+      ),
     ])
       .then(([stages, data]) => {
         const stageLookup = stages as Record<number, string>

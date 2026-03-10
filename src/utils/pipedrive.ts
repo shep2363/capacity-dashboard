@@ -30,6 +30,16 @@ interface DealsResponse {
   }
 }
 
+interface DealField {
+  key: string
+  name: string
+  field_type: string
+}
+
+interface DealFieldsResponse {
+  data?: DealField[]
+}
+
 export async function fetchPipedriveDeals(
   token: string,
   options?: { signal?: AbortSignal; hoursFieldKeys?: Record<string, string | undefined | null> },
@@ -101,4 +111,31 @@ export async function fetchPipedriveStages(
     map[stage.id] = stage.name
   }
   return map
+}
+
+export async function fetchDealFieldKeys(
+  token: string,
+  signal?: AbortSignal,
+): Promise<Record<string, string>> {
+  const url = new URL('https://api.pipedrive.com/v1/dealFields')
+  url.searchParams.set('api_token', token)
+  const response = await fetch(url.toString(), { signal })
+  if (!response.ok) {
+    throw new Error(`Pipedrive dealFields responded with ${response.status}`)
+  }
+  const json = (await response.json()) as DealFieldsResponse
+  const fields = json.data ?? []
+
+  const wanted: Record<string, string> = {}
+  const pick = (label: string, predicate: (f: DealField) => boolean) => {
+    const match = fields.find(predicate)
+    if (match) wanted[label] = match.key
+  }
+
+  pick('fab', (f) => /fab|fabrication/.test(f.name.toLowerCase()) && /hour/.test(f.name.toLowerCase()))
+  pick('blast', (f) => /blast/.test(f.name.toLowerCase()) && /hour/.test(f.name.toLowerCase()))
+  pick('paint', (f) => /paint/.test(f.name.toLowerCase()) && /hour/.test(f.name.toLowerCase()))
+  pick('ship', (f) => /(ship|handling)/.test(f.name.toLowerCase()) && /hour/.test(f.name.toLowerCase()))
+
+  return wanted
 }
