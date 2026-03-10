@@ -1474,14 +1474,6 @@ function App() {
                 </p>
               </div>
               <div className="title-actions">
-                <label className="upload-inline">
-                  Upload or Replace Workbook (.xlsx)
-                  <input type="file" accept=".xlsx" onChange={handleUpload} />
-                </label>
-                <label className="upload-inline">
-                  Upload Sales Workbook (.xlsx)
-                  <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
-                </label>
                 <button type="button" onClick={exportDepartmentWorkbook}>
                   Export Dept Workbook
                 </button>
@@ -1505,6 +1497,15 @@ function App() {
             {!isHeaderCollapsed && (
               <>
                 <div className="controls-grid">
+                  <label>
+                    Upload or Replace Workbook (.xlsx)
+                    <input type="file" accept=".xlsx" onChange={handleUpload} />
+                  </label>
+                  <label>
+                    Upload Sales Workbook (.xlsx)
+                    <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
+                  </label>
+
                   <label>
                     Planning Rows
                     <select
