@@ -1459,7 +1459,7 @@ function App() {
             <div className="title-bar">
               <div className="brand-lockup">
                 <img
-                  src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='70' viewBox='0 0 240 70'><defs><style>.a{fill:%2300a3c4;font-family:Segoe UI Semibold,Segoe UI;font-size:46px;font-weight:600}.b{fill:%23f4b400;font-family:Segoe UI Black,Segoe UI;font-size:46px;font-weight:800;letter-spacing:0.8px}</style></defs><text x='0' y='50'><tspan class='a'>Infra</tspan><tspan class='b' dx='4'>MOD</tspan></text></svg>"
+                  src="/brand/inframod-logo.svg"
                   alt="InfraMOD"
                   className="brand-logo"
                   loading="lazy"
