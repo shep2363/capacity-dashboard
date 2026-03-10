@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="180" viewBox="0 0 640 180">
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="220" viewBox="0 0 800 220">
   <defs>
     <style>
-      .word { fill: #0297b7; font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif; font-size: 96px; font-weight: 700; letter-spacing: -1px; }
-      .mod  { fill: #f4b400; font-family: 'Segoe UI Black', 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif; font-size: 110px; font-weight: 900; letter-spacing: -1px; }
-      .tag  { fill: #0297b7; font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif; font-size: 32px; font-weight: 600; letter-spacing: 0.2px; }
+      .word { fill: #0599bd; font-family: 'Segoe UI Semibold', 'Inter', 'Nunito Sans', system-ui, -apple-system, sans-serif; font-size: 104px; font-weight: 700; letter-spacing: -1px; }
+      .mod  { fill: #f4b400; font-family: 'Segoe UI Black', 'Inter', system-ui, -apple-system, sans-serif; font-size: 120px; font-weight: 900; letter-spacing: -1px; }
+      .tag  { fill: #0599bd; font-family: 'Segoe UI Semibold', 'Inter', system-ui, -apple-system, sans-serif; font-size: 34px; font-weight: 600; letter-spacing: 0.25px; }
     </style>
   </defs>
   <!-- Star placed over the i -->
-  <g transform="translate(56 30) scale(1.05)" fill="#f4b400">
-    <path d="M8 0l2.6 7.9 7.9-2.6-6 6 6 6-7.9-2.6L8 22l-2.6-7.3L-2.6 16l6-6-6-6 7.3 2.6z" />
+  <g transform="translate(58 36) scale(1.15)" fill="#f4b400">
+    <path d="M8 0l2.6 7.9 7.9-2.6-6 6 6 6-7.9-2.6L8 22l-2.6-7.3L-2.6 16l6-6-6-6 7.3 2.6z"/>
   </g>
   <!-- infra (lowercase) -->
-  <text class="word" x="64" y="102">infra</text>
+  <text class="word" x="72" y="118">infra</text>
   <!-- MOD -->
-  <text class="mod" x="282" y="108">MOD</text>
+  <text class="mod" x="312" y="128">MOD</text>
   <!-- TM -->
-  <text x="566" y="68" font-family="Segoe UI" font-size="20" fill="#f4b400">™</text>
+  <text x="655" y="88" font-family="Segoe UI" font-size="24" fill="#f4b400">™</text>
   <!-- tag line -->
-  <text class="tag" x="282" y="142">a saskarc company</text>
+  <text class="tag" x="312" y="166">a saskarc company</text>
 </svg>
