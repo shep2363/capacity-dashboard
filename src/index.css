@@ -1375,3 +1375,26 @@ input,
   color: #f87171;
   font-size: 0.9rem;
 }
+
+.token-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.token-inline input {
+  padding: 6px 10px;
+  border: 1px solid var(--brand-border);
+  background: #0f3246;
+  color: var(--brand-text);
+  min-width: 260px;
+}
+
+.token-inline button {
+  padding: 6px 12px;
+}
+
+.token-inline small {
+  color: var(--brand-muted);
+}

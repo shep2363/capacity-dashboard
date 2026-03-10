@@ -81,6 +81,18 @@ export function ReportWorkspace({
   const [dealProbBucket, setDealProbBucket] = useState('all')
   const [dealsLoading, setDealsLoading] = useState(false)
   const [dealsError, setDealsError] = useState('')
+  const envToken =
+    (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_API_TOKEN ??
+    (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_API_TOKEN ??
+    ''
+  const [pipedriveToken, setPipedriveToken] = useState<string>(() => {
+    if (envToken) return envToken
+    if (typeof window !== 'undefined') {
+      return window.localStorage.getItem('pipedrive_api_token') ?? ''
+    }
+    return ''
+  })
+  const [tokenInput, setTokenInput] = useState<string>(() => pipedriveToken)
 
   async function handleExportPdf(): Promise<void> {
     if (!reportRef.current) {
@@ -102,10 +114,8 @@ export function ReportWorkspace({
   }
 
   useEffect(() => {
-    const env = import.meta.env as Record<string, string | undefined>
-    const token = env.VITE_PROJECT_47_API_TOKEN ?? env.VITE_PIPEDRIVE_API_TOKEN
-    if (!token) {
-      setDealsError('Missing VITE_PROJECT_47_API_TOKEN (or VITE_PIPEDRIVE_API_TOKEN) env variable for Pipedrive.')
+    if (!pipedriveToken) {
+      setDealsError('Add a Pipedrive API token to load deals.')
       return
     }
 
@@ -113,7 +123,7 @@ export function ReportWorkspace({
     setDealsLoading(true)
     setDealsError('')
 
-    fetchPipedriveDeals(token, controller.signal)
+    fetchPipedriveDeals(pipedriveToken, controller.signal)
       .then((data) => setDeals(data))
       .catch((error) => {
         if (controller.signal.aborted) return
@@ -127,15 +137,28 @@ export function ReportWorkspace({
       })
 
     return () => controller.abort()
-  }, [])
+  }, [pipedriveToken])
+
+  function handleSaveToken(): void {
+    const trimmed = tokenInput.trim()
+    if (!trimmed) {
+      setDealsError('Please paste a valid Pipedrive API token.')
+      return
+    }
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('pipedrive_api_token', trimmed)
+    }
+    setDealsError('')
+    setPipedriveToken(trimmed)
+  }
 
   const probabilityLabels: Record<string, string> = {
     all: 'All probabilities',
     '100': '100%',
-    '75-99': '75–99%',
-    '50-74': '50–74%',
-    '25-49': '25–49%',
-    '1-24': '1–24%',
+    '75-99': '75-99%',
+    '50-74': '50-74%',
+    '25-49': '25-49%',
+    '1-24': '1-24%',
     '0': '0%',
   }
 
@@ -204,6 +227,20 @@ export function ReportWorkspace({
             </label>
             {dealsLoading && <span className="pill">Loading deals...</span>}
             {dealsError && <span className="error-text">{dealsError}</span>}
+            {!pipedriveToken && (
+              <div className="token-inline">
+                <input
+                  type="password"
+                  placeholder="Paste Pipedrive API token"
+                  value={tokenInput}
+                  onChange={(event) => setTokenInput(event.target.value)}
+                />
+                <button type="button" onClick={handleSaveToken}>
+                  Use Token
+                </button>
+                <small>Saved to this browser only.</small>
+              </div>
+            )}
           </div>
         </div>
 
