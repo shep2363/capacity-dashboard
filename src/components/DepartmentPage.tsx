@@ -286,6 +286,9 @@ function DepartmentPage({
             onClick={() => setFiltersOpen((open) => !open)}
             aria-expanded={filtersOpen}
           >
+            <span className={`chevron ${filtersOpen ? 'chevron-open' : 'chevron-closed'}`} aria-hidden="true">
+              ▾
+            </span>
             {filtersOpen ? 'Hide Filters' : 'Show Filters'}
             {activeFilterCount > 0 && <span className="filter-count">({activeFilterCount})</span>}
           </button>
