@@ -1456,6 +1456,9 @@ function App() {
         <>
           <header className={`panel control-panel ${isHeaderCollapsed ? 'collapsed' : ''}`}>
             <div className="title-bar">
+              <div className="brand-lockup">
+                <img src="/brand/inframod.png" alt="InfraMOD" className="brand-logo" />
+              </div>
               <div className="title-stack">
                 <h1>Production Capacity Planning Dashboard</h1>
                 <p className="subtitle">

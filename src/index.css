@@ -1103,3 +1103,238 @@ button.sortable {
     width: 100%;
   }
 }
+:root {
+  --brand-bg: #041c29;
+  --brand-surface: #0a2a3b;
+  --brand-panel: #0f3246;
+  --brand-accent: #00a3c4;
+  --brand-accent-strong: #0091ae;
+  --brand-secondary: #f4b400;
+  --brand-text: #e4f2fb;
+  --brand-muted: #9fb8c9;
+  --brand-border: #0f415a;
+  --brand-danger: #f87171;
+  --brand-warning: #f59e0b;
+}
+
+body {
+  background: var(--brand-bg);
+  color: var(--brand-text);
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(0, 163, 196, 0.12), transparent 35%),
+    radial-gradient(circle at 80% 10%, rgba(0, 163, 196, 0.08), transparent 32%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(0, 163, 196, 0.06) 0px,
+      rgba(0, 163, 196, 0.06) 14px,
+      rgba(4, 28, 41, 0.2) 14px,
+      rgba(4, 28, 41, 0.2) 28px
+    ),
+    linear-gradient(135deg, #031622 0%, #062234 40%, #041c29 100%);
+}
+
+.panel {
+  background: var(--brand-panel);
+  border: 1px solid var(--brand-border);
+  color: var(--brand-text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.control-panel {
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+}
+
+.title-bar {
+  align-items: center;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  margin-right: 1rem;
+}
+
+.brand-logo {
+  height: 54px;
+  width: auto;
+  object-fit: contain;
+}
+
+.subtitle {
+  color: var(--brand-muted);
+}
+
+.page-tab {
+  border-color: var(--brand-border);
+  background: #0c2b3d;
+  color: var(--brand-text);
+}
+
+.page-tab-active {
+  border-color: var(--brand-accent);
+  background: linear-gradient(120deg, #0d3d53 0%, #0a95b7 100%);
+  color: #03202f;
+}
+
+button,
+.ghost-btn {
+  background: linear-gradient(135deg, #0a95b7, #067a96);
+  color: #031622;
+  border: 1px solid #0ea5c0;
+}
+
+button:hover,
+.ghost-btn:hover {
+  background: linear-gradient(135deg, #0fb5d6, #0b95b7);
+}
+
+.ghost-btn {
+  background: transparent;
+  color: var(--brand-text);
+  border-color: var(--brand-border);
+}
+
+.ghost-btn.collapse-toggle.filter-active {
+  border-color: var(--brand-secondary);
+  color: var(--brand-secondary);
+}
+
+.filter-count {
+  margin-left: 0.4rem;
+  font-weight: 700;
+}
+
+select,
+input,
+.multi-select .multi-trigger {
+  background: #0d3044;
+  color: var(--brand-text);
+  border: 1px solid var(--brand-border);
+}
+
+.dept-week {
+  background: #0c2b3d;
+  border-color: var(--brand-border);
+}
+
+.dept-table-header {
+  color: var(--brand-accent);
+}
+
+.dept-progress-bar {
+  background: #0a2433;
+  border-color: #0f415a;
+}
+
+.dept-progress-fill {
+  background: linear-gradient(120deg, #0fb5d6, #f4b400);
+}
+
+.project-chip {
+  color: #041524;
+}
+
+.status-pill.status-completed {
+  background: rgba(79, 220, 142, 0.18);
+  color: #8ff0c0;
+}
+
+.status-pill.status-overdue {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fca5a5;
+}
+
+.status-pill.status-scheduled,
+.status-pill.status-in-progress {
+  background: rgba(0, 163, 196, 0.2);
+  color: #7ce3ff;
+}
+
+.status-pill {
+  border: 1px solid var(--brand-border);
+}
+
+.summary-grid strong,
+.dept-summary strong,
+.meta-row strong {
+  color: var(--brand-secondary);
+}
+
+.chart-wrap {
+  background: #0c2b3d;
+  border: 1px solid var(--brand-border);
+  border-radius: 14px;
+}
+
+.weekend-pills button {
+  background: #0f3246;
+  border: 1px solid var(--brand-border);
+}
+
+.chip-toggle {
+  border-color: var(--brand-border);
+  color: var(--brand-text);
+}
+
+.chip-toggle.chip-on {
+  background: var(--brand-accent);
+  color: #03202f;
+}
+
+.section-header h2 {
+  color: var(--brand-accent);
+}
+
+.section-header-row h2 {
+  color: var(--brand-accent);
+}
+
+.pill-ghost {
+  background: rgba(0, 163, 196, 0.12);
+  color: var(--brand-text);
+  border: 1px solid var(--brand-border);
+}
+
+.status {
+  color: var(--brand-text);
+}
+
+.status.error {
+  background: #2a0f0f;
+  border-color: #7f1d1d;
+}
+
+.summary-panel {
+  background: #0b2434;
+  border-color: var(--brand-border);
+}
+
+.page-nav {
+  background: transparent;
+}
+
+.brand-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 20% 20%, rgba(0, 163, 196, 0.07), transparent 40%),
+    radial-gradient(circle at 80% 10%, rgba(244, 180, 0, 0.08), transparent 45%),
+    repeating-linear-gradient(
+      60deg,
+      rgba(0, 163, 196, 0.08) 0,
+      rgba(0, 163, 196, 0.08) 12px,
+      rgba(4, 28, 41, 0.1) 12px,
+      rgba(4, 28, 41, 0.1) 24px
+    );
+  opacity: 0.5;
+  z-index: 0;
+}
+
+.app-shell > * {
+  position: relative;
+  z-index: 1;
+}
