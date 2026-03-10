@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+ï»¿import { useMemo } from 'react'
 import { eachDayOfInterval, format, getDay, getYear, isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 import type { AppFilters, TaskRow } from '../types'
 import { weekRangeLabel } from '../utils/planner'
@@ -49,6 +49,7 @@ export interface DepartmentFilters {
   projects: string[]
   sequences: string[]
   weeks: string[]
+  statuses: string[]
 }
 
 function distributeTaskWork(task: TaskRow, workingWeekendDates: Set<string>): Array<{ date: Date; hours: number }> {
@@ -168,9 +169,10 @@ function DepartmentPage({
     return projectFilteredRows.filter((row) => {
       if (filter.sequences.length > 0 && !filter.sequences.includes(row.sequence)) return false
       if (filter.weeks.length > 0 && !filter.weeks.includes(row.weekStartIso)) return false
+       if (filter.statuses.length > 0 && !filter.statuses.includes(row.status)) return false
       return true
     })
-  }, [projectFilteredRows, filter.sequences, filter.weeks])
+  }, [projectFilteredRows, filter.sequences, filter.weeks, filter.statuses])
 
   const grouped = useMemo(() => {
     const map = new Map<
@@ -215,6 +217,13 @@ function DepartmentPage({
         .map((sequence) => ({ value: sequence, label: sequence })),
     [projectFilteredRows],
   )
+  const statusOptions = useMemo(
+    () =>
+      [...new Set(projectFilteredRows.map((r) => r.status))]
+        .sort((a, b) => a.localeCompare(b))
+        .map((status) => ({ value: status, label: status })),
+    [projectFilteredRows],
+  )
 
   const totalHours = filteredRows.reduce((sum, row) => sum + row.hours, 0)
   const totalSequences = filteredRows.length
@@ -233,12 +242,14 @@ function DepartmentPage({
   const setProjects = (values: string[]) => onFilterChange({ ...filter, projects: values })
   const setSequences = (values: string[]) => onFilterChange({ ...filter, sequences: values })
   const setWeeks = (values: string[]) => onFilterChange({ ...filter, weeks: values })
+  const setStatuses = (values: string[]) => onFilterChange({ ...filter, statuses: values })
+  const resetFilters = () => onFilterChange({ projects: [], sequences: [], weeks: [], statuses: [] })
 
   if (!resourceEnabled) {
     return (
       <section className="panel department-page">
         <div className="section-header">
-          <h2>{resource} — Weekly Plan</h2>
+          <h2>{resource} â€” Weekly Plan</h2>
           <p>This resource is currently disabled in the Resource Capacity Input toggles.</p>
         </div>
       </section>
@@ -249,7 +260,7 @@ function DepartmentPage({
     <section className="panel department-page">
       <div className="section-header-row">
         <div>
-          <h2>{resource} — Weekly Production Plan</h2>
+          <h2>{resource} â€” Weekly Production Plan</h2>
           <p>Project and sequence view filtered to the currently loaded workbook and dashboard filters.</p>
         </div>
         <div className="dept-summary">
@@ -295,6 +306,21 @@ function DepartmentPage({
             ))}
           </select>
         </label>
+        <label>
+          Status Filter
+          <select multiple value={filter.statuses} onChange={(event) => handleMultiSelect(event, setStatuses)}>
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="dept-filter-actions">
+          <button type="button" className="ghost-btn" onClick={resetFilters}>
+            Reset Filters
+          </button>
+        </div>
       </div>
 
       {grouped.length === 0 ? (
@@ -330,6 +356,7 @@ function DepartmentPage({
               <div className="dept-table-header">
                 <span>Project</span>
                 <span>Sequence</span>
+                <span>Finish Date</span>
                 <span>Hours</span>
                 <span>Progress</span>
                 <span>Status</span>
@@ -343,6 +370,7 @@ function DepartmentPage({
                       {row.project}
                     </span>
                     <span>{row.sequence}</span>
+                    <span>{row.finishDate || 'Not Scheduled'}</span>
                     <span>{row.hours.toFixed(1)} h</span>
                     <span className="dept-progress">
                       <div className="dept-progress-bar" aria-label={`Progress ${row.percentComplete.toFixed(0)}%`}>

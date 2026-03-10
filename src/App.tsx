@@ -70,7 +70,7 @@ const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   paint: 'Paint',
   shipping: 'Shipping',
 }
-const DEFAULT_DEPT_FILTER: DepartmentFilters = { projects: [], sequences: [], weeks: [] }
+const DEFAULT_DEPT_FILTER: DepartmentFilters = { projects: [], sequences: [], weeks: [], statuses: [] }
 
 // Meeus/Jones/Butcher computus for Gregorian calendar to find Easter Sunday.
 const computeEasterSunday = (year: number): Date => {
@@ -478,6 +478,7 @@ function App() {
       if (filter.projects.length > 0 && !filter.projects.includes(row.project)) return false
       if (filter.sequences.length > 0 && !filter.sequences.includes(row.sequence)) return false
       if (filter.weeks.length > 0 && !filter.weeks.includes(row.weekStartIso)) return false
+      if (filter.statuses.length > 0 && !filter.statuses.includes(row.status)) return false
       return true
     })
 
