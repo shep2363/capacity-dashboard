@@ -129,13 +129,14 @@ export function ReportWorkspace({
     setDealsError('')
 
     Promise.all([
-      fetchPipedriveStages(pipedriveToken, controller.signal).catch(() => ({})),
+      fetchPipedriveStages(pipedriveToken, controller.signal).catch(() => ({} as Record<number, string>)),
       fetchPipedriveDeals(pipedriveToken, { signal: controller.signal, hoursFieldKey }),
     ])
       .then(([stages, data]) => {
-        setStageMap(stages as Record<number, string>)
+        const stageLookup = stages as Record<number, string>
+        setStageMap(stageLookup)
         const normalized = data.map((deal) => {
-          const stageName = deal.stage_name || (deal.stage_id != null ? stages?.[deal.stage_id] : undefined)
+          const stageName = deal.stage_name || (deal.stage_id != null ? stageLookup[deal.stage_id] : undefined)
           return stageName ? { ...deal, stage_name: stageName } : deal
         })
         setDeals(normalized)
