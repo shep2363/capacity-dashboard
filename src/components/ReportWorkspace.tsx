@@ -6,7 +6,7 @@ import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
 import { ExecutiveSummary, type ExecutiveData } from './ExecutiveSummary'
-import { fetchPipedriveDeals, type PipedriveDeal } from '../utils/pipedrive'
+import { fetchPipedriveDeals, fetchPipedriveStages, type PipedriveDeal } from '../utils/pipedrive'
 
 export type ReportTab =
   | 'snapshot'
@@ -81,9 +81,14 @@ export function ReportWorkspace({
   const [dealProbBucket, setDealProbBucket] = useState('all')
   const [dealsLoading, setDealsLoading] = useState(false)
   const [dealsError, setDealsError] = useState('')
+  const [stageMap, setStageMap] = useState<Record<number, string>>({})
   const envToken =
     (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_API_TOKEN ??
     (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_API_TOKEN ??
+    ''
+  const hoursFieldKey =
+    (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_HOURS_FIELD_KEY ??
+    (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_HOURS_FIELD_KEY ??
     ''
   const [pipedriveToken, setPipedriveToken] = useState<string>(() => {
     if (envToken) return envToken
@@ -123,8 +128,18 @@ export function ReportWorkspace({
     setDealsLoading(true)
     setDealsError('')
 
-    fetchPipedriveDeals(pipedriveToken, controller.signal)
-      .then((data) => setDeals(data))
+    Promise.all([
+      fetchPipedriveStages(pipedriveToken, controller.signal).catch(() => ({})),
+      fetchPipedriveDeals(pipedriveToken, { signal: controller.signal, hoursFieldKey }),
+    ])
+      .then(([stages, data]) => {
+        setStageMap(stages as Record<number, string>)
+        const normalized = data.map((deal) => {
+          const stageName = deal.stage_name || (deal.stage_id != null ? stages?.[deal.stage_id] : undefined)
+          return stageName ? { ...deal, stage_name: stageName } : deal
+        })
+        setDeals(normalized)
+      })
       .catch((error) => {
         if (controller.signal.aborted) return
         const message = error instanceof Error ? error.message : 'Failed to load Pipedrive deals.'
@@ -183,7 +198,14 @@ export function ReportWorkspace({
     }
   }
 
-  const stageOptions = ['all', ...new Set(deals.map((deal) => deal.stage_name).filter(Boolean) as string[])]
+  const stageOptions = [
+    'all',
+    ...new Set(
+      deals
+        .map((deal) => deal.stage_name || (deal.stage_id != null ? stageMap[deal.stage_id] : ''))
+        .filter(Boolean) as string[],
+    ),
+  ]
   const filteredDeals = deals
     .filter((deal) => (dealStage === 'all' ? true : deal.stage_name === dealStage))
     .filter((deal) => matchesProbability(dealProbBucket, deal.probability))
@@ -252,6 +274,7 @@ export function ReportWorkspace({
                 <th>Organization</th>
                 <th>Stage</th>
                 <th>Value</th>
+                <th>Hours</th>
                 <th>Probability</th>
               </tr>
             </thead>
@@ -267,6 +290,11 @@ export function ReportWorkspace({
                     <td>{deal.org_name || '—'}</td>
                     <td>{deal.stage_name || '—'}</td>
                     <td>{deal.value != null ? deal.value.toLocaleString() : '—'}</td>
+                    <td>
+                      {deal.hours != null && !Number.isNaN(deal.hours)
+                        ? deal.hours.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                        : '—'}
+                    </td>
                     <td>{deal.probability != null ? `${deal.probability}%` : '—'}</td>
                   </tr>
                 ))
