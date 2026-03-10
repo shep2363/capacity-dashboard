@@ -6,7 +6,7 @@ export interface PipedriveDeal {
   stage_name?: string
   probability?: number | null
   org_name?: string
-  hours?: number | null
+  hours?: Record<string, number | null>
 }
 
 interface DealsResponse {
@@ -32,9 +32,9 @@ interface DealsResponse {
 
 export async function fetchPipedriveDeals(
   token: string,
-  options?: { signal?: AbortSignal; hoursFieldKey?: string | null },
+  options?: { signal?: AbortSignal; hoursFieldKeys?: Record<string, string | undefined | null> },
 ): Promise<PipedriveDeal[]> {
-  const { signal, hoursFieldKey } = options ?? {}
+  const { signal, hoursFieldKeys = {} } = options ?? {}
   let start = 0
   const pageLimit = 500
   const allDeals: DealsResponse['data'] = []
@@ -72,7 +72,16 @@ export async function fetchPipedriveDeals(
     stage_name: deal.stage_name,
     probability: deal.probability,
     org_name: deal.org_id?.name ?? '',
-    hours: hoursFieldKey && typeof deal[hoursFieldKey] !== 'undefined' ? Number(deal[hoursFieldKey]) : null,
+    hours:
+      Object.keys(hoursFieldKeys).length === 0
+        ? undefined
+        : Object.fromEntries(
+            Object.entries(hoursFieldKeys).map(([label, key]) => {
+              const raw = key ? (deal as any)[key] : undefined
+              const num = typeof raw === 'number' ? raw : raw != null ? Number(raw) : null
+              return [label, Number.isFinite(num as number) ? (num as number) : null]
+            }),
+          ),
   }))
 }
 

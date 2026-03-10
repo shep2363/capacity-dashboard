@@ -86,10 +86,20 @@ export function ReportWorkspace({
     (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_API_TOKEN ??
     (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_API_TOKEN ??
     ''
-  const hoursFieldKey =
-    (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_HOURS_FIELD_KEY ??
-    (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_HOURS_FIELD_KEY ??
-    ''
+  const hoursFieldKeys: Record<string, string | undefined> = {
+    fab:
+      (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_FAB_HOURS_KEY ??
+      (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_FAB_HOURS_KEY,
+    blast:
+      (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_BLAST_HOURS_KEY ??
+      (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_BLAST_HOURS_KEY,
+    paint:
+      (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_PAINT_HOURS_KEY ??
+      (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_PAINT_HOURS_KEY,
+    ship:
+      (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_SHIP_HOURS_KEY ??
+      (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_SHIP_HOURS_KEY,
+  }
   const [pipedriveToken, setPipedriveToken] = useState<string>(() => {
     if (envToken) return envToken
     if (typeof window !== 'undefined') {
@@ -130,7 +140,7 @@ export function ReportWorkspace({
 
     Promise.all([
       fetchPipedriveStages(pipedriveToken, controller.signal).catch(() => ({} as Record<number, string>)),
-      fetchPipedriveDeals(pipedriveToken, { signal: controller.signal, hoursFieldKey }),
+      fetchPipedriveDeals(pipedriveToken, { signal: controller.signal, hoursFieldKeys }),
     ])
       .then(([stages, data]) => {
         const stageLookup = stages as Record<number, string>
@@ -275,14 +285,17 @@ export function ReportWorkspace({
                 <th>Organization</th>
                 <th>Stage</th>
                 <th>Value</th>
-                <th>Hours</th>
+                <th>Fab Hours</th>
+                <th>Blast Hours</th>
+                <th>Paint Hours</th>
+                <th>Ship/Handling Hours</th>
                 <th>Probability</th>
               </tr>
             </thead>
             <tbody>
               {filteredDeals.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>{dealsLoading ? 'Loading deals...' : 'No deals match the current filters.'}</td>
+                  <td colSpan={7}>{dealsLoading ? 'Loading deals...' : 'No deals match the current filters.'}</td>
                 </tr>
               ) : (
                 filteredDeals.slice(0, 100).map((deal) => (
@@ -291,11 +304,13 @@ export function ReportWorkspace({
                     <td>{deal.org_name || '—'}</td>
                     <td>{deal.stage_name || '—'}</td>
                     <td>{deal.value != null ? deal.value.toLocaleString() : '—'}</td>
-                    <td>
-                      {deal.hours != null && !Number.isNaN(deal.hours)
-                        ? deal.hours.toLocaleString(undefined, { maximumFractionDigits: 2 })
-                        : '—'}
-                    </td>
+                    {(['fab', 'blast', 'paint', 'ship'] as const).map((key) => (
+                      <td key={`${deal.id}-${key}`}>
+                        {deal.hours && deal.hours[key] != null && !Number.isNaN(deal.hours[key] as number)
+                          ? (deal.hours[key] as number).toLocaleString(undefined, { maximumFractionDigits: 2 })
+                          : '—'}
+                      </td>
+                    ))}
                     <td>{deal.probability != null ? `${deal.probability}%` : '—'}</td>
                   </tr>
                 ))
