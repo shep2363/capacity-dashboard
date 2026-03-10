@@ -215,8 +215,9 @@ p {
 
 .title-actions {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.55rem;
   justify-items: end;
+  align-content: start;
 }
 
 .collapse-toggle {
@@ -1146,20 +1147,25 @@ body {
 .control-panel {
   background: var(--brand-surface);
   border: 1px solid var(--brand-border);
+  padding: 1.8rem 1.6rem 1.5rem;
 }
 
 .title-bar {
   align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: space-between;
 }
 
 .brand-lockup {
   display: flex;
   align-items: center;
-  margin-right: 1rem;
+  justify-content: center;
+  padding: 0.2rem 0.6rem;
 }
 
 .brand-logo {
-  height: 54px;
+  height: 56px;
   width: auto;
   object-fit: contain;
 }

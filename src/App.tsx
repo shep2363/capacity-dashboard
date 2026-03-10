@@ -1439,6 +1439,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <div className="brand-grid" aria-hidden />
       <div className="page-nav">
         {pageTabs.map((tab) => (
           <button
@@ -1457,7 +1458,13 @@ function App() {
           <header className={`panel control-panel ${isHeaderCollapsed ? 'collapsed' : ''}`}>
             <div className="title-bar">
               <div className="brand-lockup">
-                <img src="/brand/inframod.png" alt="InfraMOD" className="brand-logo" />
+                <img
+                  src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='70' viewBox='0 0 240 70'><defs><style>.a{fill:%2300a3c4;font-family:Segoe UI Semibold,Segoe UI;font-size:46px;font-weight:600}.b{fill:%23f4b400;font-family:Segoe UI Black,Segoe UI;font-size:46px;font-weight:800;letter-spacing:0.8px}</style></defs><text class='a' x='0' y='50'>infra</text><text class='b' x='108' y='50'>MOD</text></svg>"
+                  alt="InfraMOD"
+                  className="brand-logo"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
               <div className="title-stack">
                 <h1>Production Capacity Planning Dashboard</h1>
