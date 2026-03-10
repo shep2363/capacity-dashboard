@@ -1724,48 +1724,9 @@ function App() {
                     onEditCell={handleSalesPivotCellEdit}
                     onResetEdits={resetSalesManualEdits}
                     title="Sales Pivot Planning"
-                    subtitle="Editable sales forecast planning grid using Sales Production Report data."
-                  />
-                )}
-              <section className="panel summary-panel">
-                <div className="section-header">
-                  <h2>Summary</h2>
-                  <p>All metrics below are driven by the final adjusted planning dataset.</p>
-                </div>
-
-                <div className="summary-grid">
-                  <div>
-                    <span>Total Forecast Hours</span>
-                    <strong>{totals.hours.toFixed(2)}</strong>
-                  </div>
-                  <div>
-                    <span>Total Capacity Hours</span>
-                    <strong>{totals.capacity.toFixed(2)}</strong>
-                  </div>
-                  <div>
-                    <span>Selected Weekly Capacity</span>
-                    <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
-                  </div>
-                  <div>
-                    <span>Total Monthly Capacity (visible months)</span>
-                    <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
-                  </div>
-                  <div>
-                    <span>Variance (Forecast - Capacity)</span>
-                    <strong className={totals.variance < 0 ? 'negative' : 'warning'}>
-                      {totals.variance.toFixed(2)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Over-Capacity Weeks</span>
-                    <strong>{totals.overCount}</strong>
-                  </div>
-                  <div>
-                    <span>Manual Overrides</span>
-                    <strong>{Object.keys(manualOverrides).length}</strong>
-                  </div>
-                </div>
-              </section>
+                  subtitle="Editable sales forecast planning grid using Sales Production Report data."
+                />
+              )}
             </>
           )}
 
@@ -1845,6 +1806,47 @@ function App() {
         <>
           {isLoading && <div className="panel status">Loading workbook...</div>}
           {!isLoading && error && <div className="panel status error">{error}</div>}
+          {!isLoading && !error && allResourcesVisible && (
+            <section className="panel summary-panel">
+              <div className="section-header">
+                <h2>Summary</h2>
+                <p>Key capacity metrics derived from the current planning dataset.</p>
+              </div>
+
+              <div className="summary-grid">
+                <div>
+                  <span>Total Forecast Hours</span>
+                  <strong>{totals.hours.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <span>Total Capacity Hours</span>
+                  <strong>{totals.capacity.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <span>Selected Weekly Capacity</span>
+                  <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
+                </div>
+                <div>
+                  <span>Total Monthly Capacity (visible months)</span>
+                  <strong>{monthlyCapacityTotal.toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span>Variance (Forecast - Capacity)</span>
+                  <strong className={totals.variance < 0 ? 'negative' : 'warning'}>
+                    {totals.variance.toFixed(2)}
+                  </strong>
+                </div>
+                <div>
+                  <span>Over-Capacity Weeks</span>
+                  <strong>{totals.overCount}</strong>
+                </div>
+                <div>
+                  <span>Manual Overrides</span>
+                  <strong>{Object.keys(manualOverrides).length}</strong>
+                </div>
+              </div>
+            </section>
+          )}
           {!isLoading && !error && allResourcesVisible && (
             <ReportWorkspace
               key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
