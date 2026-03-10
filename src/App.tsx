@@ -1487,7 +1487,7 @@ function App() {
                   aria-expanded={!isHeaderCollapsed}
                 >
                   <span className={`chevron ${isHeaderCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
-                    ?
+                    ▾
                   </span>
                   {isHeaderCollapsed ? 'Show Filters' : 'Hide Filters'}
                 </button>
