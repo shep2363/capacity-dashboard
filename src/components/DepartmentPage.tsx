@@ -1,4 +1,4 @@
-﻿import { useMemo } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { eachDayOfInterval, format, getDay, getYear, isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 import type { AppFilters, TaskRow } from '../types'
 import { weekRangeLabel } from '../utils/planner'
@@ -244,6 +244,7 @@ function DepartmentPage({
   const setWeeks = (values: string[]) => onFilterChange({ ...filter, weeks: values })
   const setStatuses = (values: string[]) => onFilterChange({ ...filter, statuses: values })
   const resetFilters = () => onFilterChange({ projects: [], sequences: [], weeks: [], statuses: [] })
+  const [filtersOpen, setFiltersOpen] = useState(true)
 
   if (!resourceEnabled) {
     return (
@@ -272,10 +273,18 @@ function DepartmentPage({
             <span>Sequences</span>
             <strong>{totalSequences}</strong>
           </div>
+          <button
+            type="button"
+            className="ghost-btn collapse-toggle"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+          >
+            {filtersOpen ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
       </div>
 
-      <div className="dept-filters">
+      <div className={`dept-filters ${filtersOpen ? '' : 'collapsed'}`}>
         <label>
           Project Filter
           <select multiple value={filter.projects} onChange={(event) => handleMultiSelect(event, setProjects)}>
@@ -395,3 +404,4 @@ function DepartmentPage({
 }
 
 export default DepartmentPage
+

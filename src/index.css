@@ -266,6 +266,10 @@ p {
   gap: 0.8rem;
 }
 
+.dept-filters.collapsed {
+  display: none;
+}
+
 .dept-filters label {
   display: grid;
   gap: 0.25rem;
