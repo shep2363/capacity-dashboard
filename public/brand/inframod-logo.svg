@@ -7,16 +7,16 @@
       .tag  { fill: #0297b7; font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif; font-size: 32px; font-weight: 600; letter-spacing: 0.2px; }
     </style>
   </defs>
-  <!-- Star -->
-  <g transform="translate(52 38) scale(1.05)" fill="#f4b400">
+  <!-- Star placed over the i -->
+  <g transform="translate(56 30) scale(1.05)" fill="#f4b400">
     <path d="M8 0l2.6 7.9 7.9-2.6-6 6 6 6-7.9-2.6L8 22l-2.6-7.3L-2.6 16l6-6-6-6 7.3 2.6z" />
   </g>
-  <!-- infra -->
+  <!-- infra (lowercase) -->
   <text class="word" x="64" y="102">infra</text>
   <!-- MOD -->
-  <text class="mod" x="278" y="108">MOD</text>
+  <text class="mod" x="282" y="108">MOD</text>
   <!-- TM -->
-  <text x="558" y="68" font-family="Segoe UI" font-size="20" fill="#f4b400">™</text>
+  <text x="566" y="68" font-family="Segoe UI" font-size="20" fill="#f4b400">™</text>
   <!-- tag line -->
-  <text class="tag" x="278" y="142">a saskarc company</text>
+  <text class="tag" x="282" y="142">a saskarc company</text>
 </svg>
