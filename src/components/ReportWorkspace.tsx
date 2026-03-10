@@ -202,6 +202,7 @@ export function ReportWorkspace({
   const probabilityLabels: Record<string, string> = {
     all: 'All probabilities',
     '100': '100%',
+    '70-100': '70-100%',
     '75-99': '75-99%',
     '50-74': '50-74%',
     '25-49': '25-49%',
@@ -215,6 +216,8 @@ export function ReportWorkspace({
     switch (bucket) {
       case '100':
         return probability === 100
+      case '70-100':
+        return probability >= 70 && probability <= 100
       case '75-99':
         return probability >= 75 && probability <= 99
       case '50-74':
