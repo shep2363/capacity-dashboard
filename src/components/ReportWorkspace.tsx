@@ -173,7 +173,7 @@ export function ReportWorkspace({
       return valB - valA
     })
 
-  function renderDealsPanel(title: string): JSX.Element {
+  function renderDealsPanel(title: string) {
     return (
       <div className="panel table-panel">
         <div className="section-header">
