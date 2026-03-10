@@ -76,11 +76,12 @@ p {
 }
 
 .panel {
-  background: #111827;
-  border: 1px solid #1f2937;
+  background: var(--brand-panel);
+  border: 1px solid var(--brand-border);
   border-radius: 16px;
-  padding: 1.15rem 1.2rem;
+  padding: 1.2rem 1.3rem;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+  margin-bottom: 1rem;
 }
 
 .report-workspace {
@@ -174,8 +175,8 @@ p {
 }
 
 .control-panel {
-  min-height: 560px;
-  padding: 1.55rem 1.6rem 1.4rem;
+  min-height: 520px;
+  padding: 1.7rem 1.6rem 1.45rem;
 }
 
 .control-panel.collapsed {
@@ -193,9 +194,9 @@ p {
 .page-tab {
   padding: 0.4rem 0.9rem;
   border-radius: 10px;
-  border: 1px solid #1f2937;
+  border: 1px solid var(--brand-border);
   background: #0b1220;
-  color: #e5e7eb;
+  color: var(--brand-text);
   font-weight: 700;
 }
 
@@ -265,6 +266,8 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.8rem;
+  margin-bottom: 0.4rem;
+  padding: 0.35rem 0;
 }
 
 .dept-filters.collapsed {
@@ -361,7 +364,7 @@ p {
 }
 
 .dept-row {
-  padding: 0.45rem 0;
+  padding: 0.5rem 0;
   border-bottom: 1px solid #0f172a;
 }
 
@@ -676,12 +679,12 @@ button:disabled {
 }
 
 .meta-row {
-  margin-top: 1.2rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.7rem 1rem;
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.65rem 0.9rem;
   align-items: center;
-  font-size: 0.95rem;
+  font-size: 0.97rem;
   color: #cbd5e1;
 }
 
