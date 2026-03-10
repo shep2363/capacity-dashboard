@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+ï»¿import { useMemo, useState } from 'react'
 import { eachDayOfInterval, format, getDay, getYear, isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 import type { AppFilters, TaskRow } from '../types'
 import { weekRangeLabel } from '../utils/planner'
@@ -253,17 +253,11 @@ function DepartmentPage({
       (filter.statuses.length > 0 ? 1 : 0),
     [filter.projects, filter.sequences, filter.weeks, filter.statuses],
   )
-  useEffect(() => {
-    if (!filtersOpen) return
-    const timer = setTimeout(() => setFiltersOpen(false), 250)
-    return () => clearTimeout(timer)
-  }, [filter.projects, filter.sequences, filter.weeks, filter.statuses, filtersOpen])
-
   if (!resourceEnabled) {
     return (
       <section className="panel department-page">
         <div className="section-header">
-          <h2>{resource} — Weekly Plan</h2>
+          <h2>{resource} â€” Weekly Plan</h2>
           <p>This resource is currently disabled in the Resource Capacity Input toggles.</p>
         </div>
       </section>
@@ -274,7 +268,7 @@ function DepartmentPage({
     <section className="panel department-page">
       <div className="section-header-row">
         <div>
-          <h2>{resource} — Weekly Production Plan</h2>
+          <h2>{resource} â€” Weekly Production Plan</h2>
           <p>Project and sequence view filtered to the currently loaded workbook and dashboard filters.</p>
         </div>
         <div className="dept-summary">
@@ -418,5 +412,6 @@ function DepartmentPage({
 }
 
 export default DepartmentPage
+
 
 
