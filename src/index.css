@@ -1347,3 +1347,31 @@ input,
   position: relative;
   z-index: 1;
 }
+
+.deals-filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.control-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.pill {
+  background: rgba(0, 163, 196, 0.12);
+  color: var(--brand-text);
+  border: 1px solid var(--brand-border);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.error-text {
+  color: #f87171;
+  font-size: 0.9rem;
+}

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MonthlyBucket, WeeklyBucket } from '../types'
 import type { SummaryMetric } from '../utils/reportExport'
 import { exportReportElementToPdf } from '../utils/exportReportPdf'
@@ -6,6 +6,7 @@ import { ForecastChart } from './ForecastChart'
 import { ForecastTable } from './ForecastTable'
 import { MonthlyForecastTable } from './MonthlyForecastTable'
 import { ExecutiveSummary, type ExecutiveData } from './ExecutiveSummary'
+import { fetchPipedriveDeals, type PipedriveDeal } from '../utils/pipedrive'
 
 export type ReportTab =
   | 'snapshot'
@@ -75,6 +76,11 @@ export function ReportWorkspace({
   const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [pdfError, setPdfError] = useState('')
+  const [deals, setDeals] = useState<PipedriveDeal[]>([])
+  const [dealStage, setDealStage] = useState('all')
+  const [dealProbBucket, setDealProbBucket] = useState('all')
+  const [dealsLoading, setDealsLoading] = useState(false)
+  const [dealsError, setDealsError] = useState('')
 
   async function handleExportPdf(): Promise<void> {
     if (!reportRef.current) {
@@ -93,6 +99,146 @@ export function ReportWorkspace({
     } finally {
       setIsExportingPdf(false)
     }
+  }
+
+  useEffect(() => {
+    const env = import.meta.env as Record<string, string | undefined>
+    const token = env.VITE_PROJECT_47_API_TOKEN ?? env.VITE_PIPEDRIVE_API_TOKEN
+    if (!token) {
+      setDealsError('Missing VITE_PROJECT_47_API_TOKEN (or VITE_PIPEDRIVE_API_TOKEN) env variable for Pipedrive.')
+      return
+    }
+
+    const controller = new AbortController()
+    setDealsLoading(true)
+    setDealsError('')
+
+    fetchPipedriveDeals(token, controller.signal)
+      .then((data) => setDeals(data))
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Failed to load Pipedrive deals.'
+        setDealsError(message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setDealsLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [])
+
+  const probabilityLabels: Record<string, string> = {
+    all: 'All probabilities',
+    '100': '100%',
+    '75-99': '75–99%',
+    '50-74': '50–74%',
+    '25-49': '25–49%',
+    '1-24': '1–24%',
+    '0': '0%',
+  }
+
+  function matchesProbability(bucket: string, probability?: number | null): boolean {
+    if (bucket === 'all') return true
+    if (probability == null) return false
+    switch (bucket) {
+      case '100':
+        return probability === 100
+      case '75-99':
+        return probability >= 75 && probability <= 99
+      case '50-74':
+        return probability >= 50 && probability <= 74
+      case '25-49':
+        return probability >= 25 && probability <= 49
+      case '1-24':
+        return probability >= 1 && probability <= 24
+      case '0':
+        return probability === 0
+      default:
+        return true
+    }
+  }
+
+  const stageOptions = ['all', ...new Set(deals.map((deal) => deal.stage_name).filter(Boolean) as string[])]
+  const filteredDeals = deals
+    .filter((deal) => (dealStage === 'all' ? true : deal.stage_name === dealStage))
+    .filter((deal) => matchesProbability(dealProbBucket, deal.probability))
+    .sort((a, b) => {
+      const probA = a.probability ?? -1
+      const probB = b.probability ?? -1
+      if (probA !== probB) return probB - probA
+      const valA = a.value ?? 0
+      const valB = b.value ?? 0
+      return valB - valA
+    })
+
+  function renderDealsPanel(title: string): JSX.Element {
+    return (
+      <div className="panel table-panel">
+        <div className="section-header">
+          <div>
+            <h3>{title}</h3>
+            <p>Live Pipedrive deals filtered by Stage and Probability.</p>
+          </div>
+          <div className="deals-filter-row">
+            <label className="control-inline">
+              Stage
+              <select value={dealStage} onChange={(event) => setDealStage(event.target.value)}>
+                {stageOptions.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {stage === 'all' ? 'All stages' : stage}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="control-inline">
+              Probability
+              <select value={dealProbBucket} onChange={(event) => setDealProbBucket(event.target.value)}>
+                {Object.entries(probabilityLabels).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {dealsLoading && <span className="pill">Loading deals...</span>}
+            {dealsError && <span className="error-text">{dealsError}</span>}
+          </div>
+        </div>
+
+        <div className="table-wrap">
+          <table className="report-summary-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Organization</th>
+                <th>Stage</th>
+                <th>Value</th>
+                <th>Probability</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredDeals.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>{dealsLoading ? 'Loading deals...' : 'No deals match the current filters.'}</td>
+                </tr>
+              ) : (
+                filteredDeals.slice(0, 100).map((deal) => (
+                  <tr key={deal.id}>
+                    <td>{deal.title}</td>
+                    <td>{deal.org_name || '—'}</td>
+                    <td>{deal.stage_name || '—'}</td>
+                    <td>{deal.value != null ? deal.value.toLocaleString() : '—'}</td>
+                    <td>{deal.probability != null ? `${deal.probability}%` : '—'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -224,6 +370,7 @@ export function ReportWorkspace({
             hoveredProject={hoveredProject}
             onHoverProject={onHoverProject}
           />
+          {renderDealsPanel('Pipedrive Deals — Sales Forecast')}
         </div>
       )}
 
@@ -244,6 +391,7 @@ export function ReportWorkspace({
             hoveredProject={hoveredProject}
             onHoverProject={onHoverProject}
           />
+          {renderDealsPanel('Pipedrive Deals — Shop and Sales Forecast')}
         </div>
       )}
 
