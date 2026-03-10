@@ -53,6 +53,9 @@ export function MonthlyForecastTable({ monthlyBuckets }: MonthlyForecastTablePro
         </div>
         <div className="section-actions">
           <button type="button" className="ghost-btn" onClick={() => setIsCollapsed((current) => !current)}>
+            <span className={`chevron ${isCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
+              ▾
+            </span>
             {isCollapsed ? 'Expand Table' : 'Collapse Table'}
           </button>
         </div>

@@ -127,6 +127,9 @@ export function PivotPlanningTable({
             Next Weeks
           </button>
           <button type="button" className="ghost-btn" onClick={onToggleCollapsed}>
+            <span className={`chevron ${isCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
+              ▾
+            </span>
             {isCollapsed ? 'Expand Pivot' : 'Collapse Pivot'}
           </button>
           <button type="button" className="ghost-btn" onClick={onResetEdits}>
