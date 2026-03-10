@@ -244,7 +244,20 @@ function DepartmentPage({
   const setWeeks = (values: string[]) => onFilterChange({ ...filter, weeks: values })
   const setStatuses = (values: string[]) => onFilterChange({ ...filter, statuses: values })
   const resetFilters = () => onFilterChange({ projects: [], sequences: [], weeks: [], statuses: [] })
-  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const activeFilterCount = useMemo(
+    () =>
+      (filter.projects.length > 0 ? 1 : 0) +
+      (filter.sequences.length > 0 ? 1 : 0) +
+      (filter.weeks.length > 0 ? 1 : 0) +
+      (filter.statuses.length > 0 ? 1 : 0),
+    [filter.projects, filter.sequences, filter.weeks, filter.statuses],
+  )
+  useEffect(() => {
+    if (!filtersOpen) return
+    const timer = setTimeout(() => setFiltersOpen(false), 250)
+    return () => clearTimeout(timer)
+  }, [filter.projects, filter.sequences, filter.weeks, filter.statuses, filtersOpen])
 
   if (!resourceEnabled) {
     return (
@@ -275,11 +288,12 @@ function DepartmentPage({
           </div>
           <button
             type="button"
-            className="ghost-btn collapse-toggle"
+            className={`ghost-btn collapse-toggle ${activeFilterCount > 0 ? 'filter-active' : ''}`}
             onClick={() => setFiltersOpen((open) => !open)}
             aria-expanded={filtersOpen}
           >
             {filtersOpen ? 'Hide Filters' : 'Show Filters'}
+            {activeFilterCount > 0 && <span className="filter-count">({activeFilterCount})</span>}
           </button>
         </div>
       </div>
