@@ -365,6 +365,7 @@ function DepartmentPage({
               <div className="dept-table-header">
                 <span>Project</span>
                 <span>Sequence</span>
+                <span>Week</span>
                 <span>Finish Date</span>
                 <span>Hours</span>
                 <span>Progress</span>
@@ -379,6 +380,7 @@ function DepartmentPage({
                       {row.project}
                     </span>
                     <span>{row.sequence}</span>
+                    <span>{row.weekLabel}</span>
                     <span>{row.finishDate || 'Not Scheduled'}</span>
                     <span>{row.hours.toFixed(1)} h</span>
                     <span className="dept-progress">
