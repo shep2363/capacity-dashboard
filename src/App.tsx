@@ -137,7 +137,7 @@ function App() {
   const [salesCollapseResetToken, setSalesCollapseResetToken] = useState(0)
   const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true)
   const [activePage, setActivePage] = useState<PageKey>('planning')
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
