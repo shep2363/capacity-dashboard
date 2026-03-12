@@ -100,6 +100,72 @@ python backend/export_api.py
    - If API is running: exported workbook includes embedded chart in `Weekly Capacity Chart`.
    - If API is not running: app falls back to client-side export (chart data sheet without embedded chart object).
 
+## Shared Workbook Storage (PC Source of Truth)
+
+The app now supports backend-backed shared workbook storage so uploads are not browser-local only.
+
+- Primary workbook (`main`) and Sales workbook (`sales`) are stored on disk by the backend.
+- Shared planning state (manual overrides, enabled resources, weekly caps, filters, weekend settings) is also stored on disk.
+- Frontend loads shared data from backend APIs at startup and on refresh.
+- Uploads are validated (`.xlsx`, size limit, basic signature check), then written atomically.
+
+### Backend APIs used for shared data
+
+- `GET /api/workbook-state?dataset=main|sales`
+- `GET /api/workbook-file?dataset=main|sales`
+- `POST /api/upload-workbook?dataset=main|sales`
+- `GET /api/shared-state`
+- `PUT /api/shared-state`
+- `GET /api/shared-health`
+
+### Shared store location (on your PC)
+
+By default:
+
+- `backend/shared_store/workbooks/main.xlsx`
+- `backend/shared_store/workbooks/sales.xlsx`
+- `backend/shared_store/manifest.json`
+- `backend/shared_store/shared_state.json`
+
+You can override the storage directory with:
+
+- `CAPACITY_SHARED_DATA_DIR`
+
+### Environment variables
+
+- Frontend:
+  - `VITE_SHARED_DATA_API_URL` (for example `http://192.168.1.10:8000`)
+  - `VITE_EXPORT_API_URL` (optional override for export API)
+- Backend:
+  - `CAPACITY_SHARED_DATA_DIR` (optional custom shared store path)
+  - `CAPACITY_MAX_UPLOAD_BYTES` (optional upload size limit in bytes)
+  - `CAPACITY_API_HOST` (default `0.0.0.0`)
+  - `CAPACITY_API_PORT` (default `8000`)
+  - `CAPACITY_API_DEBUG` (`true`/`false`)
+
+### Run shared mode locally
+
+1. Start backend API:
+
+```bash
+python backend/export_api.py
+```
+
+2. Ensure frontend points to backend:
+
+```bash
+# .env.local
+VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
+```
+
+3. Start frontend:
+
+```bash
+npm run dev
+```
+
+If users connect over your LAN, use your PC LAN IP in `VITE_SHARED_DATA_API_URL` and make sure firewall/router rules allow access to backend port 8000.
+
 ## Embedded Chart Export on Public Deploy (Vercel)
 
 This repo includes `api/export-report.py`, so Vercel can host the chart-export API at the same domain:
@@ -110,7 +176,10 @@ After deploying to Vercel, `Export Report Excel` will call this hosted endpoint 
 
 ## Deploying the App Publicly
 
-This app is a static frontend and is ready for one-click hosting on Vercel, Netlify, or GitHub Pages.
+This repo includes a static frontend plus optional Python backend services.
+
+- If you deploy only the frontend, shared workbook source-of-truth storage will not exist.
+- For shared uploads/data across users, deploy the backend API somewhere always-on (your PC server, VM, or cloud) and point frontend at it via `VITE_SHARED_DATA_API_URL`.
 
 ### Option A (Recommended): Vercel
 
