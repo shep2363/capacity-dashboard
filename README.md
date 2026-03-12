@@ -40,7 +40,7 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 - `src/utils/reportExport.ts`: client-side Excel export helpers (fallback path)
 - `src/utils/reportExportApi.ts`: backend chart-export API client
 - `api/export-report.py`: Vercel serverless API route for embedded chart export
-- `backend/export_api.py`: optional Python API for embedded Excel chart export
+- `backend/export_api.py`: Python API for chart export + persistent active workbook storage
 - `backend/requirements.txt`: Python dependencies for export API
 - `requirements.txt`: Python dependencies for Vercel serverless API
 - `src/types.ts`: shared TypeScript models
@@ -76,9 +76,12 @@ npm run build
 npm run preview
 ```
 
-## Embedded Excel Chart Export (Optional Backend)
+## Backend API (Export + Persistent Active Workbook)
 
-The app can export with a real embedded Excel chart when the local Python export API is running.
+The Python backend now handles both:
+
+- Excel report export (`/api/export-report`)
+- Active workbook storage used by the app (`/api/upload-workbook`, `/api/workbook-file`, `/api/workbook-state`)
 
 1. Install Python dependencies:
 
@@ -94,11 +97,36 @@ pip install -r backend/requirements.txt
 python backend/export_api.py
 ```
 
-3. Keep it running at `http://127.0.0.1:8000`.
+3. Keep it running at `http://127.0.0.1:8000` (or your LAN IP if sharing internally).
 
-4. In the dashboard, click `Export Report Excel`.
+4. Set frontend API URL in `.env.local`:
+
+```bash
+VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
+```
+
+5. In the dashboard, upload a workbook in `Upload or Replace Workbook (.xlsx)`.
+   - The backend saves it to the persistent active workbook location.
+   - Refreshing the app loads this uploaded workbook again.
+   - Other users pointed to the same backend see the same workbook data.
+
+6. In the dashboard, click `Export Report Excel`.
    - If API is running: exported workbook includes embedded chart in `Weekly Capacity Chart`.
    - If API is not running: app falls back to client-side export (chart data sheet without embedded chart object).
+
+### Active workbook storage details
+
+- Stored file path (default): `backend/shared_store/active_workbook.xlsx`
+- Metadata path (default): `backend/shared_store/manifest.json`
+- Storage root can be overridden with: `CAPACITY_SHARED_DATA_DIR`
+- Upload size limit (default 30MB) can be overridden with: `CAPACITY_MAX_UPLOAD_BYTES`
+
+### Active workbook API endpoints
+
+- `GET /api/workbook-state`
+- `GET /api/workbook-file`
+- `POST /api/upload-workbook`
+- `GET /api/shared-health`
 
 ## Embedded Chart Export on Public Deploy (Vercel)
 
@@ -110,7 +138,9 @@ After deploying to Vercel, `Export Report Excel` will call this hosted endpoint 
 
 ## Deploying the App Publicly
 
-This app is a static frontend and is ready for one-click hosting on Vercel, Netlify, or GitHub Pages.
+The frontend can still be deployed statically, but persistent workbook replacement requires the Python backend to be running at a stable URL.
+
+If you deploy only static frontend files, uploads cannot replace the active workbook persistently for all users.
 
 ### Option A (Recommended): Vercel
 

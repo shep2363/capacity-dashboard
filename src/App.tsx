@@ -10,6 +10,7 @@ import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './type
 import { parseSalesSpreadsheet, parseSpreadsheet } from './utils/excel'
 import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
 import { exportReportWorkbookWithChartApi } from './utils/reportExportApi'
+import { downloadActiveWorkbook, fetchActiveWorkbookStatus, uploadActiveWorkbook } from './utils/activeWorkbookApi'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
@@ -30,8 +31,6 @@ const APP_LOCK_PASSWORD = '2431'
 const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
 const SALES_STORAGE_KEY = 'sales_tasks_v1'
 const SALES_META_KEY = 'sales_meta_v1'
-const MAIN_STORAGE_KEY = 'main_tasks_v1'
-const MAIN_META_KEY = 'main_meta_v1'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1440,
   Assembly: 80,
@@ -93,6 +92,15 @@ const computeEasterSunday = (year: number): Date => {
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b))
+}
+
+function createDefaultFilters(): AppFilters {
+  return {
+    dateFrom: '',
+    dateTo: '',
+    year: '',
+    resources: [],
+  }
 }
 
 function App() {
@@ -181,103 +189,78 @@ function App() {
     window.sessionStorage.setItem(SALES_META_KEY, meta)
   }
 
-  function persistMainState(
-    tasksToStore: TaskRow[],
-    file: string,
-    overrides: Record<string, number>,
-    enabled: Record<string, boolean>,
-    weeklyCaps: Record<string, number>,
-    filtersState: AppFilters,
-    weekendDates: Set<string>,
-    weekendExtras: Record<string, number>,
-  ): void {
-    if (typeof window === 'undefined') return
-    const plainTasks = tasksToStore.map((t) => ({
-      ...t,
-      start: t.start.toISOString(),
-      finish: t.finish.toISOString(),
-    }))
-    const payload = JSON.stringify(plainTasks)
-    const meta = JSON.stringify({
-      file,
-      overrides,
-      enabled,
-      weeklyCaps,
-      filters: filtersState,
-      weekendDates: [...weekendDates],
-      weekendExtras,
-    })
-    window.localStorage.setItem(MAIN_STORAGE_KEY, payload)
-    window.localStorage.setItem(MAIN_META_KEY, meta)
-    // keep sessionStorage in sync for backward compatibility
-    window.sessionStorage.setItem(MAIN_STORAGE_KEY, payload)
-    window.sessionStorage.setItem(MAIN_META_KEY, meta)
-  }
-
-  const [filters, setFilters] = useState<AppFilters>({
-    dateFrom: '',
-    dateTo: '',
-    year: '',
-    resources: [],
-  })
+  const [filters, setFilters] = useState<AppFilters>(createDefaultFilters())
 
   useEffect(() => {
+    let cancelled = false
+
+    async function loadBundledDefaultWorkbook(): Promise<void> {
+      const response = await fetch(`/${INITIAL_FILE_NAME}`)
+      if (!response.ok) {
+        throw new Error(`Unable to fetch ${INITIAL_FILE_NAME}`)
+      }
+
+      const workbookData = await response.arrayBuffer()
+      const parsedTasks = parseSpreadsheet(workbookData)
+      if (cancelled) {
+        return
+      }
+
+      setTasks(parsedTasks)
+      setFileName(INITIAL_FILE_NAME)
+      setManualOverrides({})
+      setEnabledResources({})
+      setResourceWeeklyCapacities({})
+      setFilters(createDefaultFilters())
+      setSelectedWeekendDates(new Set())
+      setWeekendExtraByResource({})
+      setProjectsInitialized(false)
+    }
+
     async function loadInitialWorkbook(): Promise<void> {
       setIsLoading(true)
       setError('')
 
       try {
-        if (typeof window !== 'undefined') {
-          const savedTasksRaw =
-            window.localStorage.getItem(MAIN_STORAGE_KEY) ?? window.sessionStorage.getItem(MAIN_STORAGE_KEY)
-          const savedMetaRaw = window.localStorage.getItem(MAIN_META_KEY) ?? window.sessionStorage.getItem(MAIN_META_KEY)
-          if (savedTasksRaw && savedMetaRaw) {
-            const parsedTasks: TaskRow[] = JSON.parse(savedTasksRaw).map((t: any) => ({
-              ...t,
-              start: parseISO(t.start),
-              finish: parseISO(t.finish),
-            }))
-            const meta = JSON.parse(savedMetaRaw)
-            setTasks(parsedTasks)
-            setFileName(meta.file ?? fileName)
-            setManualOverrides(meta.overrides ?? {})
-            setEnabledResources(meta.enabled ?? {})
-            setResourceWeeklyCapacities(meta.weeklyCaps ?? {})
-            setFilters(meta.filters ?? { dateFrom: '', dateTo: '', year: '', resources: [] })
-            setSelectedWeekendDates(new Set(meta.weekendDates ?? []))
-            setWeekendExtraByResource(meta.weekendExtras ?? {})
-            setProjectsInitialized(false)
-            setIsLoading(false)
+        try {
+          const activeStatus = await fetchActiveWorkbookStatus()
+          if (activeStatus.hasWorkbook) {
+            const workbookData = await downloadActiveWorkbook()
+            const parsedTasks = parseSpreadsheet(workbookData)
+            if (!cancelled) {
+              setTasks(parsedTasks)
+              setFileName(activeStatus.fileName || INITIAL_FILE_NAME)
+              setManualOverrides({})
+              setEnabledResources({})
+              setResourceWeeklyCapacities({})
+              setFilters(createDefaultFilters())
+              setSelectedWeekendDates(new Set())
+              setWeekendExtraByResource({})
+              setProjectsInitialized(false)
+            }
             return
           }
+        } catch (sharedLoadError) {
+          console.warn('[capacity-dashboard] active workbook API load failed', sharedLoadError)
         }
 
-        const response = await fetch(`/${INITIAL_FILE_NAME}`)
-        if (!response.ok) {
-          throw new Error(`Unable to fetch ${INITIAL_FILE_NAME}`)
-        }
-
-        const workbookData = await response.arrayBuffer()
-        const parsedTasks = parseSpreadsheet(workbookData)
-        setTasks(parsedTasks)
-        persistMainState(
-          parsedTasks,
-          INITIAL_FILE_NAME,
-          {},
-          {},
-          {},
-          { dateFrom: '', dateTo: '', year: '', resources: [] },
-          new Set(),
-          {},
-        )
+        await loadBundledDefaultWorkbook()
       } catch {
-        setError('Could not load the default workbook. Upload a .xlsx file to continue.')
+        if (!cancelled) {
+          setError('Could not load the active workbook. Upload a .xlsx file to continue.')
+        }
       } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
     void loadInitialWorkbook()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -354,30 +337,6 @@ function App() {
       return next
     })
   }, [resources])
-
-  // Persist primary workbook state on any relevant change.
-  useEffect(() => {
-    if (tasks.length === 0) return
-    persistMainState(
-      tasks,
-      fileName,
-      manualOverrides,
-      enabledResources,
-      resourceWeeklyCapacities,
-      filters,
-      selectedWeekendDates,
-      weekendExtraByResource,
-    )
-  }, [
-    tasks,
-    fileName,
-    manualOverrides,
-    enabledResources,
-    resourceWeeklyCapacities,
-    filters,
-    selectedWeekendDates,
-    weekendExtraByResource,
-  ])
 
   useEffect(() => {
     if (salesResources.length === 0) {
@@ -1062,6 +1021,11 @@ function App() {
     if (!file) {
       return
     }
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      setError('Invalid file type. Please upload a .xlsx workbook.')
+      event.target.value = ''
+      return
+    }
 
     setIsLoading(true)
     setError('')
@@ -1069,30 +1033,25 @@ function App() {
     try {
       const arrayBuffer = await file.arrayBuffer()
       const parsed = parseSpreadsheet(arrayBuffer)
+      const activeWorkbook = await uploadActiveWorkbook(file)
       setTasks(parsed)
-      setFileName(file.name)
+      setFileName(activeWorkbook.fileName || file.name)
       setManualOverrides({})
       setResourceWeeklyCapacities({})
       setEnabledResources({})
-      setFilters({ dateFrom: '', dateTo: '', year: '', resources: [] })
+      setFilters(createDefaultFilters())
       setSelectedWeekendDates(new Set())
       setWeekendExtraByResource({})
       setProjectsInitialized(false)
       // On new workbook upload, reset panel defaults (pivot/resource collapsed; forecast tables expanded by component default).
       setIsPivotCollapsed(true)
       setCollapseResetToken((current) => current + 1)
-      persistMainState(
-        parsed,
-        file.name,
-        {},
-        {},
-        {},
-        { dateFrom: '', dateTo: '', year: '', resources: [] },
-        new Set(),
-        {},
-      )
-    } catch {
-      setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
+    } catch (uploadError) {
+      if (uploadError instanceof Error && uploadError.message) {
+        setError(uploadError.message)
+      } else {
+        setError('Failed to upload workbook. Please try again.')
+      }
     } finally {
       setIsLoading(false)
       event.target.value = ''
