@@ -957,6 +957,15 @@ th {
   color: #9ca3af;
 }
 
+.pivot-drag-selecting,
+.pivot-drag-selecting * {
+  user-select: none;
+}
+
+.pivot-drag-selecting .cell-display:not(:disabled) {
+  cursor: crosshair;
+}
+
 .editing {
   background: #1e293b;
 }

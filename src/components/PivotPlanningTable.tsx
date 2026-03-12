@@ -1,7 +1,9 @@
 import clsx from 'clsx'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PivotTableModel, PivotRowGrouping } from '../types'
 import { shortWeekLabel } from '../utils/planner'
+
+const ALWAYS_SELECTABLE = () => true
 
 interface PivotPlanningTableProps {
   model: PivotTableModel
@@ -40,14 +42,20 @@ export function PivotPlanningTable({
   onToggleCollapsed,
   onEditCell,
   onResetEdits,
-  isCellSelectable = () => true,
+  isCellSelectable = ALWAYS_SELECTABLE,
   title = 'Pivot Planning Table',
   subtitle = 'Editable planning grid. Cell edits become the forecast source of truth.',
 }: PivotPlanningTableProps) {
+  type CellRef = { rowKey: string; weekStartIso: string }
+
   const [editingCell, setEditingCell] = useState<{ rowKey: string; weekStartIso: string } | null>(null)
   const [draftValue, setDraftValue] = useState('')
   const skipBlurSaveRef = useRef(false)
+  const skipNextClickRef = useRef(false)
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
+  const [dragAnchorCell, setDragAnchorCell] = useState<CellRef | null>(null)
+  const [dragCurrentCell, setDragCurrentCell] = useState<CellRef | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState('')
 
   function startEditing(rowKey: string, weekStartIso: string, currentValue: number): void {
     setEditingCell({ rowKey, weekStartIso })
@@ -92,6 +100,22 @@ export function PivotPlanningTable({
     setSelectedCells(new Set())
   }
 
+  const rowIndexByKey = useMemo(() => {
+    const byRow = new Map<string, number>()
+    model.rows.forEach((row, index) => {
+      byRow.set(row.rowKey, index)
+    })
+    return byRow
+  }, [model.rows])
+
+  const weekIndexByKey = useMemo(() => {
+    const byWeek = new Map<string, number>()
+    visibleWeekKeys.forEach((weekStartIso, index) => {
+      byWeek.set(weekStartIso, index)
+    })
+    return byWeek
+  }, [visibleWeekKeys])
+
   const selectableCellKeysByWeek = useMemo(() => {
     const byWeek: Record<string, string[]> = {}
     visibleWeekKeys.forEach((weekStartIso) => {
@@ -101,6 +125,63 @@ export function PivotPlanningTable({
     })
     return byWeek
   }, [isCellSelectable, model.rows, visibleWeekKeys])
+
+  function buildRangeSelection(anchor: CellRef, current: CellRef): Set<string> {
+    const anchorRowIndex = rowIndexByKey.get(anchor.rowKey)
+    const anchorWeekIndex = weekIndexByKey.get(anchor.weekStartIso)
+    const currentRowIndex = rowIndexByKey.get(current.rowKey)
+    const currentWeekIndex = weekIndexByKey.get(current.weekStartIso)
+
+    if (
+      anchorRowIndex === undefined ||
+      anchorWeekIndex === undefined ||
+      currentRowIndex === undefined ||
+      currentWeekIndex === undefined
+    ) {
+      return new Set()
+    }
+
+    const minRow = Math.min(anchorRowIndex, currentRowIndex)
+    const maxRow = Math.max(anchorRowIndex, currentRowIndex)
+    const minWeek = Math.min(anchorWeekIndex, currentWeekIndex)
+    const maxWeek = Math.max(anchorWeekIndex, currentWeekIndex)
+
+    const next = new Set<string>()
+    for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex += 1) {
+      const row = model.rows[rowIndex]
+      if (!row) continue
+      for (let weekIndex = minWeek; weekIndex <= maxWeek; weekIndex += 1) {
+        const weekStartIso = visibleWeekKeys[weekIndex]
+        if (!weekStartIso) continue
+        const value = row.valuesByWeek[weekStartIso] ?? 0
+        if (!isCellSelectable(row.rowKey, weekStartIso, value)) {
+          continue
+        }
+        next.add(`${row.rowKey}|${weekStartIso}`)
+      }
+    }
+
+    return next
+  }
+
+  function startDragSelection(rowKey: string, weekStartIso: string): void {
+    const anchor: CellRef = { rowKey, weekStartIso }
+    setDragAnchorCell(anchor)
+    setDragCurrentCell(anchor)
+    setSelectedCells(buildRangeSelection(anchor, anchor))
+  }
+
+  function updateDragSelection(rowKey: string, weekStartIso: string): void {
+    if (!dragAnchorCell) return
+    const current: CellRef = { rowKey, weekStartIso }
+    setDragCurrentCell(current)
+    setSelectedCells(buildRangeSelection(dragAnchorCell, current))
+  }
+
+  function finishDragSelection(): void {
+    setDragAnchorCell(null)
+    setDragCurrentCell(null)
+  }
 
   function buildSelectableWeekCellKeys(weekStartIso: string): string[] {
     return selectableCellKeysByWeek[weekStartIso] ?? []
@@ -144,6 +225,170 @@ export function PivotPlanningTable({
     return selectableWeekKeys.length > 0 && selectableWeekKeys.every((key) => selectedCells.has(key))
   }
 
+  useEffect(() => {
+    if (!dragAnchorCell) {
+      return
+    }
+
+    function handleGlobalMouseUp(): void {
+      finishDragSelection()
+    }
+
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
+    }
+  }, [dragAnchorCell])
+
+  useEffect(() => {
+    setSelectedCells((current) => {
+      const next = new Set<string>()
+      current.forEach((key) => {
+        const [rowKey, weekStartIso] = key.split('|')
+        const rowIndex = rowIndexByKey.get(rowKey)
+        const weekIndex = weekIndexByKey.get(weekStartIso)
+        if (rowIndex === undefined || weekIndex === undefined) {
+          return
+        }
+        const row = model.rows[rowIndex]
+        const value = row.valuesByWeek[weekStartIso] ?? 0
+        if (!isCellSelectable(rowKey, weekStartIso, value)) {
+          return
+        }
+        next.add(key)
+      })
+
+      if (next.size === current.size) {
+        let identical = true
+        next.forEach((key) => {
+          if (!current.has(key)) {
+            identical = false
+          }
+        })
+        if (identical) {
+          return current
+        }
+      }
+      return next
+    })
+  }, [isCellSelectable, model.rows, rowIndexByKey, visibleWeekKeys, weekIndexByKey])
+
+  useEffect(() => {
+    if (!copyFeedback) {
+      return
+    }
+    const timer = window.setTimeout(() => setCopyFeedback(''), 1800)
+    return () => window.clearTimeout(timer)
+  }, [copyFeedback])
+
+  async function copyTextToClipboard(text: string): Promise<void> {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return
+    }
+
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+  }
+
+  async function copySelectionForExcel(): Promise<void> {
+    const selectedCoordinates: Array<{ rowIndex: number; weekIndex: number }> = []
+
+    selectedCells.forEach((key) => {
+      const [rowKey, weekStartIso] = key.split('|')
+      const rowIndex = rowIndexByKey.get(rowKey)
+      const weekIndex = weekIndexByKey.get(weekStartIso)
+      if (rowIndex === undefined || weekIndex === undefined) return
+
+      const row = model.rows[rowIndex]
+      const value = row.valuesByWeek[weekStartIso] ?? 0
+      if (!isCellSelectable(rowKey, weekStartIso, value)) return
+      selectedCoordinates.push({ rowIndex, weekIndex })
+    })
+
+    if (selectedCoordinates.length === 0) {
+      setCopyFeedback('Nothing selected to copy.')
+      return
+    }
+
+    const rowIndexes = selectedCoordinates.map((item) => item.rowIndex)
+    const weekIndexes = selectedCoordinates.map((item) => item.weekIndex)
+    const minRow = Math.min(...rowIndexes)
+    const maxRow = Math.max(...rowIndexes)
+    const minWeek = Math.min(...weekIndexes)
+    const maxWeek = Math.max(...weekIndexes)
+
+    const lines: string[] = []
+    for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex += 1) {
+      const row = model.rows[rowIndex]
+      if (!row) continue
+      const values: string[] = []
+      for (let weekIndex = minWeek; weekIndex <= maxWeek; weekIndex += 1) {
+        const weekStartIso = visibleWeekKeys[weekIndex]
+        if (!weekStartIso) {
+          values.push('')
+          continue
+        }
+        const key = `${row.rowKey}|${weekStartIso}`
+        const rawValue = row.valuesByWeek[weekStartIso] ?? 0
+        const selectable = isCellSelectable(row.rowKey, weekStartIso, rawValue)
+        values.push(selectedCells.has(key) && selectable ? rawValue.toFixed(2) : '')
+      }
+      lines.push(values.join('\t'))
+    }
+
+    const output = lines.join('\n')
+    try {
+      await copyTextToClipboard(output)
+      setCopyFeedback('Copied selection for Excel.')
+    } catch {
+      setCopyFeedback('Copy failed.')
+    }
+  }
+
+  function handleCellMouseDown(
+    event: React.MouseEvent<HTMLButtonElement>,
+    rowKey: string,
+    weekStartIso: string,
+    cellSelectable: boolean,
+  ): void {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || !cellSelectable) {
+      return
+    }
+    event.preventDefault()
+    skipNextClickRef.current = false
+    startDragSelection(rowKey, weekStartIso)
+  }
+
+  function handleCellMouseEnter(rowKey: string, weekStartIso: string): void {
+    if (!dragAnchorCell) {
+      return
+    }
+    skipNextClickRef.current = true
+    updateDragSelection(rowKey, weekStartIso)
+  }
+
+  function handleSectionKeyDown(event: React.KeyboardEvent<HTMLElement>): void {
+    if (!selectedCells.size || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'c') {
+      return
+    }
+
+    const target = event.target as HTMLElement | null
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return
+    }
+
+    event.preventDefault()
+    void copySelectionForExcel()
+  }
+
   const selectedTotal = useMemo(() => {
     let total = 0
     selectedCells.forEach((key) => {
@@ -157,7 +402,10 @@ export function PivotPlanningTable({
   const selectedCount = selectedCells.size
 
   return (
-    <section className="panel pivot-panel">
+    <section
+      className={clsx('panel pivot-panel', { 'pivot-drag-selecting': Boolean(dragAnchorCell || dragCurrentCell) })}
+      onKeyDownCapture={handleSectionKeyDown}
+    >
       <div className="section-header section-header-row">
         <div>
           <h2>{title}</h2>
@@ -207,9 +455,17 @@ export function PivotPlanningTable({
             >
               <span>Selected: {selectedCount}</span>
               <strong>{selectedTotal.toFixed(2)} hrs</strong>
+              <button type="button" className="ghost-btn" onClick={() => void copySelectionForExcel()}>
+                Copy
+              </button>
               <button type="button" className="ghost-btn" onClick={clearSelection}>
                 Clear
               </button>
+            </div>
+          )}
+          {copyFeedback && (
+            <div className="inline-field" style={{ marginLeft: 8 }}>
+              <span style={{ color: '#cbd5e1' }}>{copyFeedback}</span>
             </div>
           )}
         </div>
@@ -239,6 +495,9 @@ export function PivotPlanningTable({
               <span>{selectedTotal.toFixed(2)} hrs</span>
               <button type="button" className="ghost-btn" onClick={clearSelection}>
                 Clear
+              </button>
+              <button type="button" className="ghost-btn" onClick={() => void copySelectionForExcel()}>
+                Copy
               </button>
             </div>
           )}
@@ -341,7 +600,13 @@ export function PivotPlanningTable({
                             type="button"
                             className="cell-display"
                             disabled={!cellSelectable}
+                            onMouseDown={(event) => handleCellMouseDown(event, row.rowKey, week, cellSelectable)}
+                            onMouseEnter={() => handleCellMouseEnter(row.rowKey, week)}
                             onClick={(event) => {
+                              if (skipNextClickRef.current) {
+                                skipNextClickRef.current = false
+                                return
+                              }
                               if (!cellSelectable) {
                                 return
                               }
