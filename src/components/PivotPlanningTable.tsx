@@ -225,6 +225,45 @@ export function PivotPlanningTable({
     return selectableWeekKeys.length > 0 && selectableWeekKeys.every((key) => selectedCells.has(key))
   }
 
+  const weeksWithPlannedWork = useMemo(() => {
+    return visibleWeekKeys.filter((weekStartIso) =>
+      model.rows.some((row) => {
+        const value = row.valuesByWeek[weekStartIso] ?? 0
+        return value > 0 && isCellSelectable(row.rowKey, weekStartIso, value)
+      }),
+    )
+  }, [isCellSelectable, model.rows, visibleWeekKeys])
+
+  const plannedWeekCellKeys = useMemo(() => {
+    const keys = new Set<string>()
+    weeksWithPlannedWork.forEach((weekStartIso) => {
+      buildSelectableWeekCellKeys(weekStartIso).forEach((key) => keys.add(key))
+    })
+    return keys
+  }, [selectableCellKeysByWeek, weeksWithPlannedWork])
+
+  function arePlannedWeeksFullySelected(): boolean {
+    return plannedWeekCellKeys.size > 0 && [...plannedWeekCellKeys].every((key) => selectedCells.has(key))
+  }
+
+  function toggleSelectPlannedWeeks(): void {
+    setSelectedCells((current) => {
+      if (plannedWeekCellKeys.size === 0) {
+        return current
+      }
+      const allSelected = [...plannedWeekCellKeys].every((key) => current.has(key))
+      const next = new Set(current)
+      plannedWeekCellKeys.forEach((key) => {
+        if (allSelected) {
+          next.delete(key)
+        } else {
+          next.add(key)
+        }
+      })
+      return next
+    })
+  }
+
   useEffect(() => {
     if (!dragAnchorCell) {
       return
@@ -437,8 +476,19 @@ export function PivotPlanningTable({
           <button type="button" className="ghost-btn" onClick={onResetEdits}>
             Reset Manual Edits
           </button>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={toggleSelectPlannedWeeks}
+            disabled={weeksWithPlannedWork.length === 0}
+            title="Select all visible weeks that contain planned hours"
+          >
+            {arePlannedWeeksFullySelected() ? 'Clear Planned Weeks' : 'Select Planned Weeks'} ({weeksWithPlannedWork.length})
+          </button>
           <div className="inline-field" style={{ marginLeft: 12 }}>
-            <span style={{ color: '#9ca3af', marginRight: 8 }}>Ctrl+click cells to total or use week header Select</span>
+            <span style={{ color: '#9ca3af', marginRight: 8 }}>
+              Click+drag to select range. Ctrl+click adds cells. Ctrl/Cmd+C copies for Excel.
+            </span>
           </div>
           {selectedCount > 0 && (
             <div
