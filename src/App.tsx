@@ -11,15 +11,6 @@ import { parseSalesSpreadsheet, parseSpreadsheet } from './utils/excel'
 import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
 import { exportReportWorkbookWithChartApi } from './utils/reportExportApi'
 import {
-  createDefaultSharedPlanningState,
-  fetchSharedPlanningState,
-  fetchWorkbookStoreStatus,
-  saveSharedPlanningState,
-  uploadWorkbookFile,
-  downloadWorkbookFile,
-  type SharedPlanningState,
-} from './utils/sharedStoreApi'
-import {
   buildBaseLeafCells,
   buildLeafValueMap,
   buildMonthlyBuckets,
@@ -35,10 +26,12 @@ import {
 } from './utils/planner'
 
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
-const INITIAL_SALES_FILE_NAME = '2026 Sales Production Report.xlsx'
 const APP_LOCK_PASSWORD = '2431'
 const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
-const EMPTY_FILTERS: AppFilters = { dateFrom: '', dateTo: '', year: '', resources: [] }
+const SALES_STORAGE_KEY = 'sales_tasks_v1'
+const SALES_META_KEY = 'sales_meta_v1'
+const MAIN_STORAGE_KEY = 'main_tasks_v1'
+const MAIN_META_KEY = 'main_meta_v1'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1440,
   Assembly: 80,
@@ -119,11 +112,9 @@ function App() {
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [fileName, setFileName] = useState(INITIAL_FILE_NAME)
   const [salesTasks, setSalesTasks] = useState<TaskRow[]>([])
-  const [salesFileName, setSalesFileName] = useState(INITIAL_SALES_FILE_NAME)
+  const [salesFileName, setSalesFileName] = useState('2026 Sales Production Report.xlsx')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [sharedStateHydrated, setSharedStateHydrated] = useState(false)
-  const [sharedApiReachable, setSharedApiReachable] = useState(false)
   const [pivotRowGrouping, setPivotRowGrouping] = useState<PivotRowGrouping>('project')
   const [chartGroupBy, setChartGroupBy] = useState<ChartGroupBy>('project')
   const [selectedWeekendDates, setSelectedWeekendDates] = useState<Set<string>>(new Set())
@@ -163,23 +154,64 @@ function App() {
     label,
   }))
 
-  function applyMainSharedState(sharedState: SharedPlanningState): void {
-    const sharedMain = sharedState.main
-    setFileName(sharedMain.file || INITIAL_FILE_NAME)
-    setManualOverrides(sharedMain.overrides ?? {})
-    setEnabledResources(sharedMain.enabled ?? {})
-    setResourceWeeklyCapacities(sharedMain.weeklyCaps ?? {})
-    setFilters(sharedMain.filters ?? EMPTY_FILTERS)
-    setSelectedWeekendDates(new Set(sharedMain.weekendDates ?? []))
-    setWeekendExtraByResource(sharedMain.weekendExtras ?? {})
+  function persistSalesState(
+    tasksToStore: TaskRow[],
+    file: string,
+    overrides: Record<string, number>,
+    selected: Set<string>,
+    enabled: Record<string, boolean>,
+  ): void {
+    if (typeof window === 'undefined') return
+    const plainTasks = tasksToStore.map((t) => ({
+      ...t,
+      start: t.start.toISOString(),
+      finish: t.finish.toISOString(),
+    }))
+    const payload = JSON.stringify(plainTasks)
+    const meta = JSON.stringify({
+      file,
+      overrides,
+      selected: [...selected],
+      enabled,
+    })
+    window.localStorage.setItem(SALES_STORAGE_KEY, payload)
+    window.localStorage.setItem(SALES_META_KEY, meta)
+    // keep sessionStorage in sync for backward compatibility
+    window.sessionStorage.setItem(SALES_STORAGE_KEY, payload)
+    window.sessionStorage.setItem(SALES_META_KEY, meta)
   }
 
-  function applySalesSharedState(sharedState: SharedPlanningState): void {
-    const sharedSales = sharedState.sales
-    setSalesFileName(sharedSales.file || INITIAL_SALES_FILE_NAME)
-    setSalesManualOverrides(sharedSales.overrides ?? {})
-    setSalesEnabledResources(sharedSales.enabled ?? {})
-    setSalesSelectedProjects(new Set())
+  function persistMainState(
+    tasksToStore: TaskRow[],
+    file: string,
+    overrides: Record<string, number>,
+    enabled: Record<string, boolean>,
+    weeklyCaps: Record<string, number>,
+    filtersState: AppFilters,
+    weekendDates: Set<string>,
+    weekendExtras: Record<string, number>,
+  ): void {
+    if (typeof window === 'undefined') return
+    const plainTasks = tasksToStore.map((t) => ({
+      ...t,
+      start: t.start.toISOString(),
+      finish: t.finish.toISOString(),
+    }))
+    const payload = JSON.stringify(plainTasks)
+    const meta = JSON.stringify({
+      file,
+      overrides,
+      enabled,
+      weeklyCaps,
+      filters: filtersState,
+      weekendDates: [...weekendDates],
+      weekendExtras,
+    })
+    window.localStorage.setItem(MAIN_STORAGE_KEY, payload)
+    window.localStorage.setItem(MAIN_META_KEY, meta)
+    // keep sessionStorage in sync for backward compatibility
+    window.sessionStorage.setItem(MAIN_STORAGE_KEY, payload)
+    window.sessionStorage.setItem(MAIN_META_KEY, meta)
   }
 
   const [filters, setFilters] = useState<AppFilters>({
@@ -190,104 +222,87 @@ function App() {
   })
 
   useEffect(() => {
-    let isCancelled = false
-
-    async function loadBundledMainWorkbook(sharedState: SharedPlanningState): Promise<void> {
-      const response = await fetch(`/${INITIAL_FILE_NAME}`)
-      if (!response.ok) {
-        throw new Error(`Unable to fetch ${INITIAL_FILE_NAME}`)
-      }
-
-      const workbookData = await response.arrayBuffer()
-      const parsedTasks = parseSpreadsheet(workbookData)
-      if (isCancelled) {
-        return
-      }
-
-      setTasks(parsedTasks)
-      applyMainSharedState(sharedState)
-      setFileName(sharedState.main.file || INITIAL_FILE_NAME)
-      setProjectsInitialized(false)
-    }
-
     async function loadInitialWorkbook(): Promise<void> {
       setIsLoading(true)
       setError('')
-      let apiAvailable = false
-      let sharedState = createDefaultSharedPlanningState()
 
       try {
-        try {
-          sharedState = await fetchSharedPlanningState()
-          apiAvailable = true
-        } catch (sharedError) {
-          console.warn('[capacity-dashboard] shared planning state load failed', sharedError)
-        }
-
-        try {
-          const mainStatus = await fetchWorkbookStoreStatus('main')
-          apiAvailable = true
-
-          if (mainStatus.hasWorkbook) {
-            const workbookData = await downloadWorkbookFile('main')
-            const parsedTasks = parseSpreadsheet(workbookData)
-            if (!isCancelled) {
-              setTasks(parsedTasks)
-              applyMainSharedState(sharedState)
-              setFileName(mainStatus.fileName || sharedState.main.file || INITIAL_FILE_NAME)
-              setProjectsInitialized(false)
-            }
-          } else {
-            await loadBundledMainWorkbook(sharedState)
-          }
-        } catch (mainError) {
-          console.warn('[capacity-dashboard] shared main workbook load failed', mainError)
-          await loadBundledMainWorkbook(sharedState)
-        }
-
-        try {
-          const salesStatus = await fetchWorkbookStoreStatus('sales')
-          apiAvailable = true
-
-          if (salesStatus.hasWorkbook) {
-            const salesWorkbookData = await downloadWorkbookFile('sales')
-            const parsedSalesTasks = parseSalesSpreadsheet(salesWorkbookData)
-            if (!isCancelled) {
-              setSalesTasks(parsedSalesTasks)
-              applySalesSharedState(sharedState)
-              setSalesFileName(salesStatus.fileName || sharedState.sales.file || INITIAL_SALES_FILE_NAME)
-              setSalesProjectsInitialized(false)
-            }
-          } else if (!isCancelled) {
-            setSalesTasks([])
-            applySalesSharedState(sharedState)
-            setSalesProjectsInitialized(false)
-          }
-        } catch (salesError) {
-          console.warn('[capacity-dashboard] shared sales workbook load failed', salesError)
-          if (!isCancelled) {
-            setSalesTasks([])
-            applySalesSharedState(sharedState)
-            setSalesProjectsInitialized(false)
+        if (typeof window !== 'undefined') {
+          const savedTasksRaw =
+            window.localStorage.getItem(MAIN_STORAGE_KEY) ?? window.sessionStorage.getItem(MAIN_STORAGE_KEY)
+          const savedMetaRaw = window.localStorage.getItem(MAIN_META_KEY) ?? window.sessionStorage.getItem(MAIN_META_KEY)
+          if (savedTasksRaw && savedMetaRaw) {
+            const parsedTasks: TaskRow[] = JSON.parse(savedTasksRaw).map((t: any) => ({
+              ...t,
+              start: parseISO(t.start),
+              finish: parseISO(t.finish),
+            }))
+            const meta = JSON.parse(savedMetaRaw)
+            setTasks(parsedTasks)
+            setFileName(meta.file ?? fileName)
+            setManualOverrides(meta.overrides ?? {})
+            setEnabledResources(meta.enabled ?? {})
+            setResourceWeeklyCapacities(meta.weeklyCaps ?? {})
+            setFilters(meta.filters ?? { dateFrom: '', dateTo: '', year: '', resources: [] })
+            setSelectedWeekendDates(new Set(meta.weekendDates ?? []))
+            setWeekendExtraByResource(meta.weekendExtras ?? {})
+            setProjectsInitialized(false)
+            setIsLoading(false)
+            return
           }
         }
+
+        const response = await fetch(`/${INITIAL_FILE_NAME}`)
+        if (!response.ok) {
+          throw new Error(`Unable to fetch ${INITIAL_FILE_NAME}`)
+        }
+
+        const workbookData = await response.arrayBuffer()
+        const parsedTasks = parseSpreadsheet(workbookData)
+        setTasks(parsedTasks)
+        persistMainState(
+          parsedTasks,
+          INITIAL_FILE_NAME,
+          {},
+          {},
+          {},
+          { dateFrom: '', dateTo: '', year: '', resources: [] },
+          new Set(),
+          {},
+        )
       } catch {
-        if (!isCancelled) {
-          setError('Could not load the shared/default workbook. Upload a .xlsx file to continue.')
-        }
+        setError('Could not load the default workbook. Upload a .xlsx file to continue.')
       } finally {
-        if (!isCancelled) {
-          setSharedApiReachable(apiAvailable)
-          setSharedStateHydrated(true)
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       }
     }
 
     void loadInitialWorkbook()
+  }, [])
 
-    return () => {
-      isCancelled = true
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const savedTasksRaw = window.localStorage.getItem(SALES_STORAGE_KEY) ?? window.sessionStorage.getItem(SALES_STORAGE_KEY)
+      const savedMetaRaw = window.localStorage.getItem(SALES_META_KEY) ?? window.sessionStorage.getItem(SALES_META_KEY)
+      if (!savedTasksRaw || !savedMetaRaw) {
+        return
+      }
+      const parsedTasks: TaskRow[] = JSON.parse(savedTasksRaw).map((t: any) => ({
+        ...t,
+        start: parseISO(t.start),
+        finish: parseISO(t.finish),
+      }))
+      const meta = JSON.parse(savedMetaRaw)
+      setSalesTasks(parsedTasks)
+      setSalesFileName(meta.file ?? salesFileName)
+      setSalesManualOverrides(meta.overrides ?? {})
+      // Always start with all projects visible on refresh; do not restore hidden selections.
+      setSalesSelectedProjects(new Set())
+      setSalesEnabledResources(meta.enabled ?? {})
+      setSalesProjectsInitialized(false)
+    } catch {
+      // Ignore session restore errors and start fresh
     }
   }, [])
 
@@ -339,6 +354,30 @@ function App() {
       return next
     })
   }, [resources])
+
+  // Persist primary workbook state on any relevant change.
+  useEffect(() => {
+    if (tasks.length === 0) return
+    persistMainState(
+      tasks,
+      fileName,
+      manualOverrides,
+      enabledResources,
+      resourceWeeklyCapacities,
+      filters,
+      selectedWeekendDates,
+      weekendExtraByResource,
+    )
+  }, [
+    tasks,
+    fileName,
+    manualOverrides,
+    enabledResources,
+    resourceWeeklyCapacities,
+    filters,
+    selectedWeekendDates,
+    weekendExtraByResource,
+  ])
 
   useEffect(() => {
     if (salesResources.length === 0) {
@@ -873,51 +912,9 @@ function App() {
     topProjects,
   ])
 
-  const sharedStateToPersist = useMemo<SharedPlanningState>(
-    () => ({
-      version: 1,
-      main: {
-        file: fileName,
-        overrides: manualOverrides,
-        enabled: enabledResources,
-        weeklyCaps: resourceWeeklyCapacities,
-        filters,
-        weekendDates: [...selectedWeekendDates],
-        weekendExtras: weekendExtraByResource,
-      },
-      sales: {
-        file: salesFileName,
-        overrides: salesManualOverrides,
-        enabled: salesEnabledResources,
-      },
-    }),
-    [
-      enabledResources,
-      fileName,
-      filters,
-      manualOverrides,
-      resourceWeeklyCapacities,
-      salesEnabledResources,
-      salesFileName,
-      salesManualOverrides,
-      selectedWeekendDates,
-      weekendExtraByResource,
-    ],
-  )
-
   useEffect(() => {
-    if (!sharedStateHydrated || !sharedApiReachable) {
-      return
-    }
-    const timer = window.setTimeout(() => {
-      void saveSharedPlanningState(sharedStateToPersist).catch((saveError) => {
-        console.warn('[capacity-dashboard] shared planning state save failed', saveError)
-      })
-    }, 250)
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [sharedApiReachable, sharedStateHydrated, sharedStateToPersist])
+    persistSalesState(salesTasks, salesFileName, salesManualOverrides, salesSelectedProjects, salesEnabledResources)
+  }, [salesTasks, salesFileName, salesManualOverrides, salesSelectedProjects, salesEnabledResources])
 
   const pivotModel = useMemo(
     () => buildPivotModel(finalByKey, baseByKey, baseLayer.weekKeys, pivotRowGrouping),
@@ -1065,44 +1062,37 @@ function App() {
     if (!file) {
       return
     }
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      setError('Invalid file type. Please upload a .xlsx workbook.')
-      event.target.value = ''
-      return
-    }
 
     setIsLoading(true)
     setError('')
 
     try {
       const arrayBuffer = await file.arrayBuffer()
-      let parsed: TaskRow[]
-      try {
-        parsed = parseSpreadsheet(arrayBuffer)
-      } catch {
-        throw new Error('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
-      }
-
-      const storedWorkbook = await uploadWorkbookFile('main', file)
-      setSharedApiReachable(true)
+      const parsed = parseSpreadsheet(arrayBuffer)
       setTasks(parsed)
-      setFileName(storedWorkbook.fileName || file.name)
+      setFileName(file.name)
       setManualOverrides({})
       setResourceWeeklyCapacities({})
       setEnabledResources({})
-      setFilters(EMPTY_FILTERS)
+      setFilters({ dateFrom: '', dateTo: '', year: '', resources: [] })
       setSelectedWeekendDates(new Set())
       setWeekendExtraByResource({})
       setProjectsInitialized(false)
       // On new workbook upload, reset panel defaults (pivot/resource collapsed; forecast tables expanded by component default).
       setIsPivotCollapsed(true)
       setCollapseResetToken((current) => current + 1)
-    } catch (uploadError) {
-      if (uploadError instanceof Error && uploadError.message) {
-        setError(uploadError.message)
-      } else {
-        setError('Saving the workbook file failed.')
-      }
+      persistMainState(
+        parsed,
+        file.name,
+        {},
+        {},
+        {},
+        { dateFrom: '', dateTo: '', year: '', resources: [] },
+        new Set(),
+        {},
+      )
+    } catch {
+      setError('Failed to parse workbook. Please upload a valid .xlsx file with Work, Start, and Finish columns.')
     } finally {
       setIsLoading(false)
       event.target.value = ''
@@ -1114,40 +1104,24 @@ function App() {
     if (!file) {
       return
     }
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      setError('Invalid file type. Please upload a .xlsx sales workbook.')
-      event.target.value = ''
-      return
-    }
 
     setIsLoading(true)
     setError('')
 
     try {
       const arrayBuffer = await file.arrayBuffer()
-      let parsed: TaskRow[]
-      try {
-        parsed = parseSalesSpreadsheet(arrayBuffer)
-      } catch {
-        throw new Error('Failed to parse sales workbook. Please upload a valid Sales Production Report with the expected columns.')
-      }
-
-      const storedWorkbook = await uploadWorkbookFile('sales', file)
-      setSharedApiReachable(true)
+      const parsed = parseSalesSpreadsheet(arrayBuffer)
       setSalesTasks(parsed)
-      setSalesFileName(storedWorkbook.fileName || file.name)
+      setSalesFileName(file.name)
       setSalesManualOverrides({})
       setSalesEnabledResources({})
       setSalesSelectedProjects(new Set())
       setSalesProjectsInitialized(false)
       setIsSalesPivotCollapsed(true)
       setSalesCollapseResetToken((current) => current + 1)
-    } catch (uploadError) {
-      if (uploadError instanceof Error && uploadError.message) {
-        setError(uploadError.message)
-      } else {
-        setError('Saving the sales workbook file failed.')
-      }
+      persistSalesState(parsed, file.name, {}, new Set(), {})
+    } catch {
+      setError('Failed to parse sales workbook. Please upload a valid Sales Production Report with the expected columns.')
     } finally {
       setIsLoading(false)
       event.target.value = ''
