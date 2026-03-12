@@ -56,7 +56,29 @@ export function PivotPlanningTable({
   const [dragAnchorCell, setDragAnchorCell] = useState<CellRef | null>(null)
   const [dragCurrentCell, setDragCurrentCell] = useState<CellRef | null>(null)
   const [copyFeedback, setCopyFeedback] = useState('')
+  const [rowSortDirection, setRowSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [selectedRowKey, setSelectedRowKey] = useState('')
   const allWeeksSelected = weekWindowSize === -1
+  const rowLabelCollator = useMemo(() => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }), [])
+
+  const displayRows = useMemo(() => {
+    const rows = [...model.rows]
+    rows.sort((a, b) => {
+      const labelCompare = rowLabelCollator.compare(a.rowLabel, b.rowLabel)
+      if (labelCompare !== 0) {
+        return rowSortDirection === 'asc' ? labelCompare : -labelCompare
+      }
+      const keyCompare = rowLabelCollator.compare(a.rowKey, b.rowKey)
+      return rowSortDirection === 'asc' ? keyCompare : -keyCompare
+    })
+    return rows
+  }, [model.rows, rowLabelCollator, rowSortDirection])
+
+  const rowsByKey = useMemo(() => {
+    const byKey = new Map<string, (typeof displayRows)[number]>()
+    displayRows.forEach((row) => byKey.set(row.rowKey, row))
+    return byKey
+  }, [displayRows])
 
   function startEditing(rowKey: string, weekStartIso: string, currentValue: number): void {
     setEditingCell({ rowKey, weekStartIso })
@@ -103,11 +125,11 @@ export function PivotPlanningTable({
 
   const rowIndexByKey = useMemo(() => {
     const byRow = new Map<string, number>()
-    model.rows.forEach((row, index) => {
+    displayRows.forEach((row, index) => {
       byRow.set(row.rowKey, index)
     })
     return byRow
-  }, [model.rows])
+  }, [displayRows])
 
   const weekIndexByKey = useMemo(() => {
     const byWeek = new Map<string, number>()
@@ -120,12 +142,12 @@ export function PivotPlanningTable({
   const selectableCellKeysByWeek = useMemo(() => {
     const byWeek: Record<string, string[]> = {}
     visibleWeekKeys.forEach((weekStartIso) => {
-      byWeek[weekStartIso] = model.rows
+      byWeek[weekStartIso] = displayRows
         .filter((row) => isCellSelectable(row.rowKey, weekStartIso, row.valuesByWeek[weekStartIso] ?? 0))
         .map((row) => `${row.rowKey}|${weekStartIso}`)
     })
     return byWeek
-  }, [isCellSelectable, model.rows, visibleWeekKeys])
+  }, [displayRows, isCellSelectable, visibleWeekKeys])
 
   function buildRangeSelection(anchor: CellRef, current: CellRef): Set<string> {
     const anchorRowIndex = rowIndexByKey.get(anchor.rowKey)
@@ -149,7 +171,7 @@ export function PivotPlanningTable({
 
     const next = new Set<string>()
     for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex += 1) {
-      const row = model.rows[rowIndex]
+      const row = displayRows[rowIndex]
       if (!row) continue
       for (let weekIndex = minWeek; weekIndex <= maxWeek; weekIndex += 1) {
         const weekStartIso = visibleWeekKeys[weekIndex]
@@ -186,6 +208,35 @@ export function PivotPlanningTable({
 
   function buildSelectableWeekCellKeys(weekStartIso: string): string[] {
     return selectableCellKeysByWeek[weekStartIso] ?? []
+  }
+
+  function buildSelectableRowCellKeys(rowKey: string): string[] {
+    const row = rowsByKey.get(rowKey)
+    if (!row) {
+      return []
+    }
+    return visibleWeekKeys
+      .filter((weekStartIso) => isCellSelectable(row.rowKey, weekStartIso, row.valuesByWeek[weekStartIso] ?? 0))
+      .map((weekStartIso) => `${row.rowKey}|${weekStartIso}`)
+  }
+
+  function toggleSelectVisibleRowCells(rowKey: string): void {
+    setSelectedCells((current) => {
+      const rowCellKeys = buildSelectableRowCellKeys(rowKey)
+      if (rowCellKeys.length === 0) {
+        return current
+      }
+      const allSelected = rowCellKeys.every((key) => current.has(key))
+      const next = new Set(current)
+      rowCellKeys.forEach((key) => {
+        if (allSelected) {
+          next.delete(key)
+        } else {
+          next.add(key)
+        }
+      })
+      return next
+    })
   }
 
   function toggleSelectWeek(weekStartIso: string): void {
@@ -228,12 +279,12 @@ export function PivotPlanningTable({
 
   const weeksWithPlannedWork = useMemo(() => {
     return visibleWeekKeys.filter((weekStartIso) =>
-      model.rows.some((row) => {
+      displayRows.some((row) => {
         const value = row.valuesByWeek[weekStartIso] ?? 0
         return value > 0 && isCellSelectable(row.rowKey, weekStartIso, value)
       }),
     )
-  }, [isCellSelectable, model.rows, visibleWeekKeys])
+  }, [displayRows, isCellSelectable, visibleWeekKeys])
 
   const plannedWeekCellKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -290,7 +341,7 @@ export function PivotPlanningTable({
         if (rowIndex === undefined || weekIndex === undefined) {
           return
         }
-        const row = model.rows[rowIndex]
+        const row = displayRows[rowIndex]
         const value = row.valuesByWeek[weekStartIso] ?? 0
         if (!isCellSelectable(rowKey, weekStartIso, value)) {
           return
@@ -311,7 +362,13 @@ export function PivotPlanningTable({
       }
       return next
     })
-  }, [isCellSelectable, model.rows, rowIndexByKey, visibleWeekKeys, weekIndexByKey])
+  }, [displayRows, isCellSelectable, rowIndexByKey, visibleWeekKeys, weekIndexByKey])
+
+  useEffect(() => {
+    if (selectedRowKey && !rowsByKey.has(selectedRowKey)) {
+      setSelectedRowKey('')
+    }
+  }, [rowsByKey, selectedRowKey])
 
   useEffect(() => {
     if (!copyFeedback) {
@@ -347,7 +404,7 @@ export function PivotPlanningTable({
       const weekIndex = weekIndexByKey.get(weekStartIso)
       if (rowIndex === undefined || weekIndex === undefined) return
 
-      const row = model.rows[rowIndex]
+      const row = displayRows[rowIndex]
       const value = row.valuesByWeek[weekStartIso] ?? 0
       if (!isCellSelectable(rowKey, weekStartIso, value)) return
       selectedCoordinates.push({ rowIndex, weekIndex })
@@ -367,7 +424,7 @@ export function PivotPlanningTable({
 
     const lines: string[] = []
     for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex += 1) {
-      const row = model.rows[rowIndex]
+      const row = displayRows[rowIndex]
       if (!row) continue
       const values: string[] = []
       for (let weekIndex = minWeek; weekIndex <= maxWeek; weekIndex += 1) {
@@ -429,17 +486,30 @@ export function PivotPlanningTable({
     void copySelectionForExcel()
   }
 
+  const selectedRow = selectedRowKey ? rowsByKey.get(selectedRowKey) : undefined
+  const selectedRowCellKeys = useMemo(() => {
+    if (!selectedRow) {
+      return []
+    }
+    return visibleWeekKeys
+      .filter((weekStartIso) => isCellSelectable(selectedRow.rowKey, weekStartIso, selectedRow.valuesByWeek[weekStartIso] ?? 0))
+      .map((weekStartIso) => `${selectedRow.rowKey}|${weekStartIso}`)
+  }, [isCellSelectable, selectedRow, visibleWeekKeys])
+  const selectedRowAllCellsSelected =
+    selectedRowCellKeys.length > 0 && selectedRowCellKeys.every((key) => selectedCells.has(key))
+
   const selectedTotal = useMemo(() => {
     let total = 0
     selectedCells.forEach((key) => {
       const [rowKey, weekStartIso] = key.split('|')
-      const row = model.rows.find((r) => r.rowKey === rowKey)
+      const row = rowsByKey.get(rowKey)
       if (!row) return
       total += row.valuesByWeek[weekStartIso] ?? 0
     })
     return total
-  }, [selectedCells, model.rows])
+  }, [rowsByKey, selectedCells])
   const selectedCount = selectedCells.size
+  const pivotTableMinWidthPx = 260 + visibleWeekKeys.length * 108 + 120
 
   return (
     <section
@@ -497,6 +567,24 @@ export function PivotPlanningTable({
               Click+drag to select range. Ctrl+click adds cells. Ctrl/Cmd+C copies for Excel.
             </span>
           </div>
+          <button
+            type="button"
+            className="ghost-btn"
+            disabled={!selectedRow}
+            onClick={() => {
+              if (selectedRow) {
+                toggleSelectVisibleRowCells(selectedRow.rowKey)
+              }
+            }}
+            title={
+              selectedRow
+                ? `${selectedRowAllCellsSelected ? 'Clear' : 'Select'} all visible week cells for ${selectedRow.rowLabel}`
+                : 'Select a row label first'
+            }
+          >
+            {selectedRowAllCellsSelected ? 'Clear Row Weeks' : 'Select Row Weeks'}
+            {selectedRow ? ` (${selectedRow.rowLabel})` : ''}
+          </button>
           {selectedCount > 0 && (
             <div
               style={{
@@ -558,10 +646,20 @@ export function PivotPlanningTable({
               </button>
             </div>
           )}
-          <table className="pivot-table">
+          <table className="pivot-table" style={{ minWidth: `${pivotTableMinWidthPx}px` }}>
             <thead>
               <tr>
-                <th className="sticky-col">{rowGrouping === 'project' ? 'Project' : 'Resource'}</th>
+                <th className="sticky-col">
+                  <button
+                    type="button"
+                    className="row-sort-btn"
+                    onClick={() => setRowSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))}
+                    title={`Sort ${rowGrouping === 'project' ? 'Project' : 'Resource'} ${rowSortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                    aria-label={`Sort ${rowGrouping === 'project' ? 'Project' : 'Resource'} ${rowSortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                  >
+                    {rowGrouping === 'project' ? 'Project' : 'Resource'} {rowSortDirection === 'asc' ? 'ASC' : 'DESC'}
+                  </button>
+                </th>
                 {visibleWeekKeys.map((week) => {
                   const weekSelectedCount = getSelectedWeekCount(week)
                   const weekSelectableCount = buildSelectableWeekCellKeys(week).length
@@ -592,99 +690,112 @@ export function PivotPlanningTable({
               </tr>
             </thead>
             <tbody>
-              {model.rows.map((row) => (
-                <tr key={row.rowKey}>
-                  <td className="sticky-col row-label">{row.rowLabel}</td>
-                  {visibleWeekKeys.map((week) => {
-                    const value = row.valuesByWeek[week] ?? 0
-                    const edited = model.editedRowWeekKeys.has(`${row.rowKey}\u0001${week}`)
-                    const isEditing = editingCell?.rowKey === row.rowKey && editingCell.weekStartIso === week
-                    const cellKey = `${row.rowKey}|${week}`
-                    const isSelected = selectedCells.has(cellKey)
-                    const cellSelectable = isCellSelectable(row.rowKey, week, value)
-                    return (
-                      <td
-                        key={`${row.rowKey}-${week}`}
-                        className={clsx({
-                          'over-week': overCapacityWeeks.has(week),
-                          edited,
-                          editing: isEditing,
-                          selected: isSelected,
-                        })}
-                        style={
-                          isSelected
-                            ? {
-                                outline: '2px solid #38bdf8',
-                                outlineOffset: '-2px',
-                                background: 'rgba(56, 189, 248, 0.18)',
-                              }
-                            : undefined
-                        }
+              {displayRows.map((row) => {
+                const rowIsSelected = selectedRowKey === row.rowKey
+                return (
+                  <tr key={row.rowKey} className={clsx({ 'row-selected': rowIsSelected })}>
+                    <td className={clsx('sticky-col row-label', { 'row-label-selected': rowIsSelected })}>
+                      <button
+                        type="button"
+                        className={clsx('row-label-btn', { 'row-label-btn-active': rowIsSelected })}
+                        onClick={() => setSelectedRowKey((current) => (current === row.rowKey ? '' : row.rowKey))}
+                        aria-pressed={rowIsSelected}
+                        title={`Select row ${row.rowLabel}`}
                       >
-                        {isEditing ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            inputMode="decimal"
-                            value={draftValue}
-                            onChange={(event) => {
-                              const next = event.target.value
-                              if (/^\d*\.?\d*$/.test(next)) {
-                                setDraftValue(next)
-                              }
-                            }}
-                            onBlur={() => {
-                              if (skipBlurSaveRef.current) {
-                                skipBlurSaveRef.current = false
-                                return
-                              }
-                              saveEditing(row.rowKey, week)
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault()
+                        {row.rowLabel}
+                      </button>
+                    </td>
+                    {visibleWeekKeys.map((week) => {
+                      const value = row.valuesByWeek[week] ?? 0
+                      const edited = model.editedRowWeekKeys.has(`${row.rowKey}\u0001${week}`)
+                      const isEditing = editingCell?.rowKey === row.rowKey && editingCell.weekStartIso === week
+                      const cellKey = `${row.rowKey}|${week}`
+                      const isSelected = selectedCells.has(cellKey)
+                      const cellSelectable = isCellSelectable(row.rowKey, week, value)
+                      return (
+                        <td
+                          key={`${row.rowKey}-${week}`}
+                          className={clsx({
+                            'over-week': overCapacityWeeks.has(week),
+                            edited,
+                            editing: isEditing,
+                            selected: isSelected,
+                          })}
+                          style={
+                            isSelected
+                              ? {
+                                  outline: '2px solid #38bdf8',
+                                  outlineOffset: '-2px',
+                                  background: 'rgba(56, 189, 248, 0.18)',
+                                }
+                              : undefined
+                          }
+                        >
+                          {isEditing ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              inputMode="decimal"
+                              value={draftValue}
+                              onChange={(event) => {
+                                const next = event.target.value
+                                if (/^\d*\.?\d*$/.test(next)) {
+                                  setDraftValue(next)
+                                }
+                              }}
+                              onBlur={() => {
+                                if (skipBlurSaveRef.current) {
+                                  skipBlurSaveRef.current = false
+                                  return
+                                }
                                 saveEditing(row.rowKey, week)
-                              }
-                              if (event.key === 'Escape') {
-                                event.preventDefault()
-                                cancelEditing()
-                              }
-                            }}
-                            aria-label={`Edit hours for ${row.rowLabel} in week ${week}`}
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className="cell-display"
-                            disabled={!cellSelectable}
-                            onMouseDown={(event) => handleCellMouseDown(event, row.rowKey, week, cellSelectable)}
-                            onMouseEnter={() => handleCellMouseEnter(row.rowKey, week)}
-                            onClick={(event) => {
-                              if (skipNextClickRef.current) {
-                                skipNextClickRef.current = false
-                                return
-                              }
-                              if (!cellSelectable) {
-                                return
-                              }
-                              if (event.ctrlKey || event.metaKey) {
-                                toggleSelectedCell(row.rowKey, week)
-                                return
-                              }
-                              clearSelection()
-                              startEditing(row.rowKey, week, value)
-                            }}
-                            aria-label={`Edit hours for ${row.rowLabel} in week ${week}`}
-                          >
-                            {value.toFixed(2)}
-                          </button>
-                        )}
-                      </td>
-                    )
-                  })}
-                  <td className="row-total">{row.totalHours.toFixed(2)}</td>
-                </tr>
-              ))}
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault()
+                                  saveEditing(row.rowKey, week)
+                                }
+                                if (event.key === 'Escape') {
+                                  event.preventDefault()
+                                  cancelEditing()
+                                }
+                              }}
+                              aria-label={`Edit hours for ${row.rowLabel} in week ${week}`}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="cell-display"
+                              disabled={!cellSelectable}
+                              onMouseDown={(event) => handleCellMouseDown(event, row.rowKey, week, cellSelectable)}
+                              onMouseEnter={() => handleCellMouseEnter(row.rowKey, week)}
+                              onClick={(event) => {
+                                if (skipNextClickRef.current) {
+                                  skipNextClickRef.current = false
+                                  return
+                                }
+                                if (!cellSelectable) {
+                                  return
+                                }
+                                if (event.ctrlKey || event.metaKey) {
+                                  toggleSelectedCell(row.rowKey, week)
+                                  return
+                                }
+                                clearSelection()
+                                startEditing(row.rowKey, week, value)
+                              }}
+                              aria-label={`Edit hours for ${row.rowLabel} in week ${week}`}
+                            >
+                              {value.toFixed(2)}
+                            </button>
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="row-total">{row.totalHours.toFixed(2)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr>

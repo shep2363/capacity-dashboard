@@ -880,6 +880,37 @@ th {
 .row-label {
   font-weight: 700;
   text-align: center;
+  padding: 0.3rem 0.35rem;
+}
+
+.row-label-selected {
+  background: #0b2238;
+}
+
+.row-selected td:not(.sticky-col) {
+  background: rgba(56, 189, 248, 0.07);
+}
+
+.row-label-btn,
+.row-sort-btn {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e5e7eb;
+  font-weight: 700;
+  padding: 0.32rem 0.4rem;
+  text-align: center;
+}
+
+.row-label-btn:hover,
+.row-sort-btn:hover {
+  border-color: #38bdf8;
+}
+
+.row-label-btn-active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
 }
 
 .row-total {
