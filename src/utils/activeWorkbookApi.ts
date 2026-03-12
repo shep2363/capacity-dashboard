@@ -1,9 +1,12 @@
 export interface ActiveWorkbookStatus {
   hasWorkbook: boolean
+  dataset: WorkbookDataset
   fileName: string
   uploadedAt: string | null
   sizeBytes: number
 }
+
+export type WorkbookDataset = 'main' | 'sales'
 
 const ACTIVE_WORKBOOK_API_BASE =
   import.meta.env.VITE_SHARED_DATA_API_URL ??
@@ -39,22 +42,22 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function fetchActiveWorkbookStatus(): Promise<ActiveWorkbookStatus> {
-  return fetchJson<ActiveWorkbookStatus>('/api/workbook-state')
+export async function fetchActiveWorkbookStatus(dataset: WorkbookDataset): Promise<ActiveWorkbookStatus> {
+  return fetchJson<ActiveWorkbookStatus>(`/api/workbook-state?dataset=${dataset}`)
 }
 
-export async function downloadActiveWorkbook(): Promise<ArrayBuffer> {
-  const response = await fetch(buildApiUrl('/api/workbook-file'), { cache: 'no-store' })
+export async function downloadActiveWorkbook(dataset: WorkbookDataset): Promise<ArrayBuffer> {
+  const response = await fetch(buildApiUrl(`/api/workbook-file?dataset=${dataset}`), { cache: 'no-store' })
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response))
   }
   return response.arrayBuffer()
 }
 
-export async function uploadActiveWorkbook(file: File): Promise<ActiveWorkbookStatus> {
+export async function uploadActiveWorkbook(dataset: WorkbookDataset, file: File): Promise<ActiveWorkbookStatus> {
   const formData = new FormData()
   formData.set('file', file)
-  return fetchJson<ActiveWorkbookStatus>('/api/upload-workbook', {
+  return fetchJson<ActiveWorkbookStatus>(`/api/upload-workbook?dataset=${dataset}`, {
     method: 'POST',
     body: formData,
   })

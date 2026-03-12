@@ -21,16 +21,31 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 DEFAULT_MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 MAX_UPLOAD_BYTES = int(os.getenv("CAPACITY_MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES)))
 DATA_ROOT = Path(os.getenv("CAPACITY_SHARED_DATA_DIR", Path(__file__).resolve().parent / "shared_store")).resolve()
-ACTIVE_WORKBOOK_PATH = DATA_ROOT / "active_workbook.xlsx"
-MANIFEST_PATH = DATA_ROOT / "manifest.json"
+DATASETS = {"main", "sales"}
+MANIFEST_DIR = DATA_ROOT / "manifests"
 
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _default_manifest() -> Dict[str, Any]:
-    return {"version": 1, "fileName": "", "uploadedAt": None, "sizeBytes": 0}
+def _default_manifest(dataset: str) -> Dict[str, Any]:
+    return {"version": 1, "dataset": dataset, "fileName": "", "uploadedAt": None, "sizeBytes": 0}
+
+
+def _validate_dataset(dataset: str) -> str:
+    normalized = (dataset or "").strip().lower()
+    if normalized not in DATASETS:
+        raise ValueError("Invalid dataset. Allowed values: main, sales.")
+    return normalized
+
+
+def _active_workbook_path(dataset: str) -> Path:
+    return DATA_ROOT / f"active_{dataset}.xlsx"
+
+
+def _manifest_path(dataset: str) -> Path:
+    return MANIFEST_DIR / f"{dataset}.json"
 
 
 def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
@@ -48,34 +63,41 @@ def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
         raise
 
 
-def _read_manifest() -> Dict[str, Any]:
-    if not MANIFEST_PATH.exists():
-        return _default_manifest()
+def _read_manifest(dataset: str) -> Dict[str, Any]:
+    path = _manifest_path(dataset)
+    if not path.exists():
+        return _default_manifest(dataset)
     try:
-        with MANIFEST_PATH.open("r", encoding="utf-8") as handle:
+        with path.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
             if isinstance(payload, dict):
                 return payload
     except Exception:
         app.logger.exception("Failed reading manifest.")
-    return _default_manifest()
+    return _default_manifest(dataset)
 
 
 def _ensure_store() -> None:
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
-    if not MANIFEST_PATH.exists():
-        _write_json_atomic(MANIFEST_PATH, _default_manifest())
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    for dataset in DATASETS:
+        path = _manifest_path(dataset)
+        if not path.exists():
+            _write_json_atomic(path, _default_manifest(dataset))
 
 
-def _workbook_state_response() -> Dict[str, Any]:
-    manifest = _read_manifest()
-    has_workbook = ACTIVE_WORKBOOK_PATH.exists()
+def _workbook_state_response(dataset: str) -> Dict[str, Any]:
+    normalized = _validate_dataset(dataset)
+    workbook_path = _active_workbook_path(normalized)
+    manifest = _read_manifest(normalized)
+    has_workbook = workbook_path.exists()
     size_bytes = int(manifest.get("sizeBytes") or 0)
     if has_workbook and size_bytes <= 0:
-        size_bytes = ACTIVE_WORKBOOK_PATH.stat().st_size
+        size_bytes = workbook_path.stat().st_size
     return {
+        "dataset": normalized,
         "hasWorkbook": has_workbook,
-        "fileName": str(manifest.get("fileName") or (ACTIVE_WORKBOOK_PATH.name if has_workbook else "")),
+        "fileName": str(manifest.get("fileName") or (workbook_path.name if has_workbook else "")),
         "uploadedAt": manifest.get("uploadedAt"),
         "sizeBytes": size_bytes if has_workbook else 0,
     }
@@ -190,18 +212,29 @@ def _build_workbook(payload: Dict[str, Any]) -> Workbook:
 
 @app.get("/api/workbook-state")
 def workbook_state() -> Response:
-    return jsonify(_workbook_state_response())
+    dataset = request.args.get("dataset", "main")
+    try:
+        return jsonify(_workbook_state_response(dataset))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.get("/api/workbook-file")
 def workbook_file() -> Response:
-    if not ACTIVE_WORKBOOK_PATH.exists():
-        return jsonify({"error": "No active workbook has been uploaded yet."}), 404
+    dataset = request.args.get("dataset", "main")
+    try:
+        normalized = _validate_dataset(dataset)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-    manifest = _read_manifest()
-    download_name = str(manifest.get("fileName") or ACTIVE_WORKBOOK_PATH.name)
+    workbook_path = _active_workbook_path(normalized)
+    if not workbook_path.exists():
+        return jsonify({"error": f"No workbook has been uploaded for dataset '{normalized}'."}), 404
+
+    manifest = _read_manifest(normalized)
+    download_name = str(manifest.get("fileName") or workbook_path.name)
     return send_file(
-        ACTIVE_WORKBOOK_PATH,
+        workbook_path,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=False,
         download_name=download_name,
@@ -211,6 +244,12 @@ def workbook_file() -> Response:
 
 @app.post("/api/upload-workbook")
 def upload_workbook() -> Response:
+    dataset = request.args.get("dataset", "main")
+    try:
+        normalized = _validate_dataset(dataset)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     upload = request.files.get("file")
     if upload is None or not upload.filename:
         return jsonify({"error": "Missing upload file. Use form field 'file' with a .xlsx workbook."}), 400
@@ -242,21 +281,24 @@ def upload_workbook() -> Response:
                 temp_path.unlink(missing_ok=True)
                 return jsonify({"error": "Invalid workbook payload. Expected .xlsx content."}), 400
 
-        os.replace(temp_path, ACTIVE_WORKBOOK_PATH)
+        os.replace(temp_path, _active_workbook_path(normalized))
+        uploaded_at = _utc_now_iso()
 
         manifest = {
             "version": 1,
+            "dataset": normalized,
             "fileName": original_name,
-            "uploadedAt": _utc_now_iso(),
+            "uploadedAt": uploaded_at,
             "sizeBytes": file_size,
         }
-        _write_json_atomic(MANIFEST_PATH, manifest)
+        _write_json_atomic(_manifest_path(normalized), manifest)
 
         return jsonify(
             {
+                "dataset": normalized,
                 "hasWorkbook": True,
                 "fileName": original_name,
-                "uploadedAt": manifest["uploadedAt"],
+                "uploadedAt": uploaded_at,
                 "sizeBytes": file_size,
             }
         )
@@ -269,13 +311,16 @@ def upload_workbook() -> Response:
 
 @app.get("/api/shared-health")
 def shared_health() -> Response:
-    state = _workbook_state_response()
+    main_state = _workbook_state_response("main")
+    sales_state = _workbook_state_response("sales")
     return jsonify(
         {
             "status": "ok",
             "dataRoot": str(DATA_ROOT),
-            "activeWorkbookPresent": state["hasWorkbook"],
-            "activeWorkbookName": state["fileName"],
+            "datasets": {
+                "main": main_state,
+                "sales": sales_state,
+            },
         }
     )
 

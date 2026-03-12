@@ -121,16 +121,16 @@ VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
 
 ### Active workbook storage details
 
-- Stored file path (default): `backend/shared_store/active_workbook.xlsx`
-- Metadata path (default): `backend/shared_store/manifest.json`
+- Stored file paths (default): `backend/shared_store/active_main.xlsx`, `backend/shared_store/active_sales.xlsx`
+- Metadata paths (default): `backend/shared_store/manifests/main.json`, `backend/shared_store/manifests/sales.json`
 - Storage root can be overridden with: `CAPACITY_SHARED_DATA_DIR`
 - Upload size limit (default 30MB) can be overridden with: `CAPACITY_MAX_UPLOAD_BYTES`
 
 ### Active workbook API endpoints
 
-- `GET /api/workbook-state`
-- `GET /api/workbook-file`
-- `POST /api/upload-workbook`
+- `GET /api/workbook-state?dataset=main|sales`
+- `GET /api/workbook-file?dataset=main|sales`
+- `POST /api/upload-workbook?dataset=main|sales`
 - `GET /api/shared-health`
 
 ## API Routes on Public Deploy (Vercel)
@@ -145,9 +145,9 @@ This repo includes serverless Python routes in `/api`, including:
 So the deployed host can serve workbook upload/load endpoints directly without requiring a separate API URL.
 
 Important limitation for serverless storage:
-- The `/api` workbook routes store data in the serverless runtime filesystem (`/tmp` by default).
-- This can be reset by cold starts/redeploys and should not be treated as durable long-term storage.
-- For fully reliable persistence, run `backend/export_api.py` with a stable `CAPACITY_SHARED_DATA_DIR` or move storage to managed cloud storage.
+- If `BLOB_READ_WRITE_TOKEN` is set and the Python `vercel` package is installed, `/api` workbook routes store data in Vercel Blob (durable shared storage).
+- If Blob is not configured, routes fall back to serverless runtime filesystem (`/tmp`), which can reset on cold starts/redeploys.
+- For fully reliable persistence outside Blob, run `backend/export_api.py` with a stable `CAPACITY_SHARED_DATA_DIR`.
 
 ## Deploying the App Publicly
 

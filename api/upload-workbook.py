@@ -15,9 +15,10 @@ app = Flask(__name__)
 @app.post("/")
 @app.post("/api/upload-workbook")
 def upload_workbook() -> Response:
+    dataset = request.args.get("dataset", "main")
     uploaded_file = request.files.get("file")
     try:
-        payload = store.save_upload(uploaded_file)
+        payload = store.save_upload(dataset, uploaded_file)
         return jsonify(payload)
     except ValueError as exc:
         message = str(exc)
