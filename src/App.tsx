@@ -929,30 +929,43 @@ function App() {
     setPivotWeekStartIndex(0)
   }, [baseLayer.weekKeys, pivotWeekWindowSize])
 
-  const maxPivotStartIndex = Math.max(0, baseLayer.weekKeys.length - pivotWeekWindowSize)
-  const safePivotStartIndex = Math.min(pivotWeekStartIndex, maxPivotStartIndex)
-  const visiblePivotWeekKeys = baseLayer.weekKeys.slice(
-    safePivotStartIndex,
-    safePivotStartIndex + pivotWeekWindowSize,
-  )
+  const showingAllPivotWeeks = pivotWeekWindowSize === -1 || pivotWeekWindowSize >= baseLayer.weekKeys.length
+  const effectivePivotWeekWindowSize = showingAllPivotWeeks ? Math.max(baseLayer.weekKeys.length, 1) : pivotWeekWindowSize
+  const maxPivotStartIndex = Math.max(0, baseLayer.weekKeys.length - effectivePivotWeekWindowSize)
+  const safePivotStartIndex = showingAllPivotWeeks ? 0 : Math.min(pivotWeekStartIndex, maxPivotStartIndex)
+  const visiblePivotWeekKeys = showingAllPivotWeeks
+    ? baseLayer.weekKeys
+    : baseLayer.weekKeys.slice(
+        safePivotStartIndex,
+        safePivotStartIndex + effectivePivotWeekWindowSize,
+      )
   const pivotWeekWindowLabel =
     visiblePivotWeekKeys.length > 0
-      ? `${visiblePivotWeekKeys[0]} to ${visiblePivotWeekKeys[visiblePivotWeekKeys.length - 1]}`
+      ? `${visiblePivotWeekKeys[0]} to ${visiblePivotWeekKeys[visiblePivotWeekKeys.length - 1]}${showingAllPivotWeeks ? ` (All ${visiblePivotWeekKeys.length} weeks)` : ''}`
       : 'No weeks'
 
   useEffect(() => {
     setSalesPivotWeekStartIndex(0)
   }, [salesBaseLayer.weekKeys, salesPivotWeekWindowSize])
 
-  const salesMaxPivotStartIndex = Math.max(0, salesBaseLayer.weekKeys.length - salesPivotWeekWindowSize)
-  const salesSafePivotStartIndex = Math.min(salesPivotWeekStartIndex, salesMaxPivotStartIndex)
-  const salesVisiblePivotWeekKeys = salesBaseLayer.weekKeys.slice(
-    salesSafePivotStartIndex,
-    salesSafePivotStartIndex + salesPivotWeekWindowSize,
-  )
+  const showingAllSalesPivotWeeks =
+    salesPivotWeekWindowSize === -1 || salesPivotWeekWindowSize >= salesBaseLayer.weekKeys.length
+  const effectiveSalesPivotWeekWindowSize = showingAllSalesPivotWeeks
+    ? Math.max(salesBaseLayer.weekKeys.length, 1)
+    : salesPivotWeekWindowSize
+  const salesMaxPivotStartIndex = Math.max(0, salesBaseLayer.weekKeys.length - effectiveSalesPivotWeekWindowSize)
+  const salesSafePivotStartIndex = showingAllSalesPivotWeeks
+    ? 0
+    : Math.min(salesPivotWeekStartIndex, salesMaxPivotStartIndex)
+  const salesVisiblePivotWeekKeys = showingAllSalesPivotWeeks
+    ? salesBaseLayer.weekKeys
+    : salesBaseLayer.weekKeys.slice(
+        salesSafePivotStartIndex,
+        salesSafePivotStartIndex + effectiveSalesPivotWeekWindowSize,
+      )
   const salesPivotWeekWindowLabel =
     salesVisiblePivotWeekKeys.length > 0
-      ? `${salesVisiblePivotWeekKeys[0]} to ${salesVisiblePivotWeekKeys[salesVisiblePivotWeekKeys.length - 1]}`
+      ? `${salesVisiblePivotWeekKeys[0]} to ${salesVisiblePivotWeekKeys[salesVisiblePivotWeekKeys.length - 1]}${showingAllSalesPivotWeeks ? ` (All ${salesVisiblePivotWeekKeys.length} weeks)` : ''}`
       : 'No weeks'
 
   const totals = useMemo(() => {
@@ -1677,15 +1690,19 @@ function App() {
                   overCapacityWeeks={overCapacityWeeks}
                   visibleWeekKeys={visiblePivotWeekKeys}
                   weekWindowLabel={pivotWeekWindowLabel}
-                  canPageBack={safePivotStartIndex > 0}
-                  canPageForward={safePivotStartIndex + pivotWeekWindowSize < baseLayer.weekKeys.length}
-                  onPageBack={() => setPivotWeekStartIndex((current) => Math.max(0, current - pivotWeekWindowSize))}
+                  canPageBack={!showingAllPivotWeeks && safePivotStartIndex > 0}
+                  canPageForward={
+                    !showingAllPivotWeeks && safePivotStartIndex + effectivePivotWeekWindowSize < baseLayer.weekKeys.length
+                  }
+                  onPageBack={() =>
+                    setPivotWeekStartIndex((current) => Math.max(0, current - effectivePivotWeekWindowSize))
+                  }
                   onPageForward={() =>
-                    setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + pivotWeekWindowSize))
+                    setPivotWeekStartIndex((current) => Math.min(maxPivotStartIndex, current + effectivePivotWeekWindowSize))
                   }
                   weekWindowSize={pivotWeekWindowSize}
                   onWeekWindowSizeChange={(size) => {
-                    if (!Number.isFinite(size) || size <= 0) {
+                    if (!Number.isFinite(size) || (size !== -1 && size <= 0)) {
                       return
                     }
                     setPivotWeekWindowSize(size)
@@ -1704,17 +1721,24 @@ function App() {
                     overCapacityWeeks={salesOverCapacityWeeks}
                     visibleWeekKeys={salesVisiblePivotWeekKeys}
                     weekWindowLabel={salesPivotWeekWindowLabel}
-                    canPageBack={salesSafePivotStartIndex > 0}
-                    canPageForward={salesSafePivotStartIndex + salesPivotWeekWindowSize < salesBaseLayer.weekKeys.length}
-                    onPageBack={() => setSalesPivotWeekStartIndex((current) => Math.max(0, current - salesPivotWeekWindowSize))}
+                    canPageBack={!showingAllSalesPivotWeeks && salesSafePivotStartIndex > 0}
+                    canPageForward={
+                      !showingAllSalesPivotWeeks &&
+                      salesSafePivotStartIndex + effectiveSalesPivotWeekWindowSize < salesBaseLayer.weekKeys.length
+                    }
+                    onPageBack={() =>
+                      setSalesPivotWeekStartIndex((current) =>
+                        Math.max(0, current - effectiveSalesPivotWeekWindowSize),
+                      )
+                    }
                     onPageForward={() =>
                       setSalesPivotWeekStartIndex((current) =>
-                        Math.min(salesMaxPivotStartIndex, current + salesPivotWeekWindowSize),
+                        Math.min(salesMaxPivotStartIndex, current + effectiveSalesPivotWeekWindowSize),
                       )
                     }
                     weekWindowSize={salesPivotWeekWindowSize}
                     onWeekWindowSizeChange={(size) => {
-                      if (!Number.isFinite(size) || size <= 0) {
+                      if (!Number.isFinite(size) || (size !== -1 && size <= 0)) {
                         return
                       }
                       setSalesPivotWeekWindowSize(size)

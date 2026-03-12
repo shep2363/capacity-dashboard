@@ -56,6 +56,7 @@ export function PivotPlanningTable({
   const [dragAnchorCell, setDragAnchorCell] = useState<CellRef | null>(null)
   const [dragCurrentCell, setDragCurrentCell] = useState<CellRef | null>(null)
   const [copyFeedback, setCopyFeedback] = useState('')
+  const allWeeksSelected = weekWindowSize === -1
 
   function startEditing(rowKey: string, weekStartIso: string, currentValue: number): void {
     setEditingCell({ rowKey, weekStartIso })
@@ -456,15 +457,21 @@ export function PivotPlanningTable({
           <label className="inline-field">
             Weeks Visible
             <select value={weekWindowSize} onChange={(event) => onWeekWindowSizeChange(Number(event.target.value))}>
+              <option value={-1}>All</option>
               <option value={8}>8</option>
               <option value={12}>12</option>
               <option value={16}>16</option>
             </select>
           </label>
-          <button type="button" className="ghost-btn" onClick={onPageBack} disabled={!canPageBack}>
+          <button type="button" className="ghost-btn" onClick={onPageBack} disabled={allWeeksSelected || !canPageBack}>
             Previous Weeks
           </button>
-          <button type="button" className="ghost-btn" onClick={onPageForward} disabled={!canPageForward}>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={onPageForward}
+            disabled={allWeeksSelected || !canPageForward}
+          >
             Next Weeks
           </button>
           <button type="button" className="ghost-btn" onClick={onToggleCollapsed}>
