@@ -914,6 +914,49 @@ th {
   background: #111827;
 }
 
+.cell-display:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.week-header-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.week-select-btn {
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0.22rem 0.5rem;
+}
+
+.week-select-btn:hover:not(:disabled) {
+  border-color: #38bdf8;
+  color: #e5e7eb;
+}
+
+.week-select-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.week-select-btn-active {
+  border-color: #38bdf8;
+  color: #e5e7eb;
+  background: rgba(56, 189, 248, 0.16);
+}
+
+.week-select-count {
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
+
 .editing {
   background: #1e293b;
 }

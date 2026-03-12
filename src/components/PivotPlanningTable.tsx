@@ -19,6 +19,7 @@ interface PivotPlanningTableProps {
   onToggleCollapsed: () => void
   onEditCell: (rowKey: string, weekStartIso: string, newValue: number) => void
   onResetEdits: () => void
+  isCellSelectable?: (rowKey: string, weekStartIso: string, value: number) => boolean
   title?: string
   subtitle?: string
 }
@@ -39,6 +40,7 @@ export function PivotPlanningTable({
   onToggleCollapsed,
   onEditCell,
   onResetEdits,
+  isCellSelectable = () => true,
   title = 'Pivot Planning Table',
   subtitle = 'Editable planning grid. Cell edits become the forecast source of truth.',
 }: PivotPlanningTableProps) {
@@ -90,6 +92,58 @@ export function PivotPlanningTable({
     setSelectedCells(new Set())
   }
 
+  const selectableCellKeysByWeek = useMemo(() => {
+    const byWeek: Record<string, string[]> = {}
+    visibleWeekKeys.forEach((weekStartIso) => {
+      byWeek[weekStartIso] = model.rows
+        .filter((row) => isCellSelectable(row.rowKey, weekStartIso, row.valuesByWeek[weekStartIso] ?? 0))
+        .map((row) => `${row.rowKey}|${weekStartIso}`)
+    })
+    return byWeek
+  }, [isCellSelectable, model.rows, visibleWeekKeys])
+
+  function buildSelectableWeekCellKeys(weekStartIso: string): string[] {
+    return selectableCellKeysByWeek[weekStartIso] ?? []
+  }
+
+  function toggleSelectWeek(weekStartIso: string): void {
+    setSelectedCells((current) => {
+      const next = new Set(current)
+      const weekKeys = buildSelectableWeekCellKeys(weekStartIso)
+      if (weekKeys.length === 0) {
+        return next
+      }
+      const allSelected = weekKeys.every((key) => next.has(key))
+      weekKeys.forEach((key) => {
+        if (allSelected) {
+          next.delete(key)
+        } else {
+          next.add(key)
+        }
+      })
+      return next
+    })
+  }
+
+  function getSelectedWeekCount(weekStartIso: string): number {
+    const selectableWeekKeys = buildSelectableWeekCellKeys(weekStartIso)
+    if (selectableWeekKeys.length === 0) {
+      return 0
+    }
+    let selectedCountForWeek = 0
+    selectableWeekKeys.forEach((key) => {
+      if (selectedCells.has(key)) {
+        selectedCountForWeek += 1
+      }
+    })
+    return selectedCountForWeek
+  }
+
+  function isWeekFullySelected(weekStartIso: string): boolean {
+    const selectableWeekKeys = buildSelectableWeekCellKeys(weekStartIso)
+    return selectableWeekKeys.length > 0 && selectableWeekKeys.every((key) => selectedCells.has(key))
+  }
+
   const selectedTotal = useMemo(() => {
     let total = 0
     selectedCells.forEach((key) => {
@@ -136,7 +190,7 @@ export function PivotPlanningTable({
             Reset Manual Edits
           </button>
           <div className="inline-field" style={{ marginLeft: 12 }}>
-            <span style={{ color: '#9ca3af', marginRight: 8 }}>Ctrl+click cells to total</span>
+            <span style={{ color: '#9ca3af', marginRight: 8 }}>Ctrl+click cells to total or use week header Select</span>
           </div>
           {selectedCount > 0 && (
             <div
@@ -192,11 +246,32 @@ export function PivotPlanningTable({
             <thead>
               <tr>
                 <th className="sticky-col">{rowGrouping === 'project' ? 'Project' : 'Resource'}</th>
-                {visibleWeekKeys.map((week) => (
-                  <th key={week} className={clsx({ 'over-week': overCapacityWeeks.has(week) })}>
-                    {shortWeekLabel(week)}
-                  </th>
-                ))}
+                {visibleWeekKeys.map((week) => {
+                  const weekSelectedCount = getSelectedWeekCount(week)
+                  const weekSelectableCount = buildSelectableWeekCellKeys(week).length
+                  const fullySelected = isWeekFullySelected(week)
+                  const selectLabel = fullySelected ? 'Clear' : 'Select'
+                  return (
+                    <th key={week} className={clsx({ 'over-week': overCapacityWeeks.has(week) })}>
+                      <div className="week-header-cell">
+                        <span>{shortWeekLabel(week)}</span>
+                        <button
+                          type="button"
+                          className={clsx('week-select-btn', { 'week-select-btn-active': fullySelected })}
+                          onClick={() => toggleSelectWeek(week)}
+                          disabled={weekSelectableCount === 0}
+                          title={`${selectLabel} all visible rows for week ${week}`}
+                          aria-label={`${selectLabel} all visible rows for week ${week}`}
+                        >
+                          {selectLabel}
+                        </button>
+                        <span className="week-select-count">
+                          {weekSelectedCount}/{weekSelectableCount}
+                        </span>
+                      </div>
+                    </th>
+                  )
+                })}
                 <th>Row Total</th>
               </tr>
             </thead>
@@ -210,6 +285,7 @@ export function PivotPlanningTable({
                     const isEditing = editingCell?.rowKey === row.rowKey && editingCell.weekStartIso === week
                     const cellKey = `${row.rowKey}|${week}`
                     const isSelected = selectedCells.has(cellKey)
+                    const cellSelectable = isCellSelectable(row.rowKey, week, value)
                     return (
                       <td
                         key={`${row.rowKey}-${week}`}
@@ -264,7 +340,11 @@ export function PivotPlanningTable({
                           <button
                             type="button"
                             className="cell-display"
+                            disabled={!cellSelectable}
                             onClick={(event) => {
+                              if (!cellSelectable) {
+                                return
+                              }
                               if (event.ctrlKey || event.metaKey) {
                                 toggleSelectedCell(row.rowKey, week)
                                 return
