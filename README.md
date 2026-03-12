@@ -39,7 +39,12 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 - `src/utils/planner.ts`: planning data model, week aggregation, overrides
 - `src/utils/reportExport.ts`: client-side Excel export helpers (fallback path)
 - `src/utils/reportExportApi.ts`: backend chart-export API client
+- `src/utils/activeWorkbookApi.ts`: active workbook upload/load API client
 - `api/export-report.py`: Vercel serverless API route for embedded chart export
+- `api/workbook-state.py`: Vercel serverless active workbook metadata route
+- `api/workbook-file.py`: Vercel serverless active workbook download route
+- `api/upload-workbook.py`: Vercel serverless active workbook upload route
+- `api/_workbook_store.py`: shared workbook storage helper for `/api` routes
 - `backend/export_api.py`: Python API for chart export + persistent active workbook storage
 - `backend/requirements.txt`: Python dependencies for export API
 - `requirements.txt`: Python dependencies for Vercel serverless API
@@ -128,13 +133,21 @@ VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
 - `POST /api/upload-workbook`
 - `GET /api/shared-health`
 
-## Embedded Chart Export on Public Deploy (Vercel)
+## API Routes on Public Deploy (Vercel)
 
-This repo includes `api/export-report.py`, so Vercel can host the chart-export API at the same domain:
+This repo includes serverless Python routes in `/api`, including:
 
 - `/api/export-report`
+- `/api/workbook-state`
+- `/api/workbook-file`
+- `/api/upload-workbook`
 
-After deploying to Vercel, `Export Report Excel` will call this hosted endpoint automatically and generate an Excel file with embedded chart from your public website.
+So the deployed host can serve workbook upload/load endpoints directly without requiring a separate API URL.
+
+Important limitation for serverless storage:
+- The `/api` workbook routes store data in the serverless runtime filesystem (`/tmp` by default).
+- This can be reset by cold starts/redeploys and should not be treated as durable long-term storage.
+- For fully reliable persistence, run `backend/export_api.py` with a stable `CAPACITY_SHARED_DATA_DIR` or move storage to managed cloud storage.
 
 ## Deploying the App Publicly
 
