@@ -67,6 +67,7 @@ const PROJECT_COLOR_PALETTE = [
 
 type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping'
 type AccessRole = 'admin' | 'user'
+const PAGE_TAB_ORDER: PageKey[] = ['report', 'processing', 'fabrication', 'assembly', 'paint', 'shipping', 'planning']
 const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
 const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   planning: 'Planning',
@@ -224,9 +225,9 @@ function App() {
   const salesPlanningSkipFirstPersistRef = useRef(true)
   const mainPlanningRequestSeqRef = useRef(0)
   const salesPlanningRequestSeqRef = useRef(0)
-  const pageTabs: Array<{ key: PageKey; label: string }> = Object.entries(DEPT_RESOURCE_LABEL).map(([key, label]) => ({
-    key: key as PageKey,
-    label,
+  const pageTabs: Array<{ key: PageKey; label: string }> = PAGE_TAB_ORDER.map((key) => ({
+    key,
+    label: DEPT_RESOURCE_LABEL[key],
   }))
 
   const [filters, setFilters] = useState<AppFilters>(createDefaultFilters())
@@ -2093,6 +2094,35 @@ function App() {
           {isLoading && <div className="panel status">Loading workbook...</div>}
           {!isLoading && error && <div className="panel status error">{error}</div>}
           {!isLoading && !error && allResourcesVisible && (
+            <ReportWorkspace
+              key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
+              weeklyBuckets={weeklyBuckets}
+              combinedWeeklyBuckets={combinedWeeklyBuckets}
+              salesWeeklyBuckets={salesWeeklyBuckets}
+              salesMonthlyBuckets={salesMonthlyBuckets}
+              combinedMonthlyBuckets={combinedMonthlyBuckets}
+              monthlyBuckets={monthlyBuckets}
+              categoryKeys={categoryKeys}
+              combinedCategoryKeys={combinedCategoryKeys}
+              salesCategoryKeys={salesCategoryKeys}
+              projects={availableProjects}
+              combinedProjects={combinedProjects}
+              salesProjects={salesAvailableProjects}
+              selectedProjects={selectedProjects}
+              selectedCombinedProjects={combinedSelectedProjects}
+              selectedSalesProjects={salesSelectedProjects}
+              onToggleProject={handleToggleProject}
+              onToggleCombinedProject={handleToggleCombinedProject}
+              onToggleSalesProject={handleToggleSalesProject}
+              hoveredProject={hoveredProject}
+              onHoverProject={setHoveredProject}
+              summaryMetrics={summaryMetrics}
+              reportContext={reportContext}
+              initialTab={initialReportTab}
+              executiveData={executiveData}
+            />
+          )}
+          {!isLoading && !error && allResourcesVisible && (
             <section className="panel summary-panel">
               <div className="section-header">
                 <h2>Summary</h2>
@@ -2132,35 +2162,6 @@ function App() {
                 </div>
               </div>
             </section>
-          )}
-          {!isLoading && !error && allResourcesVisible && (
-            <ReportWorkspace
-              key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
-              weeklyBuckets={weeklyBuckets}
-              combinedWeeklyBuckets={combinedWeeklyBuckets}
-              salesWeeklyBuckets={salesWeeklyBuckets}
-              salesMonthlyBuckets={salesMonthlyBuckets}
-              combinedMonthlyBuckets={combinedMonthlyBuckets}
-              monthlyBuckets={monthlyBuckets}
-              categoryKeys={categoryKeys}
-              combinedCategoryKeys={combinedCategoryKeys}
-              salesCategoryKeys={salesCategoryKeys}
-              projects={availableProjects}
-              combinedProjects={combinedProjects}
-              salesProjects={salesAvailableProjects}
-              selectedProjects={selectedProjects}
-              selectedCombinedProjects={combinedSelectedProjects}
-              selectedSalesProjects={salesSelectedProjects}
-              onToggleProject={handleToggleProject}
-              onToggleCombinedProject={handleToggleCombinedProject}
-              onToggleSalesProject={handleToggleSalesProject}
-              hoveredProject={hoveredProject}
-              onHoverProject={setHoveredProject}
-              summaryMetrics={summaryMetrics}
-              reportContext={reportContext}
-              initialTab={initialReportTab}
-              executiveData={executiveData}
-            />
           )}
           {!isLoading && !error && !allResourcesVisible && (
             <div className="panel status">No resources available in the current data scope.</div>
