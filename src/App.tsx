@@ -193,7 +193,7 @@ function App() {
   const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true)
-  const [activePage, setActivePage] = useState<PageKey>('planning')
+  const [activePage, setActivePage] = useState<PageKey>('report')
   const [accessRole, setAccessRole] = useState<AccessRole | null>(() => {
     if (typeof window === 'undefined') {
       return null
