@@ -34,8 +34,10 @@ import {
 
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
 const INITIAL_SALES_FILE_NAME = '2026 Sales Production Report.xlsx'
-const APP_LOCK_PASSWORD = '2431'
+const APP_ADMIN_PASSWORD = '2431'
+const APP_USER_PASSWORD = '1357'
 const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
+const APP_ROLE_SESSION_KEY = 'capacity_dashboard_role'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1440,
   Assembly: 80,
@@ -64,6 +66,7 @@ const PROJECT_COLOR_PALETTE = [
 ]
 
 type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping'
+type AccessRole = 'admin' | 'user'
 const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
 const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   planning: 'Planning',
@@ -190,11 +193,26 @@ function App() {
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true)
   const [activePage, setActivePage] = useState<PageKey>('planning')
+  const [accessRole, setAccessRole] = useState<AccessRole | null>(() => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+    const persistedRole = window.sessionStorage.getItem(APP_ROLE_SESSION_KEY)
+    if (persistedRole === 'admin' || persistedRole === 'user') {
+      return persistedRole
+    }
+    if (window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true') {
+      return 'admin'
+    }
+    return null
+  })
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
       return false
     }
-    return window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true'
+    const hasUnlockFlag = window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true'
+    const persistedRole = window.sessionStorage.getItem(APP_ROLE_SESSION_KEY)
+    return hasUnlockFlag || persistedRole === 'admin' || persistedRole === 'user'
   })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
@@ -1575,11 +1593,22 @@ function App() {
 
   function handleUnlock(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    if (passwordInput === APP_LOCK_PASSWORD) {
+    if (passwordInput === APP_ADMIN_PASSWORD) {
       setIsUnlocked(true)
+      setAccessRole('admin')
       setPasswordError('')
       setPasswordInput('')
       window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
+      window.sessionStorage.setItem(APP_ROLE_SESSION_KEY, 'admin')
+      return
+    }
+    if (passwordInput === APP_USER_PASSWORD) {
+      setIsUnlocked(true)
+      setAccessRole('user')
+      setPasswordError('')
+      setPasswordInput('')
+      window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
+      window.sessionStorage.setItem(APP_ROLE_SESSION_KEY, 'user')
       return
     }
     setPasswordError('Incorrect password. Please try again.')
@@ -1587,9 +1616,11 @@ function App() {
 
   function handleLock(): void {
     setIsUnlocked(false)
+    setAccessRole(null)
     setPasswordInput('')
     setPasswordError('')
     window.sessionStorage.removeItem(APP_UNLOCK_SESSION_KEY)
+    window.sessionStorage.removeItem(APP_ROLE_SESSION_KEY)
   }
 
   const mainPlanningSaveLabel = formatPlanningSaveLabel(
@@ -1602,6 +1633,8 @@ function App() {
     salesPlanningUpdatedAt,
     salesPlanningSaveError,
   )
+  const isUserMode = accessRole === 'user'
+  const canViewAdminPlanningControls = accessRole === 'admin'
 
   if (!isUnlocked) {
     return (
@@ -1667,6 +1700,20 @@ function App() {
                 <button type="button" onClick={exportDepartmentWorkbook}>
                   Export Dept Workbook
                 </button>
+                {isUserMode && (
+                  <span
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 999,
+                      border: '1px solid #38bdf8',
+                      color: '#e0f2fe',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    User Mode
+                  </span>
+                )}
                 <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
                   Lock
                 </button>
@@ -1687,14 +1734,18 @@ function App() {
             {!isHeaderCollapsed && (
               <>
                 <div className="controls-grid">
-                  <label>
-                    Upload or Replace Workbook (.xlsx)
-                    <input type="file" accept=".xlsx" onChange={handleUpload} />
-                  </label>
-                  <label>
-                    Upload Sales Workbook (.xlsx)
-                    <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
-                  </label>
+                  {canViewAdminPlanningControls && (
+                    <>
+                      <label>
+                        Upload or Replace Workbook (.xlsx)
+                        <input type="file" accept=".xlsx" onChange={handleUpload} />
+                      </label>
+                      <label>
+                        Upload Sales Workbook (.xlsx)
+                        <input type="file" accept=".xlsx" onChange={handleSalesUpload} />
+                      </label>
+                    </>
+                  )}
 
                   <label>
                     Planning Rows
@@ -1864,7 +1915,7 @@ function App() {
             )}
           </header>
 
-          {!isLoading && !error && allResourcesVisible && (
+          {!isLoading && !error && allResourcesVisible && canViewAdminPlanningControls && (
             <ResourceCapacityTable
               key={`resource-capacity-${collapseResetToken}`}
               resources={resources}
@@ -1888,7 +1939,7 @@ function App() {
             <div className="panel status">No weekly forecast buckets match current filter and project toggle settings.</div>
           )}
 
-          {!isLoading && !error && (weeklyBuckets.length > 0 || salesWeeklyBuckets.length > 0) && (
+          {!isLoading && !error && canViewAdminPlanningControls && (weeklyBuckets.length > 0 || salesWeeklyBuckets.length > 0) && (
             <>
               {weeklyBuckets.length > 0 && (
                 <PivotPlanningTable
@@ -1959,6 +2010,10 @@ function App() {
                 />
               )}
             </>
+          )}
+
+          {!isLoading && !error && isUserMode && (
+            <div className="panel status">User mode is active. Planning edit sections are hidden.</div>
           )}
 
           {!allResourcesVisible && !isLoading && (
