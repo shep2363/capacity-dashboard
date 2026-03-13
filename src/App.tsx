@@ -128,10 +128,12 @@ function uniqueSorted(values: string[]): string[] {
 }
 
 function createDefaultFilters(): AppFilters {
+  const now = new Date()
+  const currentYear = now.getFullYear()
   return {
-    dateFrom: '',
-    dateTo: '',
-    year: '',
+    dateFrom: format(now, 'yyyy-MM-dd'),
+    dateTo: `${currentYear}-12-31`,
+    year: String(currentYear),
     resources: [],
   }
 }
@@ -1456,7 +1458,7 @@ function App() {
   }
 
   function resetFilters(): void {
-    setFilters((current) => ({ ...current, dateFrom: '', dateTo: '', year: current.year, resources: [] }))
+    setFilters(createDefaultFilters())
     setSelectedProjects(new Set(availableProjects))
     setSalesSelectedProjects(new Set(salesAvailableProjects))
     setSelectedWeekendDates(new Set())
