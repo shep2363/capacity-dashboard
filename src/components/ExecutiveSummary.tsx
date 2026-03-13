@@ -44,16 +44,13 @@ function formatHours(value: number): string {
   return value.toFixed(0)
 }
 
-function statusLabel(utilization: number): 'green' | 'yellow' | 'red' {
-  if (utilization > 1) return 'red'
-  if (utilization >= 0.9) return 'yellow'
-  return 'green'
+function utilizationStatus(utilization: number): 'green' | 'red' {
+  return utilization >= 0.95 ? 'green' : 'red'
 }
 
 const statusColors: Record<string, string> = {
   green: '#22c55e',
-  yellow: '#f59e0b',
-  red: '#f97316',
+  red: '#ef4444',
 }
 
 export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
@@ -88,7 +85,7 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
             label: 'Utilization',
             value: combinedKpis.utilization * 100,
             suffix: '%',
-            color: statusColors[combinedKpis.status],
+            color: statusColors[utilizationStatus(combinedKpis.utilization)],
           },
           { label: 'Remaining Capacity', value: combinedKpis.remaining, suffix: '', color: '#facc15' },
           { label: 'Active Projects', value: combinedKpis.activeProjects, suffix: '', color: '#22c55e' },
@@ -136,7 +133,7 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
               </div>
               <div>
                 <span>Utilization</span>
-                <strong style={{ color: statusColors[statusLabel(kpi.utilization)] }}>
+                <strong style={{ color: statusColors[utilizationStatus(kpi.utilization)] }}>
                   {(kpi.utilization * 100).toFixed(1)}%
                 </strong>
               </div>
@@ -212,7 +209,7 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
             </thead>
             <tbody>
               {quarterlySummary.map((row) => {
-                const status = statusLabel(row.utilization)
+                const status = utilizationStatus(row.utilization)
                 return (
                   <tr key={row.quarter}>
                     <td>{row.quarter}</td>
@@ -241,7 +238,7 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
             </div>
             <div>
               <span>Utilization</span>
-              <strong style={{ color: statusColors[statusLabel(annual.utilization)] }}>
+              <strong style={{ color: statusColors[utilizationStatus(annual.utilization)] }}>
                 {(annual.utilization * 100).toFixed(1)}%
               </strong>
             </div>

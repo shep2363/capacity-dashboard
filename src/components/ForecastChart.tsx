@@ -108,6 +108,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   const variance = totalProjectHours - capacityHours
   const overCapacityHours = Math.max(variance, 0)
   const underCapacityHours = Math.max(-variance, 0)
+  const utilizationPercent = capacityHours > 0 ? (totalProjectHours / capacityHours) * 100 : null
 
   return (
     <div
@@ -147,6 +148,10 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ color: '#93c5fd' }}>Capacity</span>
           <span>{capacityHours.toFixed(1)} h</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ color: '#86efac' }}>Utilization %</span>
+          <span>{utilizationPercent === null ? 'N/A' : `${utilizationPercent.toFixed(1)}%`}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ color: '#f59e0b', fontWeight: 700 }}>Over Capacity Hours</span>

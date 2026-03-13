@@ -351,7 +351,6 @@ export function ReportWorkspace({
       <div className="section-header section-header-row">
         <div>
           <h2>Report Workspace</h2>
-          <p>Switch between snapshot, weekly, monthly, and summary views using the same live planning dataset.</p>
           <div className="report-context">
             {reportContext.map((line) => (
               <span key={line}>{line}</span>
