@@ -17,6 +17,11 @@ app = Flask(__name__)
 def workbook_state() -> Response:
     dataset = request.args.get("dataset", "main")
     try:
-        return jsonify(store.workbook_state(dataset))
+        response = jsonify(store.workbook_state(dataset))
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        response = jsonify({"error": str(exc)})
+        response.status_code = 400
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response

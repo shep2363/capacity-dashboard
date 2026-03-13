@@ -19,11 +19,20 @@ def workbook_file() -> Response:
     try:
         workbook_bytes, workbook_name = store.workbook_content(dataset)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        response = jsonify({"error": str(exc)})
+        response.status_code = 400
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
     except FileNotFoundError:
-        return jsonify({"error": f"No workbook has been uploaded for dataset '{dataset}'."}), 404
+        response = jsonify({"error": f"No workbook has been uploaded for dataset '{dataset}'."})
+        response.status_code = 404
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
     except Exception:
-        return jsonify({"error": "Failed loading workbook file."}), 500
+        response = jsonify({"error": "Failed loading workbook file."})
+        response.status_code = 500
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
 
     response = Response(
         workbook_bytes,

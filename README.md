@@ -40,10 +40,12 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 - `src/utils/reportExport.ts`: client-side Excel export helpers (fallback path)
 - `src/utils/reportExportApi.ts`: backend chart-export API client
 - `src/utils/activeWorkbookApi.ts`: active workbook upload/load API client
+- `src/utils/planningStateApi.ts`: shared planning override state API client
 - `api/export-report.py`: Vercel serverless API route for embedded chart export
 - `api/workbook-state.py`: Vercel serverless active workbook metadata route
 - `api/workbook-file.py`: Vercel serverless active workbook download route
 - `api/upload-workbook.py`: Vercel serverless active workbook upload route
+- `api/planning-state.py`: Vercel serverless shared planning overrides state route
 - `api/_workbook_store.py`: shared workbook storage helper for `/api` routes
 - `backend/export_api.py`: Python API for chart export + persistent active workbook storage
 - `backend/requirements.txt`: Python dependencies for export API
@@ -87,6 +89,7 @@ The Python backend now handles both:
 
 - Excel report export (`/api/export-report`)
 - Active workbook storage used by the app (`/api/upload-workbook`, `/api/workbook-file`, `/api/workbook-state`)
+- Shared planning override storage used by the app (`/api/planning-state`)
 
 1. Install Python dependencies:
 
@@ -125,12 +128,16 @@ VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
 - Metadata paths (default): `backend/shared_store/manifests/main.json`, `backend/shared_store/manifests/sales.json`
 - Storage root can be overridden with: `CAPACITY_SHARED_DATA_DIR`
 - Upload size limit (default 30MB) can be overridden with: `CAPACITY_MAX_UPLOAD_BYTES`
+- Planning override entry limit (default 100000) can be overridden with: `CAPACITY_MAX_PLANNING_OVERRIDES`
+- Per-cell override max hours (default 1000000) can be overridden with: `CAPACITY_MAX_OVERRIDE_HOURS`
 
 ### Active workbook API endpoints
 
 - `GET /api/workbook-state?dataset=main|sales`
 - `GET /api/workbook-file?dataset=main|sales`
 - `POST /api/upload-workbook?dataset=main|sales`
+- `GET /api/planning-state?dataset=main|sales`
+- `POST /api/planning-state?dataset=main|sales`
 - `GET /api/shared-health`
 
 ## API Routes on Public Deploy (Vercel)
@@ -141,6 +148,7 @@ This repo includes serverless Python routes in `/api`, including:
 - `/api/workbook-state`
 - `/api/workbook-file`
 - `/api/upload-workbook`
+- `/api/planning-state`
 
 So the deployed host can serve workbook upload/load endpoints directly without requiring a separate API URL.
 

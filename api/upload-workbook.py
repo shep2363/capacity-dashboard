@@ -19,11 +19,22 @@ def upload_workbook() -> Response:
     uploaded_file = request.files.get("file")
     try:
         payload = store.save_upload(dataset, uploaded_file)
-        return jsonify(payload)
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
     except ValueError as exc:
         message = str(exc)
         if message.startswith("Workbook exceeds maximum size"):
-            return jsonify({"error": message}), 413
-        return jsonify({"error": message}), 400
+            response = jsonify({"error": message})
+            response.status_code = 413
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            return response
+        response = jsonify({"error": message})
+        response.status_code = 400
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
     except Exception:
-        return jsonify({"error": "Saving the workbook file failed."}), 500
+        response = jsonify({"error": "Saving the workbook file failed."})
+        response.status_code = 500
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response

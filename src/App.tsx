@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import DepartmentPage, { buildDepartmentRows, type DepartmentFilters, type DepartmentRow } from './components/DepartmentPage'
@@ -11,6 +11,12 @@ import { parseSalesSpreadsheet, parseSpreadsheet } from './utils/excel'
 import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
 import { exportReportWorkbookWithChartApi } from './utils/reportExportApi'
 import { downloadActiveWorkbook, fetchActiveWorkbookStatus, uploadActiveWorkbook } from './utils/activeWorkbookApi'
+import {
+  PlanningStateApiError,
+  fetchPlanningState,
+  savePlanningState,
+  type PlanningStatePayload,
+} from './utils/planningStateApi'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
@@ -69,6 +75,34 @@ const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   shipping: 'Shipping',
 }
 const DEFAULT_DEPT_FILTER: DepartmentFilters = { projects: [], sequences: [], weeks: [], statuses: [] }
+type PlanningSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+function toNumericOverrides(overrides: Record<string, number>): Record<string, number> {
+  const normalized: Record<string, number> = {}
+  Object.entries(overrides).forEach(([key, value]) => {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric >= 0) {
+      normalized[key] = numeric
+    }
+  })
+  return normalized
+}
+
+function formatPlanningSaveLabel(status: PlanningSaveStatus, updatedAt: string | null, errorMessage: string): string {
+  if (status === 'saving') {
+    return 'Saving planning edits...'
+  }
+  if (status === 'saved') {
+    if (updatedAt) {
+      return `Saved ${new Date(updatedAt).toLocaleString()}`
+    }
+    return 'Saved'
+  }
+  if (status === 'error') {
+    return errorMessage || 'Save failed'
+  }
+  return updatedAt ? `Loaded ${new Date(updatedAt).toLocaleString()}` : 'Not yet saved'
+}
 
 // Meeus/Jones/Butcher computus for Gregorian calendar to find Easter Sunday.
 const computeEasterSunday = (year: number): Date => {
@@ -127,6 +161,14 @@ function App() {
   const [selectedWeekendDates, setSelectedWeekendDates] = useState<Set<string>>(new Set())
   const [manualOverrides, setManualOverrides] = useState<Record<string, number>>({})
   const [salesManualOverrides, setSalesManualOverrides] = useState<Record<string, number>>({})
+  const [mainPlanningSaveStatus, setMainPlanningSaveStatus] = useState<PlanningSaveStatus>('idle')
+  const [salesPlanningSaveStatus, setSalesPlanningSaveStatus] = useState<PlanningSaveStatus>('idle')
+  const [mainPlanningSaveError, setMainPlanningSaveError] = useState('')
+  const [salesPlanningSaveError, setSalesPlanningSaveError] = useState('')
+  const [mainPlanningUpdatedAt, setMainPlanningUpdatedAt] = useState<string | null>(null)
+  const [salesPlanningUpdatedAt, setSalesPlanningUpdatedAt] = useState<string | null>(null)
+  const [mainPlanningSyncReady, setMainPlanningSyncReady] = useState(false)
+  const [salesPlanningSyncReady, setSalesPlanningSyncReady] = useState(false)
   const [isPivotCollapsed, setIsPivotCollapsed] = useState(true)
   const [isSalesPivotCollapsed, setIsSalesPivotCollapsed] = useState(true)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
@@ -156,6 +198,12 @@ function App() {
   const [passwordError, setPasswordError] = useState('')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
   const [deptFilters, setDeptFilters] = useState<Record<string, DepartmentFilters>>({})
+  const mainPlanningVersionRef = useRef(0)
+  const salesPlanningVersionRef = useRef(0)
+  const mainPlanningSkipFirstPersistRef = useRef(true)
+  const salesPlanningSkipFirstPersistRef = useRef(true)
+  const mainPlanningRequestSeqRef = useRef(0)
+  const salesPlanningRequestSeqRef = useRef(0)
   const pageTabs: Array<{ key: PageKey; label: string }> = Object.entries(DEPT_RESOURCE_LABEL).map(([key, label]) => ({
     key: key as PageKey,
     label,
@@ -198,6 +246,14 @@ function App() {
     }
 
     async function loadInitialWorkbook(): Promise<void> {
+      setMainPlanningSyncReady(false)
+      setSalesPlanningSyncReady(false)
+      setMainPlanningSaveError('')
+      setSalesPlanningSaveError('')
+      setMainPlanningSaveStatus('idle')
+      setSalesPlanningSaveStatus('idle')
+      mainPlanningSkipFirstPersistRef.current = true
+      salesPlanningSkipFirstPersistRef.current = true
       setIsLoading(true)
       setError('')
 
@@ -230,6 +286,31 @@ function App() {
         }
 
         try {
+          const mainPlanningState = await fetchPlanningState('main')
+          if (!cancelled) {
+            const normalized = toNumericOverrides(mainPlanningState.overrides ?? {})
+            setManualOverrides(normalized)
+            mainPlanningVersionRef.current = mainPlanningState.version ?? 0
+            setMainPlanningUpdatedAt(mainPlanningState.updatedAt ?? null)
+            setMainPlanningSaveError('')
+            setMainPlanningSaveStatus('idle')
+          }
+        } catch (planningLoadError) {
+          console.warn('[capacity-dashboard] shared main planning state load failed', planningLoadError)
+          if (!cancelled) {
+            setManualOverrides({})
+            mainPlanningVersionRef.current = 0
+            setMainPlanningUpdatedAt(null)
+            setMainPlanningSaveStatus('error')
+            setMainPlanningSaveError('Failed to load shared planning edits.')
+          }
+        } finally {
+          if (!cancelled) {
+            setMainPlanningSyncReady(true)
+          }
+        }
+
+        try {
           const salesStatus = await fetchActiveWorkbookStatus('sales')
           if (salesStatus.hasWorkbook) {
             const salesWorkbookData = await downloadActiveWorkbook('sales')
@@ -249,9 +330,36 @@ function App() {
             resetSalesPlanningState(INITIAL_SALES_FILE_NAME)
           }
         }
+
+        try {
+          const salesPlanningState = await fetchPlanningState('sales')
+          if (!cancelled) {
+            const normalized = toNumericOverrides(salesPlanningState.overrides ?? {})
+            setSalesManualOverrides(normalized)
+            salesPlanningVersionRef.current = salesPlanningState.version ?? 0
+            setSalesPlanningUpdatedAt(salesPlanningState.updatedAt ?? null)
+            setSalesPlanningSaveError('')
+            setSalesPlanningSaveStatus('idle')
+          }
+        } catch (salesPlanningLoadError) {
+          console.warn('[capacity-dashboard] shared sales planning state load failed', salesPlanningLoadError)
+          if (!cancelled) {
+            setSalesManualOverrides({})
+            salesPlanningVersionRef.current = 0
+            setSalesPlanningUpdatedAt(null)
+            setSalesPlanningSaveStatus('error')
+            setSalesPlanningSaveError('Failed to load shared sales planning edits.')
+          }
+        } finally {
+          if (!cancelled) {
+            setSalesPlanningSyncReady(true)
+          }
+        }
       } catch {
         if (!cancelled) {
           setError('Could not load the active workbook. Upload a .xlsx file to continue.')
+          setMainPlanningSyncReady(true)
+          setSalesPlanningSyncReady(true)
         }
       } finally {
         if (!cancelled) {
@@ -266,6 +374,120 @@ function App() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!mainPlanningSyncReady) {
+      return
+    }
+    if (mainPlanningSkipFirstPersistRef.current) {
+      mainPlanningSkipFirstPersistRef.current = false
+      return
+    }
+
+    const normalizedOverrides = toNumericOverrides(manualOverrides)
+    const requestSeq = mainPlanningRequestSeqRef.current + 1
+    mainPlanningRequestSeqRef.current = requestSeq
+    setMainPlanningSaveStatus('saving')
+    setMainPlanningSaveError('')
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          let saved: PlanningStatePayload
+          try {
+            saved = await savePlanningState('main', normalizedOverrides, {
+              baseVersion: mainPlanningVersionRef.current,
+              source: 'planning-ui',
+            })
+          } catch (error) {
+            if (error instanceof PlanningStateApiError && error.status === 409) {
+              const latest = await fetchPlanningState('main')
+              mainPlanningVersionRef.current = latest.version
+              saved = await savePlanningState('main', normalizedOverrides, {
+                baseVersion: mainPlanningVersionRef.current,
+                source: 'planning-ui-retry',
+              })
+            } else {
+              throw error
+            }
+          }
+          if (requestSeq !== mainPlanningRequestSeqRef.current) {
+            return
+          }
+          mainPlanningVersionRef.current = saved.version
+          setMainPlanningUpdatedAt(saved.updatedAt)
+          setMainPlanningSaveStatus('saved')
+          setMainPlanningSaveError('')
+        } catch (error) {
+          if (requestSeq !== mainPlanningRequestSeqRef.current) {
+            return
+          }
+          const message = error instanceof Error ? error.message : 'Failed to save shared planning edits.'
+          setMainPlanningSaveStatus('error')
+          setMainPlanningSaveError(message)
+        }
+      })()
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [mainPlanningSyncReady, manualOverrides])
+
+  useEffect(() => {
+    if (!salesPlanningSyncReady) {
+      return
+    }
+    if (salesPlanningSkipFirstPersistRef.current) {
+      salesPlanningSkipFirstPersistRef.current = false
+      return
+    }
+
+    const normalizedOverrides = toNumericOverrides(salesManualOverrides)
+    const requestSeq = salesPlanningRequestSeqRef.current + 1
+    salesPlanningRequestSeqRef.current = requestSeq
+    setSalesPlanningSaveStatus('saving')
+    setSalesPlanningSaveError('')
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          let saved: PlanningStatePayload
+          try {
+            saved = await savePlanningState('sales', normalizedOverrides, {
+              baseVersion: salesPlanningVersionRef.current,
+              source: 'sales-planning-ui',
+            })
+          } catch (error) {
+            if (error instanceof PlanningStateApiError && error.status === 409) {
+              const latest = await fetchPlanningState('sales')
+              salesPlanningVersionRef.current = latest.version
+              saved = await savePlanningState('sales', normalizedOverrides, {
+                baseVersion: salesPlanningVersionRef.current,
+                source: 'sales-planning-ui-retry',
+              })
+            } else {
+              throw error
+            }
+          }
+          if (requestSeq !== salesPlanningRequestSeqRef.current) {
+            return
+          }
+          salesPlanningVersionRef.current = saved.version
+          setSalesPlanningUpdatedAt(saved.updatedAt)
+          setSalesPlanningSaveStatus('saved')
+          setSalesPlanningSaveError('')
+        } catch (error) {
+          if (requestSeq !== salesPlanningRequestSeqRef.current) {
+            return
+          }
+          const message = error instanceof Error ? error.message : 'Failed to save shared sales planning edits.'
+          setSalesPlanningSaveStatus('error')
+          setSalesPlanningSaveError(message)
+        }
+      })()
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [salesManualOverrides, salesPlanningSyncReady])
 
   const resources = useMemo(() => uniqueSorted(tasks.map((task) => task.resourceName)), [tasks])
   const salesResources = useMemo(() => uniqueSorted(salesTasks.map((task) => task.resourceName)), [salesTasks])
@@ -1368,6 +1590,17 @@ function App() {
     window.sessionStorage.removeItem(APP_UNLOCK_SESSION_KEY)
   }
 
+  const mainPlanningSaveLabel = formatPlanningSaveLabel(
+    mainPlanningSaveStatus,
+    mainPlanningUpdatedAt,
+    mainPlanningSaveError,
+  )
+  const salesPlanningSaveLabel = formatPlanningSaveLabel(
+    salesPlanningSaveStatus,
+    salesPlanningUpdatedAt,
+    salesPlanningSaveError,
+  )
+
   if (!isUnlocked) {
     return (
       <div className="lock-screen">
@@ -1574,6 +1807,36 @@ function App() {
                   </div>
                   <div>
                     <strong>Sales File:</strong> {salesFileName}
+                  </div>
+                  <div>
+                    <strong>Planning Sync:</strong>{' '}
+                    <span
+                      style={{
+                        color:
+                          mainPlanningSaveStatus === 'error'
+                            ? '#fca5a5'
+                            : mainPlanningSaveStatus === 'saved'
+                              ? '#86efac'
+                              : '#cbd5e1',
+                      }}
+                    >
+                      {mainPlanningSaveLabel}
+                    </span>
+                  </div>
+                  <div>
+                    <strong>Sales Planning Sync:</strong>{' '}
+                    <span
+                      style={{
+                        color:
+                          salesPlanningSaveStatus === 'error'
+                            ? '#fca5a5'
+                            : salesPlanningSaveStatus === 'saved'
+                              ? '#86efac'
+                              : '#cbd5e1',
+                      }}
+                    >
+                      {salesPlanningSaveLabel}
+                    </span>
                   </div>
                   <div>
                     <strong>Parsed Rows:</strong> {tasks.length}

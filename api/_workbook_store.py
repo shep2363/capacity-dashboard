@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from werkzeug.datastructures import FileStorage
 
@@ -19,6 +20,13 @@ except Exception:  # pragma: no cover - optional dependency when running locally
 DATASETS = {"main", "sales"}
 DEFAULT_MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 WORKBOOK_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+PLANNING_STATE_MIME = "application/json"
+DEFAULT_MAX_PLANNING_OVERRIDES = 100_000
+DEFAULT_MAX_OVERRIDE_HOURS = 1_000_000.0
+
+
+class PlanningStateConflictError(RuntimeError):
+    """Raised when a planning state save uses a stale version."""
 
 
 def _utc_now_iso() -> str:
@@ -72,6 +80,8 @@ class WorkbookStore:
         self.data_root = _default_data_root()
         self.manifest_dir = self.data_root / "manifests"
         self.max_upload_bytes = self._read_max_upload_bytes()
+        self.max_planning_overrides = self._read_max_planning_overrides()
+        self.max_override_hours = self._read_max_override_hours()
         self.blob_token = os.getenv("BLOB_READ_WRITE_TOKEN", "").strip()
         self.use_blob = bool(self.blob_token and put is not None and list_objects is not None)
         self._ensure_store()
@@ -82,6 +92,20 @@ class WorkbookStore:
             return max(1, int(raw))
         except (TypeError, ValueError):
             return DEFAULT_MAX_UPLOAD_BYTES
+
+    def _read_max_planning_overrides(self) -> int:
+        raw = os.getenv("CAPACITY_MAX_PLANNING_OVERRIDES", str(DEFAULT_MAX_PLANNING_OVERRIDES))
+        try:
+            return max(1, int(raw))
+        except (TypeError, ValueError):
+            return DEFAULT_MAX_PLANNING_OVERRIDES
+
+    def _read_max_override_hours(self) -> float:
+        raw = os.getenv("CAPACITY_MAX_OVERRIDE_HOURS", str(DEFAULT_MAX_OVERRIDE_HOURS))
+        try:
+            return max(0.0, float(raw))
+        except (TypeError, ValueError):
+            return DEFAULT_MAX_OVERRIDE_HOURS
 
     def _ensure_store(self) -> None:
         self.data_root.mkdir(parents=True, exist_ok=True)
@@ -113,6 +137,96 @@ class WorkbookStore:
     def _local_manifest_path(self, dataset: str) -> Path:
         return self.manifest_dir / f"{dataset}.json"
 
+    def _local_planning_state_path(self, dataset: str) -> Path:
+        return self.data_root / f"planning_state_{dataset}.json"
+
+    def _default_planning_state(self, dataset: str) -> Dict[str, Any]:
+        return {
+            "dataset": dataset,
+            "version": 0,
+            "updatedAt": None,
+            "source": "system",
+            "overrideCount": 0,
+            "overrides": {},
+        }
+
+    def _normalize_source(self, source: Any) -> str:
+        if not isinstance(source, str):
+            return "ui"
+        trimmed = source.strip()
+        if not trimmed:
+            return "ui"
+        safe = "".join(char if char.isalnum() or char in {"-", "_", "."} else "_" for char in trimmed)
+        return safe[:80] or "ui"
+
+    def _normalize_base_version(self, base_version: Any) -> Optional[int]:
+        if base_version is None:
+            return None
+        if isinstance(base_version, bool):
+            raise ValueError("baseVersion must be an integer.")
+        try:
+            parsed = int(base_version)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("baseVersion must be an integer.") from exc
+        if parsed < 0:
+            raise ValueError("baseVersion must be greater than or equal to 0.")
+        return parsed
+
+    def _normalize_overrides(self, overrides: Any) -> Dict[str, float]:
+        if overrides is None:
+            return {}
+        if not isinstance(overrides, dict):
+            raise ValueError("Invalid planning state payload. 'overrides' must be an object.")
+        if len(overrides) > self.max_planning_overrides:
+            raise ValueError(f"Planning state exceeds maximum of {self.max_planning_overrides} override entries.")
+        normalized: Dict[str, float] = {}
+        for raw_key, raw_value in overrides.items():
+            if not isinstance(raw_key, str):
+                raise ValueError("Invalid planning override key.")
+            key = raw_key.strip()
+            if not key:
+                raise ValueError("Planning override keys cannot be empty.")
+            if len(key) > 512 or "\n" in key or "\r" in key:
+                raise ValueError("Invalid planning override key format.")
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid planning override value for key '{key}'.") from exc
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"Planning override value for key '{key}' must be a finite non-negative number.")
+            if value > self.max_override_hours:
+                raise ValueError(f"Planning override value for key '{key}' exceeds maximum of {self.max_override_hours}.")
+            normalized[key] = value
+        return normalized
+
+    def _coerce_planning_state(self, dataset: str, payload: Any) -> Dict[str, Any]:
+        default_state = self._default_planning_state(dataset)
+        if not isinstance(payload, dict):
+            return default_state
+
+        version = payload.get("version")
+        if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+            version = 0
+
+        updated_at = payload.get("updatedAt")
+        if not isinstance(updated_at, str):
+            updated_at = None
+
+        overrides_payload = payload.get("overrides")
+        try:
+            overrides = self._normalize_overrides(overrides_payload if overrides_payload is not None else {})
+        except ValueError:
+            overrides = {}
+
+        return {
+            "dataset": dataset,
+            "version": version,
+            "updatedAt": updated_at,
+            "source": self._normalize_source(payload.get("source")),
+            "overrideCount": len(overrides),
+            "overrides": overrides,
+        }
+
     def _write_json_atomic(self, path: Path, payload: Dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, temp_path = tempfile.mkstemp(prefix=f"{path.name}.", suffix=".tmp", dir=str(path.parent))
@@ -143,6 +257,20 @@ class WorkbookStore:
             pass
         return self._default_manifest(dataset)
 
+    def _read_local_planning_state(self, dataset: str) -> Dict[str, Any]:
+        path = self._local_planning_state_path(dataset)
+        if not path.exists():
+            return self._default_planning_state(dataset)
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception:
+            return self._default_planning_state(dataset)
+        return self._coerce_planning_state(dataset, payload)
+
+    def _write_local_planning_state(self, dataset: str, payload: Dict[str, Any]) -> None:
+        self._write_json_atomic(self._local_planning_state_path(dataset), payload)
+
     def _blob_common_kwargs(self) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {}
         if self.blob_token:
@@ -162,10 +290,9 @@ class WorkbookStore:
         )
         return _as_blob_dict(uploaded)
 
-    def _blob_latest_manifest(self, dataset: str) -> Optional[Dict[str, Any]]:
+    def _blob_latest_json_manifest(self, prefix: str) -> Optional[Dict[str, Any]]:
         if not self.use_blob:
             return None
-        prefix = f"capacity-dashboard/manifests/{dataset}/"
         listing = list_objects(prefix=prefix, limit=1000, **self._blob_common_kwargs())
         blobs = _obj_get(listing, "blobs") or []
         if not isinstance(blobs, list) or len(blobs) == 0:
@@ -179,6 +306,9 @@ class WorkbookStore:
             if isinstance(payload, dict):
                 return payload
         return None
+
+    def _blob_latest_manifest(self, dataset: str) -> Optional[Dict[str, Any]]:
+        return self._blob_latest_json_manifest(f"capacity-dashboard/manifests/{dataset}/")
 
     def _blob_fetch_workbook_bytes(self, workbook_url: str) -> bytes:
         with urllib.request.urlopen(workbook_url, timeout=30) as response:
@@ -317,6 +447,80 @@ class WorkbookStore:
         manifest = self._read_local_manifest(normalized)
         workbook_name = str(manifest.get("fileName") or local_workbook.name)
         return local_workbook.read_bytes(), workbook_name
+
+    def planning_state(self, dataset: str) -> Dict[str, Any]:
+        normalized = self._validate_dataset(dataset)
+        if self.use_blob:
+            manifest = self._blob_latest_json_manifest(f"capacity-dashboard/planning-manifests/{normalized}/")
+            if not manifest:
+                return self._default_planning_state(normalized)
+            state_url = str(manifest.get("stateUrl") or "")
+            if not state_url:
+                return self._default_planning_state(normalized)
+            with urllib.request.urlopen(state_url, timeout=20) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            return self._coerce_planning_state(normalized, payload)
+        return self._read_local_planning_state(normalized)
+
+    def save_planning_state(
+        self,
+        dataset: str,
+        overrides: Any,
+        base_version: Any = None,
+        source: Any = "ui",
+    ) -> Dict[str, Any]:
+        normalized = self._validate_dataset(dataset)
+        normalized_overrides = self._normalize_overrides(overrides)
+        normalized_base_version = self._normalize_base_version(base_version)
+        normalized_source = self._normalize_source(source)
+        uploaded_at = _utc_now_iso()
+
+        current_state = self.planning_state(normalized)
+        current_version = int(current_state.get("version") or 0)
+        if normalized_base_version is not None and normalized_base_version != current_version:
+            raise PlanningStateConflictError(
+                f"Planning state version conflict for dataset '{normalized}'. "
+                f"Expected {normalized_base_version}, current is {current_version}."
+            )
+
+        next_state = {
+            "dataset": normalized,
+            "version": current_version + 1,
+            "updatedAt": uploaded_at,
+            "source": normalized_source,
+            "overrideCount": len(normalized_overrides),
+            "overrides": normalized_overrides,
+        }
+
+        if self.use_blob:
+            timestamp = _timestamp_ms()
+            state_path = f"capacity-dashboard/planning/{normalized}/{timestamp}.json"
+            state_blob = self._blob_put(
+                state_path,
+                json.dumps(next_state, separators=(",", ":")).encode("utf-8"),
+                PLANNING_STATE_MIME,
+            )
+            state_url = str(state_blob.get("url") or "")
+            state_storage_path = str(state_blob.get("pathname") or state_path)
+            manifest_payload = {
+                "dataset": normalized,
+                "version": next_state["version"],
+                "updatedAt": next_state["updatedAt"],
+                "source": normalized_source,
+                "overrideCount": next_state["overrideCount"],
+                "stateUrl": state_url,
+                "statePath": state_storage_path,
+            }
+            manifest_path = f"capacity-dashboard/planning-manifests/{normalized}/{timestamp}.json"
+            self._blob_put(
+                manifest_path,
+                json.dumps(manifest_payload, separators=(",", ":")).encode("utf-8"),
+                PLANNING_STATE_MIME,
+            )
+            return next_state
+
+        self._write_local_planning_state(normalized, next_state)
+        return next_state
 
 
 store = WorkbookStore()

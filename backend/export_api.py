@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from datetime import datetime, timezone
@@ -18,11 +19,39 @@ from openpyxl.utils import get_column_letter
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    raw = os.getenv(name, str(default))
+    try:
+        return max(minimum, int(raw))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float, minimum: float = 0.0) -> float:
+    raw = os.getenv(name, str(default))
+    try:
+        return max(minimum, float(raw))
+    except (TypeError, ValueError):
+        return default
+
+
 DEFAULT_MAX_UPLOAD_BYTES = 30 * 1024 * 1024
-MAX_UPLOAD_BYTES = int(os.getenv("CAPACITY_MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES)))
+MAX_UPLOAD_BYTES = _env_int("CAPACITY_MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES)
+DEFAULT_MAX_PLANNING_OVERRIDES = 100_000
+MAX_PLANNING_OVERRIDES = _env_int("CAPACITY_MAX_PLANNING_OVERRIDES", DEFAULT_MAX_PLANNING_OVERRIDES)
+DEFAULT_MAX_OVERRIDE_HOURS = 1_000_000.0
+MAX_OVERRIDE_HOURS = _env_float("CAPACITY_MAX_OVERRIDE_HOURS", DEFAULT_MAX_OVERRIDE_HOURS)
 DATA_ROOT = Path(os.getenv("CAPACITY_SHARED_DATA_DIR", Path(__file__).resolve().parent / "shared_store")).resolve()
 DATASETS = {"main", "sales"}
 MANIFEST_DIR = DATA_ROOT / "manifests"
+
+
+def _json_no_store(payload: Dict[str, Any], status: int = 200) -> Response:
+    response = jsonify(payload)
+    response.status_code = status
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 def _utc_now_iso() -> str:
@@ -46,6 +75,97 @@ def _active_workbook_path(dataset: str) -> Path:
 
 def _manifest_path(dataset: str) -> Path:
     return MANIFEST_DIR / f"{dataset}.json"
+
+
+def _planning_state_path(dataset: str) -> Path:
+    return DATA_ROOT / f"planning_state_{dataset}.json"
+
+
+def _default_planning_state(dataset: str) -> Dict[str, Any]:
+    return {
+        "dataset": dataset,
+        "version": 0,
+        "updatedAt": None,
+        "source": "system",
+        "overrideCount": 0,
+        "overrides": {},
+    }
+
+
+def _normalize_source(source: Any) -> str:
+    if not isinstance(source, str):
+        return "ui"
+    trimmed = source.strip()
+    if not trimmed:
+        return "ui"
+    safe = "".join(char if char.isalnum() or char in {"-", "_", "."} else "_" for char in trimmed)
+    return safe[:80] or "ui"
+
+
+def _normalize_base_version(base_version: Any) -> int | None:
+    if base_version is None:
+        return None
+    if isinstance(base_version, bool):
+        raise ValueError("baseVersion must be an integer.")
+    try:
+        parsed = int(base_version)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("baseVersion must be an integer.") from exc
+    if parsed < 0:
+        raise ValueError("baseVersion must be greater than or equal to 0.")
+    return parsed
+
+
+def _normalize_overrides(overrides: Any) -> Dict[str, float]:
+    if overrides is None:
+        return {}
+    if not isinstance(overrides, dict):
+        raise ValueError("Invalid planning state payload. 'overrides' must be an object.")
+    if len(overrides) > MAX_PLANNING_OVERRIDES:
+        raise ValueError(f"Planning state exceeds maximum of {MAX_PLANNING_OVERRIDES} override entries.")
+    normalized: Dict[str, float] = {}
+    for raw_key, raw_value in overrides.items():
+        if not isinstance(raw_key, str):
+            raise ValueError("Invalid planning override key.")
+        key = raw_key.strip()
+        if not key:
+            raise ValueError("Planning override keys cannot be empty.")
+        if len(key) > 512 or "\n" in key or "\r" in key:
+            raise ValueError("Invalid planning override key format.")
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid planning override value for key '{key}'.") from exc
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"Planning override value for key '{key}' must be a finite non-negative number.")
+        if value > MAX_OVERRIDE_HOURS:
+            raise ValueError(f"Planning override value for key '{key}' exceeds maximum of {MAX_OVERRIDE_HOURS}.")
+        normalized[key] = value
+    return normalized
+
+
+def _coerce_planning_state(dataset: str, payload: Any) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return _default_planning_state(dataset)
+    version = payload.get("version")
+    if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+        version = 0
+    updated_at = payload.get("updatedAt")
+    if not isinstance(updated_at, str):
+        updated_at = None
+    overrides_raw = payload.get("overrides")
+    try:
+        overrides = _normalize_overrides(overrides_raw if overrides_raw is not None else {})
+    except ValueError:
+        overrides = {}
+    return {
+        "dataset": dataset,
+        "version": version,
+        "updatedAt": updated_at,
+        "source": _normalize_source(payload.get("source")),
+        "overrideCount": len(overrides),
+        "overrides": overrides,
+    }
 
 
 def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
@@ -77,6 +197,42 @@ def _read_manifest(dataset: str) -> Dict[str, Any]:
     return _default_manifest(dataset)
 
 
+def _read_planning_state(dataset: str) -> Dict[str, Any]:
+    path = _planning_state_path(dataset)
+    if not path.exists():
+        return _default_planning_state(dataset)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception:
+        app.logger.exception("Failed reading planning state. dataset=%s", dataset)
+        return _default_planning_state(dataset)
+    return _coerce_planning_state(dataset, payload)
+
+
+def _save_planning_state(dataset: str, overrides: Any, base_version: Any, source: Any) -> Dict[str, Any]:
+    normalized = _validate_dataset(dataset)
+    normalized_overrides = _normalize_overrides(overrides)
+    normalized_base_version = _normalize_base_version(base_version)
+    current_state = _read_planning_state(normalized)
+    current_version = int(current_state.get("version") or 0)
+    if normalized_base_version is not None and normalized_base_version != current_version:
+        raise RuntimeError(
+            f"Planning state version conflict for dataset '{normalized}'. "
+            f"Expected {normalized_base_version}, current is {current_version}."
+        )
+    next_state = {
+        "dataset": normalized,
+        "version": current_version + 1,
+        "updatedAt": _utc_now_iso(),
+        "source": _normalize_source(source),
+        "overrideCount": len(normalized_overrides),
+        "overrides": normalized_overrides,
+    }
+    _write_json_atomic(_planning_state_path(normalized), next_state)
+    return next_state
+
+
 def _ensure_store() -> None:
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,6 +240,9 @@ def _ensure_store() -> None:
         path = _manifest_path(dataset)
         if not path.exists():
             _write_json_atomic(path, _default_manifest(dataset))
+        planning_path = _planning_state_path(dataset)
+        if not planning_path.exists():
+            _write_json_atomic(planning_path, _default_planning_state(dataset))
 
 
 def _workbook_state_response(dataset: str) -> Dict[str, Any]:
@@ -214,9 +373,9 @@ def _build_workbook(payload: Dict[str, Any]) -> Workbook:
 def workbook_state() -> Response:
     dataset = request.args.get("dataset", "main")
     try:
-        return jsonify(_workbook_state_response(dataset))
+        return _json_no_store(_workbook_state_response(dataset))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _json_no_store({"error": str(exc)}, 400)
 
 
 @app.get("/api/workbook-file")
@@ -225,21 +384,23 @@ def workbook_file() -> Response:
     try:
         normalized = _validate_dataset(dataset)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _json_no_store({"error": str(exc)}, 400)
 
     workbook_path = _active_workbook_path(normalized)
     if not workbook_path.exists():
-        return jsonify({"error": f"No workbook has been uploaded for dataset '{normalized}'."}), 404
+        return _json_no_store({"error": f"No workbook has been uploaded for dataset '{normalized}'."}, 404)
 
     manifest = _read_manifest(normalized)
     download_name = str(manifest.get("fileName") or workbook_path.name)
-    return send_file(
+    response = send_file(
         workbook_path,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=False,
         download_name=download_name,
         max_age=0,
     )
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 @app.post("/api/upload-workbook")
@@ -248,15 +409,15 @@ def upload_workbook() -> Response:
     try:
         normalized = _validate_dataset(dataset)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _json_no_store({"error": str(exc)}, 400)
 
     upload = request.files.get("file")
     if upload is None or not upload.filename:
-        return jsonify({"error": "Missing upload file. Use form field 'file' with a .xlsx workbook."}), 400
+        return _json_no_store({"error": "Missing upload file. Use form field 'file' with a .xlsx workbook."}, 400)
 
     original_name = Path(upload.filename).name
     if not original_name.lower().endswith(".xlsx"):
-        return jsonify({"error": "Only .xlsx files are allowed."}), 400
+        return _json_no_store({"error": "Only .xlsx files are allowed."}, 400)
 
     temp_path: Path | None = None
     try:
@@ -265,21 +426,21 @@ def upload_workbook() -> Response:
             temp_path = Path(temp_file.name)
 
         if temp_path is None or not temp_path.exists():
-            return jsonify({"error": "Saving the workbook file failed."}), 500
+            return _json_no_store({"error": "Saving the workbook file failed."}, 500)
 
         file_size = temp_path.stat().st_size
         if file_size <= 0:
             temp_path.unlink(missing_ok=True)
-            return jsonify({"error": "Uploaded workbook is empty."}), 400
+            return _json_no_store({"error": "Uploaded workbook is empty."}, 400)
 
         if file_size > MAX_UPLOAD_BYTES:
             temp_path.unlink(missing_ok=True)
-            return jsonify({"error": f"Workbook exceeds maximum size of {MAX_UPLOAD_BYTES} bytes."}), 413
+            return _json_no_store({"error": f"Workbook exceeds maximum size of {MAX_UPLOAD_BYTES} bytes."}, 413)
 
         with temp_path.open("rb") as handle:
             if handle.read(2) != b"PK":
                 temp_path.unlink(missing_ok=True)
-                return jsonify({"error": "Invalid workbook payload. Expected .xlsx content."}), 400
+                return _json_no_store({"error": "Invalid workbook payload. Expected .xlsx content."}, 400)
 
         os.replace(temp_path, _active_workbook_path(normalized))
         uploaded_at = _utc_now_iso()
@@ -293,7 +454,7 @@ def upload_workbook() -> Response:
         }
         _write_json_atomic(_manifest_path(normalized), manifest)
 
-        return jsonify(
+        return _json_no_store(
             {
                 "dataset": normalized,
                 "hasWorkbook": True,
@@ -306,13 +467,50 @@ def upload_workbook() -> Response:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
         app.logger.exception("Failed uploading active workbook.")
-        return jsonify({"error": "Saving the workbook file failed."}), 500
+        return _json_no_store({"error": "Saving the workbook file failed."}, 500)
+
+
+@app.get("/api/planning-state")
+def get_planning_state() -> Response:
+    dataset = request.args.get("dataset", "main")
+    try:
+        normalized = _validate_dataset(dataset)
+    except ValueError as exc:
+        return _json_no_store({"error": str(exc)}, 400)
+    return _json_no_store(_read_planning_state(normalized))
+
+
+@app.post("/api/planning-state")
+def save_planning_state() -> Response:
+    dataset = request.args.get("dataset", "main")
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return _json_no_store({"error": "Invalid JSON payload."}, 400)
+
+    overrides = payload.get("overrides", {})
+    base_version = payload.get("baseVersion")
+    source = payload.get("source", "ui")
+
+    try:
+        saved = _save_planning_state(dataset, overrides, base_version, source)
+        return _json_no_store(saved)
+    except ValueError as exc:
+        return _json_no_store({"error": str(exc)}, 400)
+    except RuntimeError as exc:
+        return _json_no_store({"error": str(exc)}, 409)
+    except Exception:
+        app.logger.exception("Failed saving planning state. dataset=%s", dataset)
+        return _json_no_store({"error": "Failed saving planning state."}, 500)
 
 
 @app.get("/api/shared-health")
 def shared_health() -> Response:
     main_state = _workbook_state_response("main")
     sales_state = _workbook_state_response("sales")
+    main_planning = _read_planning_state("main")
+    sales_planning = _read_planning_state("sales")
     return jsonify(
         {
             "status": "ok",
@@ -320,6 +518,18 @@ def shared_health() -> Response:
             "datasets": {
                 "main": main_state,
                 "sales": sales_state,
+            },
+            "planningState": {
+                "main": {
+                    "version": main_planning.get("version", 0),
+                    "updatedAt": main_planning.get("updatedAt"),
+                    "overrideCount": main_planning.get("overrideCount", 0),
+                },
+                "sales": {
+                    "version": sales_planning.get("version", 0),
+                    "updatedAt": sales_planning.get("updatedAt"),
+                    "overrideCount": sales_planning.get("overrideCount", 0),
+                },
             },
         }
     )
