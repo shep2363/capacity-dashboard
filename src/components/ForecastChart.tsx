@@ -23,6 +23,7 @@ interface ForecastChartProps {
   subtitle?: string
   hoveredProject?: string | null
   onHoverProject?: (project: string | null) => void
+  hoverProjectPrefix?: string
 }
 
 const COLOR_PALETTE = [
@@ -194,6 +195,7 @@ export function ForecastChart({
   subtitle = 'Stacked weekly forecast hours with total capacity from selected resources.',
   hoveredProject = null,
   onHoverProject,
+  hoverProjectPrefix = '',
 }: ForecastChartProps) {
   const Y_AXIS_STEP = 500
   const MIN_Y_AXIS_MAX = 1000
@@ -242,6 +244,17 @@ export function ForecastChart({
     ...bucket.groups,
   }))
 
+  function toHoverKey(project: string): string {
+    return `${hoverProjectPrefix}${project}`
+  }
+
+  function isHighlighted(category: string): boolean {
+    if (!hoveredProject) {
+      return true
+    }
+    return hoveredProject === category || hoveredProject === toHoverKey(category)
+  }
+
   const barSize = useMemo(() => {
     if (chartData.length > 80) {
       return 14
@@ -285,7 +298,7 @@ export function ForecastChart({
                 type="button"
                 className={`chip-toggle ${on ? 'chip-on' : 'chip-off'}`}
                 onClick={() => onToggleProject(project)}
-                onMouseEnter={() => onHoverProject?.(project)}
+                onMouseEnter={() => onHoverProject?.(toHoverKey(project))}
                 onMouseLeave={() => onHoverProject?.(null)}
                 aria-pressed={on}
               >
@@ -338,7 +351,7 @@ export function ForecastChart({
                 dataKey={category}
                 stackId="weekly"
                 fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
-                fillOpacity={hoveredProject && hoveredProject !== category ? 0.25 : 1}
+                fillOpacity={isHighlighted(category) ? 1 : 0.25}
                 name={category}
               />
             ))}

@@ -473,6 +473,7 @@ export function ReportWorkspace({
             subtitle="Stacked weekly sales forecast hours with capacity overlay."
             hoveredProject={hoveredProject}
             onHoverProject={onHoverProject}
+            hoverProjectPrefix="Sales - "
           />
           {renderDealsPanel('Pipedrive Deals — Sales Forecast')}
         </div>
