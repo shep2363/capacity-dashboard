@@ -348,9 +348,12 @@ export function ReportWorkspace({
 
   return (
     <section ref={reportRef} className="panel report-workspace">
-      <div className="section-header section-header-row">
-        <div>
-          <h2>Report Workspace</h2>
+      <div className="section-header section-header-row report-header">
+        <div className="report-header-main">
+          <div className="report-header-copy">
+            <h2>Report Workspace</h2>
+            <p>Review charts and forecast tables using the current planning filters, selected projects, and live edits.</p>
+          </div>
           <div className="report-context">
             {reportContext.map((line) => (
               <span key={line}>{line}</span>

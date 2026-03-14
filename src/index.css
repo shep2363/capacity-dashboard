@@ -126,13 +126,35 @@ p {
   gap: 0.8rem;
 }
 
+.report-header {
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.report-header-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 1.2fr) minmax(260px, 1fr);
+  gap: 0.8rem 1rem;
+  align-items: start;
+}
+
+.report-header-copy {
+  min-width: 0;
+}
+
+.report-header-copy p {
+  max-width: 52rem;
+}
+
 .report-context {
-  margin-top: 0.45rem;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem 0.6rem;
   font-size: 0.9rem;
   color: #cbd5e1;
+  align-content: flex-start;
 }
 
 .report-context span {
@@ -1191,6 +1213,10 @@ button.sortable {
     width: 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .report-header-main {
+    grid-template-columns: 1fr;
   }
 
   .pivot-table td input {
