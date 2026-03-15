@@ -1173,6 +1173,11 @@ function App() {
     ]
   }, [fileName, filters.year, totals, selectedWeeklyCapacity, monthlyCapacityTotal, manualOverrides])
 
+  const visibleSummaryMetrics = useMemo(
+    () => summaryMetrics.filter((item) => item.metric !== 'Selected Weekly Capacity'),
+    [summaryMetrics],
+  )
+
   const reportContext = useMemo(
     () => [
       `Year: ${filters.year || 'All years'}`,
@@ -1856,14 +1861,16 @@ function App() {
                 </div>
 
                 <div className="meta-row">
-                  <div>
-                    <strong>File:</strong> {fileName}
+                  <div className="meta-card meta-card-wide">
+                    <strong>File</strong>
+                    <span>{fileName}</span>
                   </div>
-                  <div>
-                    <strong>Sales File:</strong> {salesFileName}
+                  <div className="meta-card meta-card-wide">
+                    <strong>Sales File</strong>
+                    <span>{salesFileName}</span>
                   </div>
-                  <div>
-                    <strong>Planning Sync:</strong>{' '}
+                  <div className="meta-card">
+                    <strong>Planning Sync</strong>
                     <span
                       style={{
                         color:
@@ -1877,8 +1884,8 @@ function App() {
                       {mainPlanningSaveLabel}
                     </span>
                   </div>
-                  <div>
-                    <strong>Sales Planning Sync:</strong>{' '}
+                  <div className="meta-card">
+                    <strong>Sales Planning Sync</strong>
                     <span
                       style={{
                         color:
@@ -1892,25 +1899,30 @@ function App() {
                       {salesPlanningSaveLabel}
                     </span>
                   </div>
-                  <div>
-                    <strong>Parsed Rows:</strong> {tasks.length}
+                  <div className="meta-card">
+                    <strong>Parsed Rows</strong>
+                    <span>{tasks.length}</span>
                   </div>
-                  <div>
-                    <strong>Weeks in View:</strong> {baseLayer.weekKeys.length}
+                  <div className="meta-card">
+                    <strong>Weeks in View</strong>
+                    <span>{baseLayer.weekKeys.length}</span>
                   </div>
-                  <div>
-                    <strong>Enabled Resources:</strong> {enabledResourceList.length}
+                  <div className="meta-card">
+                    <strong>Enabled Resources</strong>
+                    <span>{enabledResourceList.length}</span>
                   </div>
-                  <div>
-                    <strong>Data Date Span:</strong>{' '}
-                    {taskDateSpan.start && taskDateSpan.end ? `${taskDateSpan.start} to ${taskDateSpan.end}` : 'N/A'}
+                  <div className="meta-card meta-card-wide">
+                    <strong>Data Date Span</strong>
+                    <span>{taskDateSpan.start && taskDateSpan.end ? `${taskDateSpan.start} to ${taskDateSpan.end}` : 'N/A'}</span>
                   </div>
-                  <button type="button" className="ghost-btn" onClick={resetFilters}>
-                    Reset Filters
-                  </button>
-                  <button type="button" onClick={() => void exportReportExcel()}>
-                    Export Report Excel
-                  </button>
+                  <div className="meta-card meta-card-actions">
+                    <button type="button" className="ghost-btn" onClick={resetFilters}>
+                      Reset Filters
+                    </button>
+                    <button type="button" onClick={() => void exportReportExcel()}>
+                      Export Report Excel
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -2116,7 +2128,7 @@ function App() {
               onToggleSalesProject={handleToggleSalesProject}
               hoveredProject={hoveredProject}
               onHoverProject={setHoveredProject}
-              summaryMetrics={summaryMetrics}
+              summaryMetrics={visibleSummaryMetrics}
               reportContext={reportContext}
               initialTab={initialReportTab}
               executiveData={executiveData}
@@ -2137,10 +2149,6 @@ function App() {
                 <div>
                   <span>Total Capacity Hours</span>
                   <strong>{totals.capacity.toFixed(2)}</strong>
-                </div>
-                <div>
-                  <span>Selected Weekly Capacity</span>
-                  <strong>{selectedWeeklyCapacity.toFixed(2)}</strong>
                 </div>
                 <div>
                   <span>Total Monthly Capacity (visible months)</span>
