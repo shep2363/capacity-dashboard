@@ -7,7 +7,6 @@ from flask import Flask, Response, jsonify, request
 
 # Ensure sibling helper modules inside /api are importable in serverless runtime.
 sys.path.append(str(Path(__file__).resolve().parent))
-from _auth import READ_ONLY_ROLES, require_auth
 from _workbook_store import store
 
 app = Flask(__name__)
@@ -15,7 +14,6 @@ app = Flask(__name__)
 
 @app.get("/")
 @app.get("/api/workbook-state")
-@require_auth(READ_ONLY_ROLES)
 def workbook_state() -> Response:
     dataset = request.args.get("dataset", "main")
     try:

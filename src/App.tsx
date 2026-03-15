@@ -12,13 +12,6 @@ import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
 import { exportReportWorkbookWithChartApi } from './utils/reportExportApi'
 import { downloadActiveWorkbook, fetchActiveWorkbookStatus, uploadActiveWorkbook } from './utils/activeWorkbookApi'
 import {
-  AuthApiError,
-  fetchAuthSession,
-  loginWithPassword,
-  logoutSession,
-  type AuthRole,
-} from './utils/authApi'
-import {
   PlanningStateApiError,
   fetchPlanningState,
   savePlanningState,
@@ -41,6 +34,10 @@ import {
 
 const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
 const INITIAL_SALES_FILE_NAME = '2026 Sales Production Report.xlsx'
+const APP_ADMIN_PASSWORD = '2431'
+const APP_USER_PASSWORD = '1357'
+const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
+const APP_ROLE_SESSION_KEY = 'capacity_dashboard_role'
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1440,
   Assembly: 80,
@@ -69,7 +66,7 @@ const PROJECT_COLOR_PALETTE = [
 ]
 
 type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping'
-type AccessRole = AuthRole
+type AccessRole = 'admin' | 'user'
 const PAGE_TAB_ORDER: PageKey[] = ['report', 'processing', 'fabrication', 'assembly', 'paint', 'shipping', 'planning']
 const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
 const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
@@ -197,10 +194,27 @@ function App() {
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true)
   const [activePage, setActivePage] = useState<PageKey>('report')
-  const [accessRole, setAccessRole] = useState<AccessRole | null>(null)
-  const [isUnlocked, setIsUnlocked] = useState(false)
-  const [isAuthChecking, setIsAuthChecking] = useState(true)
-  const [isSigningIn, setIsSigningIn] = useState(false)
+  const [accessRole, setAccessRole] = useState<AccessRole | null>(() => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+    const persistedRole = window.sessionStorage.getItem(APP_ROLE_SESSION_KEY)
+    if (persistedRole === 'admin' || persistedRole === 'user') {
+      return persistedRole
+    }
+    if (window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true') {
+      return 'admin'
+    }
+    return null
+  })
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    const hasUnlockFlag = window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true'
+    const persistedRole = window.sessionStorage.getItem(APP_ROLE_SESSION_KEY)
+    return hasUnlockFlag || persistedRole === 'admin' || persistedRole === 'user'
+  })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
@@ -221,42 +235,28 @@ function App() {
   useEffect(() => {
     let cancelled = false
 
-    void (async () => {
-      setIsAuthChecking(true)
-      try {
-        const session = await fetchAuthSession()
-        if (cancelled) {
-          return
-        }
-        setIsUnlocked(session.authenticated)
-        setAccessRole(session.role)
-        setPasswordError('')
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-        const message = error instanceof Error ? error.message : 'Unable to verify your session.'
-        setIsUnlocked(false)
-        setAccessRole(null)
-        setPasswordError(message)
-      } finally {
-        if (!cancelled) {
-          setIsAuthChecking(false)
-        }
+    async function loadBundledDefaultWorkbook(): Promise<void> {
+      const response = await fetch(`/${INITIAL_FILE_NAME}`)
+      if (!response.ok) {
+        throw new Error(`Unable to fetch ${INITIAL_FILE_NAME}`)
       }
-    })()
 
-    return () => {
-      cancelled = true
+      const workbookData = await response.arrayBuffer()
+      const parsedTasks = parseSpreadsheet(workbookData)
+      if (cancelled) {
+        return
+      }
+
+      setTasks(parsedTasks)
+      setFileName(INITIAL_FILE_NAME)
+      setManualOverrides({})
+      setEnabledResources({})
+      setResourceWeeklyCapacities({})
+      setFilters(createDefaultFilters())
+      setSelectedWeekendDates(new Set())
+      setWeekendExtraByResource({})
+      setProjectsInitialized(false)
     }
-  }, [])
-
-  useEffect(() => {
-    if (isAuthChecking || !isUnlocked) {
-      return
-    }
-
-    let cancelled = false
 
     function resetSalesPlanningState(file: string): void {
       setSalesFileName(file || INITIAL_SALES_FILE_NAME)
@@ -302,16 +302,8 @@ function App() {
           console.warn('[capacity-dashboard] active workbook API load failed', sharedLoadError)
         }
 
-        if (!mainLoadedFromApi && !cancelled) {
-          setTasks([])
-          setFileName(INITIAL_FILE_NAME)
-          setManualOverrides({})
-          setEnabledResources({})
-          setResourceWeeklyCapacities({})
-          setFilters(createDefaultFilters())
-          setSelectedWeekendDates(new Set())
-          setWeekendExtraByResource({})
-          setProjectsInitialized(false)
+        if (!mainLoadedFromApi) {
+          await loadBundledDefaultWorkbook()
         }
 
         try {
@@ -402,7 +394,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [isAuthChecking, isUnlocked])
+  }, [])
 
   useEffect(() => {
     if (!mainPlanningSyncReady) {
@@ -1605,37 +1597,36 @@ function App() {
     XLSX.writeFile(workbook, fileName)
   }
 
-  async function handleUnlock(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+  function handleUnlock(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    setIsSigningIn(true)
-    setPasswordError('')
-    try {
-      const session = await loginWithPassword(passwordInput.trim())
-      setIsUnlocked(session.authenticated)
-      setAccessRole(session.role)
+    if (passwordInput === APP_ADMIN_PASSWORD) {
+      setIsUnlocked(true)
+      setAccessRole('admin')
+      setPasswordError('')
       setPasswordInput('')
-    } catch (error) {
-      const message =
-        error instanceof AuthApiError || error instanceof Error ? error.message : 'Unable to sign in right now.'
-      setPasswordError(message)
-      setIsUnlocked(false)
-      setAccessRole(null)
-    } finally {
-      setIsSigningIn(false)
+      window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
+      window.sessionStorage.setItem(APP_ROLE_SESSION_KEY, 'admin')
+      return
     }
+    if (passwordInput === APP_USER_PASSWORD) {
+      setIsUnlocked(true)
+      setAccessRole('user')
+      setPasswordError('')
+      setPasswordInput('')
+      window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
+      window.sessionStorage.setItem(APP_ROLE_SESSION_KEY, 'user')
+      return
+    }
+    setPasswordError('Incorrect password. Please try again.')
   }
 
-  async function handleLock(): Promise<void> {
-    try {
-      await logoutSession()
-    } catch {
-      // Clear the local view even if the server session has already expired.
-    } finally {
-      setIsUnlocked(false)
-      setAccessRole(null)
-      setPasswordInput('')
-      setPasswordError('')
-    }
+  function handleLock(): void {
+    setIsUnlocked(false)
+    setAccessRole(null)
+    setPasswordInput('')
+    setPasswordError('')
+    window.sessionStorage.removeItem(APP_UNLOCK_SESSION_KEY)
+    window.sessionStorage.removeItem(APP_ROLE_SESSION_KEY)
   }
 
   const mainPlanningSaveLabel = formatPlanningSaveLabel(
@@ -1651,16 +1642,12 @@ function App() {
   const isUserMode = accessRole === 'user'
   const canViewAdminPlanningControls = accessRole === 'admin'
 
-  if (isAuthChecking || !isUnlocked) {
+  if (!isUnlocked) {
     return (
       <div className="lock-screen">
         <section className="panel lock-card">
           <h1>Capacity Dashboard Locked</h1>
-          <p>
-            {isAuthChecking
-              ? 'Checking your session...'
-              : 'Enter the access password to open the planning dashboard.'}
-          </p>
+          <p>Enter the access password to open the planning dashboard.</p>
           <form className="lock-form" onSubmit={handleUnlock}>
             <label htmlFor="dashboard-password">Password</label>
             <input
@@ -1670,12 +1657,9 @@ function App() {
               onChange={(event) => setPasswordInput(event.target.value)}
               autoFocus
               autoComplete="current-password"
-              disabled={isAuthChecking || isSigningIn}
             />
             {passwordError && <p className="lock-error">{passwordError}</p>}
-            <button type="submit" disabled={isAuthChecking || isSigningIn}>
-              {isAuthChecking ? 'Checking...' : isSigningIn ? 'Signing In...' : 'Unlock Dashboard'}
-            </button>
+            <button type="submit">Unlock Dashboard</button>
           </form>
         </section>
       </div>
@@ -1736,7 +1720,7 @@ function App() {
                     User Mode
                   </span>
                 )}
-                <button type="button" className="ghost-btn lock-btn" onClick={() => void handleLock()}>
+                <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
                   Lock
                 </button>
                 <button

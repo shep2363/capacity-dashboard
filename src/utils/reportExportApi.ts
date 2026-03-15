@@ -1,6 +1,5 @@
 import type { SummaryMetric } from './reportExport'
 import type { MonthlyBucket, WeeklyBucket } from '../types'
-import { buildExportApiUrl, withAuth } from './apiBase'
 
 interface ExportWithChartApiInput {
   weeklyBuckets: WeeklyBucket[]
@@ -20,7 +19,9 @@ function triggerDownload(blob: Blob, fileName: string): void {
 }
 
 export async function exportReportWorkbookWithChartApi(input: ExportWithChartApiInput): Promise<boolean> {
-  const apiUrl = buildExportApiUrl()
+  const apiUrl =
+    import.meta.env.VITE_EXPORT_API_URL ??
+    (window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000/api/export-report' : '/api/export-report')
   const weeklyCapacityChartRows = input.weeklyBuckets.map((bucket) => [
     bucket.weekStartIso,
     bucket.weekEndIso,
@@ -51,17 +52,15 @@ export async function exportReportWorkbookWithChartApi(input: ExportWithChartApi
 
   try {
     const response = await fetch(apiUrl, {
-      ...withAuth({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: input.fileName,
-          chartCategoryKeys: input.chartCategoryKeys,
-          weeklyCapacityChartRows,
-          weeklyForecastRows,
-          monthlyForecastRows,
-          summaryRows,
-        }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: input.fileName,
+        chartCategoryKeys: input.chartCategoryKeys,
+        weeklyCapacityChartRows,
+        weeklyForecastRows,
+        monthlyForecastRows,
+        summaryRows,
       }),
     })
 

@@ -3,18 +3,11 @@ from __future__ import annotations
 from io import BytesIO
 from typing import Any, Dict, List
 
-import sys
-from pathlib import Path
-
 from flask import Flask, Response, jsonify, request
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
-
-# Ensure sibling helper modules inside /api are importable in serverless runtime.
-sys.path.append(str(Path(__file__).resolve().parent))
-from _auth import READ_ONLY_ROLES, require_auth
 
 app = Flask(__name__)
 
@@ -128,7 +121,6 @@ def _build_workbook(payload: Dict[str, Any]) -> Workbook:
 
 @app.post("/")
 @app.post("/api/export-report")
-@require_auth(READ_ONLY_ROLES)
 def export_report() -> Response:
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):

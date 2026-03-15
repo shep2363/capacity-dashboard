@@ -8,7 +8,6 @@ from flask import Flask, Response, jsonify, request
 
 # Ensure sibling helper modules inside /api are importable in serverless runtime.
 sys.path.append(str(Path(__file__).resolve().parent))
-from _auth import ADMIN_ONLY_ROLES, READ_ONLY_ROLES, require_auth
 from _workbook_store import PlanningStateConflictError, store
 
 app = Flask(__name__)
@@ -24,7 +23,6 @@ def _json_no_store(payload: dict, status: int = 200) -> Response:
 
 @app.get("/")
 @app.get("/api/planning-state")
-@require_auth(READ_ONLY_ROLES)
 def get_planning_state() -> Response:
     dataset = request.args.get("dataset", "main")
     try:
@@ -39,7 +37,6 @@ def get_planning_state() -> Response:
 
 @app.post("/")
 @app.post("/api/planning-state")
-@require_auth(ADMIN_ONLY_ROLES)
 def save_planning_state() -> Response:
     dataset = request.args.get("dataset", "main")
     payload = request.get_json(silent=True)
