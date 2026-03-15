@@ -87,10 +87,6 @@ export function ReportWorkspace({
   const [dealsLoading, setDealsLoading] = useState(false)
   const [dealsError, setDealsError] = useState('')
   const [stageMap, setStageMap] = useState<Record<number, string>>({})
-  const envToken =
-    (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_API_TOKEN ??
-    (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_API_TOKEN ??
-    ''
   const hoursFieldKeys: Record<string, string | undefined> = {
     fab:
       (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_FAB_HOURS_KEY ??
@@ -105,14 +101,8 @@ export function ReportWorkspace({
       (import.meta.env as Record<string, string | undefined>).VITE_PIPEDRIVE_SHIP_HOURS_KEY ??
       (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_SHIP_HOURS_KEY,
   }
-  const [pipedriveToken, setPipedriveToken] = useState<string>(() => {
-    if (envToken) return envToken
-    if (typeof window !== 'undefined') {
-      return window.localStorage.getItem('pipedrive_api_token') ?? ''
-    }
-    return ''
-  })
-  const [tokenInput, setTokenInput] = useState<string>(() => pipedriveToken)
+  const [pipedriveToken, setPipedriveToken] = useState('')
+  const [tokenInput, setTokenInput] = useState('')
 
   async function handleExportPdf(): Promise<void> {
     if (!reportRef.current) {
@@ -192,11 +182,9 @@ export function ReportWorkspace({
       setDealsError('Please paste a valid Pipedrive API token.')
       return
     }
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('pipedrive_api_token', trimmed)
-    }
     setDealsError('')
     setPipedriveToken(trimmed)
+    setTokenInput('')
   }
 
   const probabilityLabels: Record<string, string> = {
@@ -295,7 +283,7 @@ export function ReportWorkspace({
                 <button type="button" onClick={handleSaveToken}>
                   Use Token
                 </button>
-                <small>Saved to this browser only.</small>
+                <small>Stored in memory until you refresh or close the page.</small>
               </div>
             )}
           </div>

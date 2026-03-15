@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sys
 import tempfile
 from datetime import datetime, timezone
 from io import BytesIO
@@ -16,8 +17,24 @@ from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
+sys.path.append(str((Path(__file__).resolve().parent.parent / "api").resolve()))
+from _auth import (
+    ADMIN_ONLY_ROLES,
+    READ_ONLY_ROLES,
+    AuthSession,
+    allowed_frontend_origins,
+    auth_configuration_error,
+    authenticate_password,
+    build_session_payload,
+    clear_session_cookie,
+    current_session,
+    json_no_store,
+    require_auth,
+    set_session_cookie,
+)
+
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app, resources={r"/api/*": {"origins": allowed_frontend_origins()}}, supports_credentials=True)
 
 
 def _env_int(name: str, default: int, minimum: int = 1) -> int:
@@ -45,13 +62,6 @@ MAX_OVERRIDE_HOURS = _env_float("CAPACITY_MAX_OVERRIDE_HOURS", DEFAULT_MAX_OVERR
 DATA_ROOT = Path(os.getenv("CAPACITY_SHARED_DATA_DIR", Path(__file__).resolve().parent / "shared_store")).resolve()
 DATASETS = {"main", "sales"}
 MANIFEST_DIR = DATA_ROOT / "manifests"
-
-
-def _json_no_store(payload: Dict[str, Any], status: int = 200) -> Response:
-    response = jsonify(payload)
-    response.status_code = status
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    return response
 
 
 def _utc_now_iso() -> str:
@@ -370,25 +380,27 @@ def _build_workbook(payload: Dict[str, Any]) -> Workbook:
 
 
 @app.get("/api/workbook-state")
+@require_auth(READ_ONLY_ROLES)
 def workbook_state() -> Response:
     dataset = request.args.get("dataset", "main")
     try:
-        return _json_no_store(_workbook_state_response(dataset))
+        return json_no_store(_workbook_state_response(dataset))
     except ValueError as exc:
-        return _json_no_store({"error": str(exc)}, 400)
+        return json_no_store({"error": str(exc)}, 400)
 
 
 @app.get("/api/workbook-file")
+@require_auth(READ_ONLY_ROLES)
 def workbook_file() -> Response:
     dataset = request.args.get("dataset", "main")
     try:
         normalized = _validate_dataset(dataset)
     except ValueError as exc:
-        return _json_no_store({"error": str(exc)}, 400)
+        return json_no_store({"error": str(exc)}, 400)
 
     workbook_path = _active_workbook_path(normalized)
     if not workbook_path.exists():
-        return _json_no_store({"error": f"No workbook has been uploaded for dataset '{normalized}'."}, 404)
+        return json_no_store({"error": f"No workbook has been uploaded for dataset '{normalized}'."}, 404)
 
     manifest = _read_manifest(normalized)
     download_name = str(manifest.get("fileName") or workbook_path.name)
@@ -404,20 +416,21 @@ def workbook_file() -> Response:
 
 
 @app.post("/api/upload-workbook")
+@require_auth(ADMIN_ONLY_ROLES)
 def upload_workbook() -> Response:
     dataset = request.args.get("dataset", "main")
     try:
         normalized = _validate_dataset(dataset)
     except ValueError as exc:
-        return _json_no_store({"error": str(exc)}, 400)
+        return json_no_store({"error": str(exc)}, 400)
 
     upload = request.files.get("file")
     if upload is None or not upload.filename:
-        return _json_no_store({"error": "Missing upload file. Use form field 'file' with a .xlsx workbook."}, 400)
+        return json_no_store({"error": "Missing upload file. Use form field 'file' with a .xlsx workbook."}, 400)
 
     original_name = Path(upload.filename).name
     if not original_name.lower().endswith(".xlsx"):
-        return _json_no_store({"error": "Only .xlsx files are allowed."}, 400)
+        return json_no_store({"error": "Only .xlsx files are allowed."}, 400)
 
     temp_path: Path | None = None
     try:
@@ -426,21 +439,21 @@ def upload_workbook() -> Response:
             temp_path = Path(temp_file.name)
 
         if temp_path is None or not temp_path.exists():
-            return _json_no_store({"error": "Saving the workbook file failed."}, 500)
+            return json_no_store({"error": "Saving the workbook file failed."}, 500)
 
         file_size = temp_path.stat().st_size
         if file_size <= 0:
             temp_path.unlink(missing_ok=True)
-            return _json_no_store({"error": "Uploaded workbook is empty."}, 400)
+            return json_no_store({"error": "Uploaded workbook is empty."}, 400)
 
         if file_size > MAX_UPLOAD_BYTES:
             temp_path.unlink(missing_ok=True)
-            return _json_no_store({"error": f"Workbook exceeds maximum size of {MAX_UPLOAD_BYTES} bytes."}, 413)
+            return json_no_store({"error": f"Workbook exceeds maximum size of {MAX_UPLOAD_BYTES} bytes."}, 413)
 
         with temp_path.open("rb") as handle:
             if handle.read(2) != b"PK":
                 temp_path.unlink(missing_ok=True)
-                return _json_no_store({"error": "Invalid workbook payload. Expected .xlsx content."}, 400)
+                return json_no_store({"error": "Invalid workbook payload. Expected .xlsx content."}, 400)
 
         os.replace(temp_path, _active_workbook_path(normalized))
         uploaded_at = _utc_now_iso()
@@ -454,7 +467,7 @@ def upload_workbook() -> Response:
         }
         _write_json_atomic(_manifest_path(normalized), manifest)
 
-        return _json_no_store(
+        return json_no_store(
             {
                 "dataset": normalized,
                 "hasWorkbook": True,
@@ -467,27 +480,29 @@ def upload_workbook() -> Response:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
         app.logger.exception("Failed uploading active workbook.")
-        return _json_no_store({"error": "Saving the workbook file failed."}, 500)
+        return json_no_store({"error": "Saving the workbook file failed."}, 500)
 
 
 @app.get("/api/planning-state")
+@require_auth(READ_ONLY_ROLES)
 def get_planning_state() -> Response:
     dataset = request.args.get("dataset", "main")
     try:
         normalized = _validate_dataset(dataset)
     except ValueError as exc:
-        return _json_no_store({"error": str(exc)}, 400)
-    return _json_no_store(_read_planning_state(normalized))
+        return json_no_store({"error": str(exc)}, 400)
+    return json_no_store(_read_planning_state(normalized))
 
 
 @app.post("/api/planning-state")
+@require_auth(ADMIN_ONLY_ROLES)
 def save_planning_state() -> Response:
     dataset = request.args.get("dataset", "main")
     payload = request.get_json(silent=True)
     if payload is None:
         payload = {}
     if not isinstance(payload, dict):
-        return _json_no_store({"error": "Invalid JSON payload."}, 400)
+        return json_no_store({"error": "Invalid JSON payload."}, 400)
 
     overrides = payload.get("overrides", {})
     base_version = payload.get("baseVersion")
@@ -495,17 +510,18 @@ def save_planning_state() -> Response:
 
     try:
         saved = _save_planning_state(dataset, overrides, base_version, source)
-        return _json_no_store(saved)
+        return json_no_store(saved)
     except ValueError as exc:
-        return _json_no_store({"error": str(exc)}, 400)
+        return json_no_store({"error": str(exc)}, 400)
     except RuntimeError as exc:
-        return _json_no_store({"error": str(exc)}, 409)
+        return json_no_store({"error": str(exc)}, 409)
     except Exception:
         app.logger.exception("Failed saving planning state. dataset=%s", dataset)
-        return _json_no_store({"error": "Failed saving planning state."}, 500)
+        return json_no_store({"error": "Failed saving planning state."}, 500)
 
 
 @app.get("/api/shared-health")
+@require_auth(ADMIN_ONLY_ROLES)
 def shared_health() -> Response:
     main_state = _workbook_state_response("main")
     sales_state = _workbook_state_response("sales")
@@ -536,6 +552,7 @@ def shared_health() -> Response:
 
 
 @app.post("/api/export-report")
+@require_auth(READ_ONLY_ROLES)
 def export_report() -> Response:
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
@@ -558,6 +575,39 @@ def export_report() -> Response:
 
 
 _ensure_store()
+
+
+@app.get("/api/auth/session")
+def auth_session() -> Response:
+    config_error = auth_configuration_error()
+    if config_error:
+        return json_no_store({"error": config_error}, 503)
+
+    return json_no_store(build_session_payload(current_session()))
+
+
+@app.post("/api/auth/login")
+def auth_login() -> Response:
+    config_error = auth_configuration_error()
+    if config_error:
+        return json_no_store({"error": config_error}, 503)
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return json_no_store({"error": "Invalid JSON payload."}, 400)
+
+    role = authenticate_password(payload.get("password"))
+    if role is None:
+        return json_no_store({"error": "Incorrect password. Please try again."}, 401)
+
+    response = json_no_store(build_session_payload(AuthSession(role=role)))
+    return set_session_cookie(response, role)
+
+
+@app.post("/api/auth/logout")
+def auth_logout() -> Response:
+    response = json_no_store({"authenticated": False, "role": None})
+    return clear_session_cookie(response)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=True)

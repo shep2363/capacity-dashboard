@@ -1,4 +1,5 @@
 import type { WorkbookDataset } from './activeWorkbookApi'
+import { buildSharedApiUrl, withAuth } from './apiBase'
 
 export interface PlanningStatePayload {
   dataset: WorkbookDataset
@@ -21,17 +22,6 @@ export class PlanningStateApiError extends Error {
     super(message)
     this.status = status
   }
-}
-
-const API_BASE =
-  import.meta.env.VITE_SHARED_DATA_API_URL ??
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : '')
-
-function buildApiUrl(path: string): string {
-  if (!API_BASE) {
-    return path
-  }
-  return `${API_BASE.replace(/\/$/, '')}${path}`
 }
 
 async function extractErrorMessage(response: Response): Promise<string> {
@@ -57,7 +47,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 }
 
 export async function fetchPlanningState(dataset: WorkbookDataset): Promise<PlanningStatePayload> {
-  const response = await fetch(buildApiUrl(`/api/planning-state?dataset=${dataset}`), { cache: 'no-store' })
+  const response = await fetch(buildSharedApiUrl(`/api/planning-state?dataset=${dataset}`), withAuth())
   return parseJson<PlanningStatePayload>(response)
 }
 
@@ -73,11 +63,13 @@ export async function savePlanningState(
   if (typeof options.baseVersion === 'number' && Number.isFinite(options.baseVersion) && options.baseVersion >= 0) {
     payload.baseVersion = options.baseVersion
   }
-  const response = await fetch(buildApiUrl(`/api/planning-state?dataset=${dataset}`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  })
+  const response = await fetch(
+    buildSharedApiUrl(`/api/planning-state?dataset=${dataset}`),
+    withAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  )
   return parseJson<PlanningStatePayload>(response)
 }

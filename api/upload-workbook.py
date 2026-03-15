@@ -7,6 +7,7 @@ from flask import Flask, Response, jsonify, request
 
 # Ensure sibling helper modules inside /api are importable in serverless runtime.
 sys.path.append(str(Path(__file__).resolve().parent))
+from _auth import ADMIN_ONLY_ROLES, require_auth
 from _workbook_store import store
 
 app = Flask(__name__)
@@ -14,6 +15,7 @@ app = Flask(__name__)
 
 @app.post("/")
 @app.post("/api/upload-workbook")
+@require_auth(ADMIN_ONLY_ROLES)
 def upload_workbook() -> Response:
     dataset = request.args.get("dataset", "main")
     uploaded_file = request.files.get("file")

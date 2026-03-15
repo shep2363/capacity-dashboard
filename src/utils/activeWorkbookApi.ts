@@ -1,3 +1,5 @@
+import { buildSharedApiUrl, withAuth } from './apiBase'
+
 export interface ActiveWorkbookStatus {
   hasWorkbook: boolean
   dataset: WorkbookDataset
@@ -7,17 +9,6 @@ export interface ActiveWorkbookStatus {
 }
 
 export type WorkbookDataset = 'main' | 'sales'
-
-const ACTIVE_WORKBOOK_API_BASE =
-  import.meta.env.VITE_SHARED_DATA_API_URL ??
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : '')
-
-function buildApiUrl(path: string): string {
-  if (!ACTIVE_WORKBOOK_API_BASE) {
-    return path
-  }
-  return `${ACTIVE_WORKBOOK_API_BASE.replace(/\/$/, '')}${path}`
-}
 
 async function extractErrorMessage(response: Response): Promise<string> {
   try {
@@ -35,7 +26,7 @@ async function extractErrorMessage(response: Response): Promise<string> {
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(buildApiUrl(path), { cache: 'no-store', ...init })
+  const response = await fetch(buildSharedApiUrl(path), withAuth(init))
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response))
   }
@@ -47,7 +38,7 @@ export async function fetchActiveWorkbookStatus(dataset: WorkbookDataset): Promi
 }
 
 export async function downloadActiveWorkbook(dataset: WorkbookDataset): Promise<ArrayBuffer> {
-  const response = await fetch(buildApiUrl(`/api/workbook-file?dataset=${dataset}`), { cache: 'no-store' })
+  const response = await fetch(buildSharedApiUrl(`/api/workbook-file?dataset=${dataset}`), withAuth())
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response))
   }

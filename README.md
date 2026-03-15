@@ -5,7 +5,6 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 ## Features
 
 - Upload or replace a `.xlsx` workbook in-browser
-- Uses `Hours_03-05-26.xlsx` from `public/` as initial development data
 - Parses task rows (`Name`, `Work`, `Start`, `Finish`, `Resource Names`, and `Project`/`Proje`)
 - Distributes each task's `Work` hours evenly across days from `Start` to `Finish`
 - Rolls up daily values into Monday-based weekly buckets
@@ -39,8 +38,13 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 - `src/utils/planner.ts`: planning data model, week aggregation, overrides
 - `src/utils/reportExport.ts`: client-side Excel export helpers (fallback path)
 - `src/utils/reportExportApi.ts`: backend chart-export API client
+- `src/utils/authApi.ts`: frontend auth/session API client
 - `src/utils/activeWorkbookApi.ts`: active workbook upload/load API client
 - `src/utils/planningStateApi.ts`: shared planning override state API client
+- `api/_auth.py`: shared auth/session helper for Python API routes
+- `api/auth-session.py`: Vercel serverless auth session route
+- `api/auth-login.py`: Vercel serverless login route
+- `api/auth-logout.py`: Vercel serverless logout route
 - `api/export-report.py`: Vercel serverless API route for embedded chart export
 - `api/workbook-state.py`: Vercel serverless active workbook metadata route
 - `api/workbook-file.py`: Vercel serverless active workbook download route
@@ -51,7 +55,6 @@ React + TypeScript dashboard for weekly hours forecasting from an Excel workbook
 - `backend/requirements.txt`: Python dependencies for export API
 - `requirements.txt`: Python dependencies for Vercel serverless API
 - `src/types.ts`: shared TypeScript models
-- `public/Hours_03-05-26.xlsx`: initial workbook used for development
 - `vercel.json`: Vercel build config
 - `netlify.toml`: Netlify build + SPA redirect config
 
@@ -105,12 +108,12 @@ pip install -r backend/requirements.txt
 python backend/export_api.py
 ```
 
-3. Keep it running at `http://127.0.0.1:8000` (or your LAN IP if sharing internally).
+3. Keep it running at `http://localhost:8000` (or your LAN IP if sharing internally).
 
 4. Set frontend API URL in `.env.local`:
 
 ```bash
-VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
+VITE_SHARED_DATA_API_URL=http://localhost:8000
 ```
 
 5. In the dashboard, upload a workbook in `Upload or Replace Workbook (.xlsx)`.
@@ -131,8 +134,42 @@ VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
 - Planning override entry limit (default 100000) can be overridden with: `CAPACITY_MAX_PLANNING_OVERRIDES`
 - Per-cell override max hours (default 1000000) can be overridden with: `CAPACITY_MAX_OVERRIDE_HOURS`
 
+### Authentication setup
+
+The dashboard now requires server-side authentication for workbook/planning APIs.
+
+Set these server environment variables for both `backend/export_api.py` and the Vercel `/api` routes:
+
+```bash
+CAPACITY_SESSION_SECRET=replace-with-a-long-random-secret
+CAPACITY_ADMIN_PASSWORD_HASH=$2b$12$replace_with_your_bcrypt_hash
+CAPACITY_USER_PASSWORD_HASH=$2b$12$replace_with_optional_user_hash
+```
+
+Optional auth settings:
+
+- `CAPACITY_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173`
+- `CAPACITY_SESSION_MAX_AGE_SECONDS=43200`
+- `CAPACITY_SESSION_COOKIE_SECURE=true|false`
+- `CAPACITY_SESSION_COOKIE_SAMESITE=Lax|Strict|None`
+
+Generate a bcrypt hash locally:
+
+```bash
+python3 - <<'PY'
+import bcrypt, getpass
+password = getpass.getpass('Password: ').encode()
+print(bcrypt.hashpw(password, bcrypt.gensalt()).decode())
+PY
+```
+
+The frontend no longer stores dashboard passwords in client code or browser storage.
+
 ### Active workbook API endpoints
 
+- `GET /api/auth/session`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
 - `GET /api/workbook-state?dataset=main|sales`
 - `GET /api/workbook-file?dataset=main|sales`
 - `POST /api/upload-workbook?dataset=main|sales`
@@ -144,6 +181,9 @@ VITE_SHARED_DATA_API_URL=http://127.0.0.1:8000
 
 This repo includes serverless Python routes in `/api`, including:
 
+- `/api/auth/session`
+- `/api/auth/login`
+- `/api/auth/logout`
 - `/api/export-report`
 - `/api/workbook-state`
 - `/api/workbook-file`
