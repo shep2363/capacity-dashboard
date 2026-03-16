@@ -876,6 +876,94 @@ button:disabled {
   color: #cbd5e1;
 }
 
+.revenue-page {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.revenue-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.2rem;
+  font-size: 0.94rem;
+  color: #cbd5e1;
+}
+
+.revenue-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+}
+
+.revenue-rate-editor input {
+  width: 100%;
+}
+
+.revenue-rate-table th,
+.revenue-rate-table td {
+  text-align: left;
+}
+
+.revenue-rate-table td:nth-child(2) {
+  text-align: right;
+}
+
+.revenue-rate-table td:nth-child(3),
+.revenue-rate-table td:nth-child(4) {
+  min-width: 190px;
+}
+
+.revenue-chart-wrap {
+  height: 500px;
+}
+
+.revenue-tooltip {
+  border-radius: 12px;
+  border: 1px solid #334155;
+  font-size: 0.9rem;
+  background-color: #0f172a;
+  color: #e5e7eb;
+  padding: 0.65rem 0.75rem;
+  min-width: 260px;
+}
+
+.revenue-tooltip-title {
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+}
+
+.revenue-tooltip-summary {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: 0.45rem;
+}
+
+.revenue-tooltip-grid {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.revenue-tooltip-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 0.8fr 0.9fr;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.revenue-tooltip-project {
+  font-weight: 700;
+  color: #bfdbfe;
+}
+
+.revenue-tooltip-metric {
+  text-align: right;
+  color: #e2e8f0;
+}
+
+.revenue-tooltip-empty {
+  color: #94a3b8;
+}
+
 .pivot-wrap,
 .table-wrap {
   overflow-x: auto;

@@ -4,6 +4,7 @@ import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import DepartmentPage, { buildDepartmentRows, type DepartmentFilters, type DepartmentRow } from './components/DepartmentPage'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
+import { RevenueWorkspace } from './components/RevenueWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
 import { type ExecutiveData, type KpiSet } from './components/ExecutiveSummary'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
@@ -17,6 +18,14 @@ import {
   savePlanningState,
   type PlanningStatePayload,
 } from './utils/planningStateApi'
+import {
+  RevenueRatesApiError,
+  fetchRevenueRates,
+  saveRevenueRates,
+  type RevenueRateMap,
+  type RevenueRatesPayload,
+} from './utils/revenueRatesApi'
+import { buildRevenueMetrics, buildRevenueRateRows, normalizeRateMap } from './utils/revenue'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
@@ -38,6 +47,7 @@ const APP_ADMIN_PASSWORD = '2431'
 const APP_USER_PASSWORD = '1357'
 const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
 const APP_ROLE_SESSION_KEY = 'capacity_dashboard_role'
+const DEFAULT_MAX_RATE_PER_HOUR = 1_000_000
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Fabrication: 1440,
   Assembly: 80,
@@ -65,9 +75,9 @@ const PROJECT_COLOR_PALETTE = [
   '#c084fc',
 ]
 
-type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping'
+type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping' | 'revenue'
 type AccessRole = 'admin' | 'user'
-const PAGE_TAB_ORDER: PageKey[] = ['report', 'processing', 'fabrication', 'assembly', 'paint', 'shipping', 'planning']
+const PAGE_TAB_ORDER: PageKey[] = ['report', 'processing', 'fabrication', 'assembly', 'paint', 'shipping', 'planning', 'revenue']
 const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
 const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   planning: 'Planning',
@@ -77,9 +87,12 @@ const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   assembly: 'Assembly',
   paint: 'Paint',
   shipping: 'Shipping',
+  revenue: 'Revenue',
 }
 const DEFAULT_DEPT_FILTER: DepartmentFilters = { projects: [], sequences: [], weeks: [], statuses: [] }
 type PlanningSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+type RevenueSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+type RevenueRateField = 'revenuePerHour' | 'grossProfitPerHour'
 
 function toNumericOverrides(overrides: Record<string, number>): Record<string, number> {
   const normalized: Record<string, number> = {}
@@ -95,6 +108,22 @@ function toNumericOverrides(overrides: Record<string, number>): Record<string, n
 function formatPlanningSaveLabel(status: PlanningSaveStatus, updatedAt: string | null, errorMessage: string): string {
   if (status === 'saving') {
     return 'Saving planning edits...'
+  }
+  if (status === 'saved') {
+    if (updatedAt) {
+      return `Saved ${new Date(updatedAt).toLocaleString()}`
+    }
+    return 'Saved'
+  }
+  if (status === 'error') {
+    return errorMessage || 'Save failed'
+  }
+  return updatedAt ? `Loaded ${new Date(updatedAt).toLocaleString()}` : 'Not yet saved'
+}
+
+function formatRevenueSaveLabel(status: RevenueSaveStatus, updatedAt: string | null, errorMessage: string): string {
+  if (status === 'saving') {
+    return 'Saving rates...'
   }
   if (status === 'saved') {
     if (updatedAt) {
@@ -175,6 +204,16 @@ function App() {
   const [salesPlanningUpdatedAt, setSalesPlanningUpdatedAt] = useState<string | null>(null)
   const [mainPlanningSyncReady, setMainPlanningSyncReady] = useState(false)
   const [salesPlanningSyncReady, setSalesPlanningSyncReady] = useState(false)
+  const [mainRevenueRates, setMainRevenueRates] = useState<RevenueRateMap>({})
+  const [salesRevenueRates, setSalesRevenueRates] = useState<RevenueRateMap>({})
+  const [mainRevenueSaveStatus, setMainRevenueSaveStatus] = useState<RevenueSaveStatus>('idle')
+  const [salesRevenueSaveStatus, setSalesRevenueSaveStatus] = useState<RevenueSaveStatus>('idle')
+  const [mainRevenueSaveError, setMainRevenueSaveError] = useState('')
+  const [salesRevenueSaveError, setSalesRevenueSaveError] = useState('')
+  const [mainRevenueUpdatedAt, setMainRevenueUpdatedAt] = useState<string | null>(null)
+  const [salesRevenueUpdatedAt, setSalesRevenueUpdatedAt] = useState<string | null>(null)
+  const [mainRevenueSyncReady, setMainRevenueSyncReady] = useState(false)
+  const [salesRevenueSyncReady, setSalesRevenueSyncReady] = useState(false)
   const [isPivotCollapsed, setIsPivotCollapsed] = useState(true)
   const [isSalesPivotCollapsed, setIsSalesPivotCollapsed] = useState(true)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
@@ -225,12 +264,25 @@ function App() {
   const salesPlanningSkipFirstPersistRef = useRef(true)
   const mainPlanningRequestSeqRef = useRef(0)
   const salesPlanningRequestSeqRef = useRef(0)
+  const mainRevenueVersionRef = useRef(0)
+  const salesRevenueVersionRef = useRef(0)
+  const mainRevenueSkipFirstPersistRef = useRef(true)
+  const salesRevenueSkipFirstPersistRef = useRef(true)
+  const mainRevenueRequestSeqRef = useRef(0)
+  const salesRevenueRequestSeqRef = useRef(0)
   const pageTabs: Array<{ key: PageKey; label: string }> = PAGE_TAB_ORDER.map((key) => ({
     key,
     label: DEPT_RESOURCE_LABEL[key],
   }))
 
   const [filters, setFilters] = useState<AppFilters>(createDefaultFilters())
+  const maxRatePerHour = useMemo(() => {
+    const raw = Number((import.meta.env as Record<string, string | undefined>).VITE_MAX_RATE_PER_HOUR ?? DEFAULT_MAX_RATE_PER_HOUR)
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return DEFAULT_MAX_RATE_PER_HOUR
+    }
+    return raw
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -269,12 +321,20 @@ function App() {
     async function loadInitialWorkbook(): Promise<void> {
       setMainPlanningSyncReady(false)
       setSalesPlanningSyncReady(false)
+      setMainRevenueSyncReady(false)
+      setSalesRevenueSyncReady(false)
       setMainPlanningSaveError('')
       setSalesPlanningSaveError('')
       setMainPlanningSaveStatus('idle')
       setSalesPlanningSaveStatus('idle')
+      setMainRevenueSaveError('')
+      setSalesRevenueSaveError('')
+      setMainRevenueSaveStatus('idle')
+      setSalesRevenueSaveStatus('idle')
       mainPlanningSkipFirstPersistRef.current = true
       salesPlanningSkipFirstPersistRef.current = true
+      mainRevenueSkipFirstPersistRef.current = true
+      salesRevenueSkipFirstPersistRef.current = true
       setIsLoading(true)
       setError('')
 
@@ -376,11 +436,63 @@ function App() {
             setSalesPlanningSyncReady(true)
           }
         }
+
+        try {
+          const mainRevenueState = await fetchRevenueRates('main')
+          if (!cancelled) {
+            const normalized = normalizeRateMap(mainRevenueState.rates ?? {})
+            setMainRevenueRates(normalized)
+            mainRevenueVersionRef.current = mainRevenueState.version ?? 0
+            setMainRevenueUpdatedAt(mainRevenueState.updatedAt ?? null)
+            setMainRevenueSaveError('')
+            setMainRevenueSaveStatus('idle')
+          }
+        } catch (mainRevenueLoadError) {
+          console.warn('[capacity-dashboard] shared main revenue rates load failed', mainRevenueLoadError)
+          if (!cancelled) {
+            setMainRevenueRates({})
+            mainRevenueVersionRef.current = 0
+            setMainRevenueUpdatedAt(null)
+            setMainRevenueSaveStatus('error')
+            setMainRevenueSaveError('Failed to load shared shop revenue rates.')
+          }
+        } finally {
+          if (!cancelled) {
+            setMainRevenueSyncReady(true)
+          }
+        }
+
+        try {
+          const salesRevenueState = await fetchRevenueRates('sales')
+          if (!cancelled) {
+            const normalized = normalizeRateMap(salesRevenueState.rates ?? {})
+            setSalesRevenueRates(normalized)
+            salesRevenueVersionRef.current = salesRevenueState.version ?? 0
+            setSalesRevenueUpdatedAt(salesRevenueState.updatedAt ?? null)
+            setSalesRevenueSaveError('')
+            setSalesRevenueSaveStatus('idle')
+          }
+        } catch (salesRevenueLoadError) {
+          console.warn('[capacity-dashboard] shared sales revenue rates load failed', salesRevenueLoadError)
+          if (!cancelled) {
+            setSalesRevenueRates({})
+            salesRevenueVersionRef.current = 0
+            setSalesRevenueUpdatedAt(null)
+            setSalesRevenueSaveStatus('error')
+            setSalesRevenueSaveError('Failed to load shared sales revenue rates.')
+          }
+        } finally {
+          if (!cancelled) {
+            setSalesRevenueSyncReady(true)
+          }
+        }
       } catch {
         if (!cancelled) {
           setError('Could not load the active workbook. Upload a .xlsx file to continue.')
           setMainPlanningSyncReady(true)
           setSalesPlanningSyncReady(true)
+          setMainRevenueSyncReady(true)
+          setSalesRevenueSyncReady(true)
         }
       } finally {
         if (!cancelled) {
@@ -509,6 +621,120 @@ function App() {
 
     return () => window.clearTimeout(timer)
   }, [salesManualOverrides, salesPlanningSyncReady])
+
+  useEffect(() => {
+    if (!mainRevenueSyncReady) {
+      return
+    }
+    if (mainRevenueSkipFirstPersistRef.current) {
+      mainRevenueSkipFirstPersistRef.current = false
+      return
+    }
+
+    const normalizedRates = normalizeRateMap(mainRevenueRates)
+    const requestSeq = mainRevenueRequestSeqRef.current + 1
+    mainRevenueRequestSeqRef.current = requestSeq
+    setMainRevenueSaveStatus('saving')
+    setMainRevenueSaveError('')
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          let saved: RevenueRatesPayload
+          try {
+            saved = await saveRevenueRates('main', normalizedRates, {
+              baseVersion: mainRevenueVersionRef.current,
+              source: 'revenue-ui',
+            })
+          } catch (error) {
+            if (error instanceof RevenueRatesApiError && error.status === 409) {
+              const latest = await fetchRevenueRates('main')
+              mainRevenueVersionRef.current = latest.version
+              saved = await saveRevenueRates('main', normalizedRates, {
+                baseVersion: mainRevenueVersionRef.current,
+                source: 'revenue-ui-retry',
+              })
+            } else {
+              throw error
+            }
+          }
+          if (requestSeq !== mainRevenueRequestSeqRef.current) {
+            return
+          }
+          mainRevenueVersionRef.current = saved.version
+          setMainRevenueUpdatedAt(saved.updatedAt)
+          setMainRevenueSaveStatus('saved')
+          setMainRevenueSaveError('')
+        } catch (error) {
+          if (requestSeq !== mainRevenueRequestSeqRef.current) {
+            return
+          }
+          const message = error instanceof Error ? error.message : 'Failed to save shared shop revenue rates.'
+          setMainRevenueSaveStatus('error')
+          setMainRevenueSaveError(message)
+        }
+      })()
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [mainRevenueRates, mainRevenueSyncReady])
+
+  useEffect(() => {
+    if (!salesRevenueSyncReady) {
+      return
+    }
+    if (salesRevenueSkipFirstPersistRef.current) {
+      salesRevenueSkipFirstPersistRef.current = false
+      return
+    }
+
+    const normalizedRates = normalizeRateMap(salesRevenueRates)
+    const requestSeq = salesRevenueRequestSeqRef.current + 1
+    salesRevenueRequestSeqRef.current = requestSeq
+    setSalesRevenueSaveStatus('saving')
+    setSalesRevenueSaveError('')
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          let saved: RevenueRatesPayload
+          try {
+            saved = await saveRevenueRates('sales', normalizedRates, {
+              baseVersion: salesRevenueVersionRef.current,
+              source: 'sales-revenue-ui',
+            })
+          } catch (error) {
+            if (error instanceof RevenueRatesApiError && error.status === 409) {
+              const latest = await fetchRevenueRates('sales')
+              salesRevenueVersionRef.current = latest.version
+              saved = await saveRevenueRates('sales', normalizedRates, {
+                baseVersion: salesRevenueVersionRef.current,
+                source: 'sales-revenue-ui-retry',
+              })
+            } else {
+              throw error
+            }
+          }
+          if (requestSeq !== salesRevenueRequestSeqRef.current) {
+            return
+          }
+          salesRevenueVersionRef.current = saved.version
+          setSalesRevenueUpdatedAt(saved.updatedAt)
+          setSalesRevenueSaveStatus('saved')
+          setSalesRevenueSaveError('')
+        } catch (error) {
+          if (requestSeq !== salesRevenueRequestSeqRef.current) {
+            return
+          }
+          const message = error instanceof Error ? error.message : 'Failed to save shared sales revenue rates.'
+          setSalesRevenueSaveStatus('error')
+          setSalesRevenueSaveError(message)
+        }
+      })()
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [salesRevenueRates, salesRevenueSyncReady])
 
   const resources = useMemo(() => uniqueSorted(tasks.map((task) => task.resourceName)), [tasks])
   const salesResources = useMemo(() => uniqueSorted(salesTasks.map((task) => task.resourceName)), [salesTasks])
@@ -988,6 +1214,39 @@ function App() {
     })
     return totals
   }, [salesFinalByKey, salesBaseLayer.weekKeys])
+
+  const revenueRateRows = useMemo(
+    () =>
+      buildRevenueRateRows(
+        availableProjects,
+        salesAvailableProjects,
+        projectTotals,
+        salesProjectTotals,
+        mainRevenueRates,
+        salesRevenueRates,
+      ),
+    [
+      availableProjects,
+      salesAvailableProjects,
+      projectTotals,
+      salesProjectTotals,
+      mainRevenueRates,
+      salesRevenueRates,
+    ],
+  )
+
+  const { weeklyRevenueRows, weeklyProjectKeys, grossProfitRows } = useMemo(
+    () =>
+      buildRevenueMetrics({
+        mainFinalByKey: finalByKey,
+        salesFinalByKey: salesFinalByKey,
+        mainWeekKeys: baseLayer.weekKeys,
+        salesWeekKeys: salesBaseLayer.weekKeys,
+        mainRates: mainRevenueRates,
+        salesRates: salesRevenueRates,
+      }),
+    [finalByKey, salesFinalByKey, baseLayer.weekKeys, salesBaseLayer.weekKeys, mainRevenueRates, salesRevenueRates],
+  )
 
   const topProjects = useMemo(() => {
     const combinedEntries: Array<{ project: string; hours: number }> = []
@@ -1534,6 +1793,41 @@ function App() {
     handleToggleProject(project)
   }
 
+  function handleRevenueRateChange(
+    dataset: 'main' | 'sales',
+    project: string,
+    field: RevenueRateField,
+    rawValue: string,
+  ): void {
+    const normalizedProject = project.trim()
+    if (!normalizedProject) {
+      return
+    }
+    const trimmedValue = rawValue.trim()
+    const parsed = trimmedValue === '' ? 0 : Number(trimmedValue)
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return
+    }
+    const nextValue = Math.min(parsed, maxRatePerHour)
+    const update = (current: RevenueRateMap): RevenueRateMap => {
+      const currentEntry = current[normalizedProject] ?? { revenuePerHour: 0, grossProfitPerHour: 0 }
+      const nextEntry = {
+        ...currentEntry,
+        [field]: nextValue,
+      }
+      const next = { ...current, [normalizedProject]: nextEntry }
+      if (nextEntry.revenuePerHour === 0 && nextEntry.grossProfitPerHour === 0) {
+        delete next[normalizedProject]
+      }
+      return next
+    }
+    if (dataset === 'main') {
+      setMainRevenueRates(update)
+      return
+    }
+    setSalesRevenueRates(update)
+  }
+
   const overCapacityWeeks = useMemo(
     () => new Set(weeklyBuckets.filter((bucket) => bucket.overCapacity).map((bucket) => bucket.weekStartIso)),
     [weeklyBuckets],
@@ -1638,6 +1932,16 @@ function App() {
     salesPlanningSaveStatus,
     salesPlanningUpdatedAt,
     salesPlanningSaveError,
+  )
+  const mainRevenueSaveLabel = formatRevenueSaveLabel(
+    mainRevenueSaveStatus,
+    mainRevenueUpdatedAt,
+    mainRevenueSaveError,
+  )
+  const salesRevenueSaveLabel = formatRevenueSaveLabel(
+    salesRevenueSaveStatus,
+    salesRevenueUpdatedAt,
+    salesRevenueSaveError,
   )
   const isUserMode = accessRole === 'user'
   const canViewAdminPlanningControls = accessRole === 'admin'
@@ -2099,6 +2403,27 @@ function App() {
           filter={getDeptFilter('Shipping')}
           onFilterChange={(next) => setDeptFilter('Shipping', next)}
         />
+      )}
+
+      {activePage === 'revenue' && (
+        <>
+          {isLoading && <div className="panel status">Loading workbook...</div>}
+          {!isLoading && error && <div className="panel status error">{error}</div>}
+          {!isLoading && !error && (
+            <RevenueWorkspace
+              rateRows={revenueRateRows}
+              weeklyRevenueRows={weeklyRevenueRows}
+              weeklyProjectKeys={weeklyProjectKeys}
+              grossProfitRows={grossProfitRows}
+              maxRatePerHour={maxRatePerHour}
+              onRateChange={handleRevenueRateChange}
+              mainSaveLabel={mainRevenueSaveLabel}
+              salesSaveLabel={salesRevenueSaveLabel}
+              mainSaveStatus={mainRevenueSaveStatus}
+              salesSaveStatus={salesRevenueSaveStatus}
+            />
+          )}
+        </>
       )}
 
       {activePage === 'report' && (

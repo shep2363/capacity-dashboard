@@ -23,10 +23,16 @@ WORKBOOK_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.she
 PLANNING_STATE_MIME = "application/json"
 DEFAULT_MAX_PLANNING_OVERRIDES = 100_000
 DEFAULT_MAX_OVERRIDE_HOURS = 1_000_000.0
+DEFAULT_MAX_RATE_PROJECTS = 10_000
+DEFAULT_MAX_RATE_PER_HOUR = 1_000_000.0
 
 
 class PlanningStateConflictError(RuntimeError):
     """Raised when a planning state save uses a stale version."""
+
+
+class RevenueRatesConflictError(RuntimeError):
+    """Raised when a revenue rates save uses a stale version."""
 
 
 def _utc_now_iso() -> str:
@@ -82,6 +88,8 @@ class WorkbookStore:
         self.max_upload_bytes = self._read_max_upload_bytes()
         self.max_planning_overrides = self._read_max_planning_overrides()
         self.max_override_hours = self._read_max_override_hours()
+        self.max_rate_projects = self._read_max_rate_projects()
+        self.max_rate_per_hour = self._read_max_rate_per_hour()
         self.blob_token = os.getenv("BLOB_READ_WRITE_TOKEN", "").strip()
         self.use_blob = bool(self.blob_token and put is not None and list_objects is not None)
         self._ensure_store()
@@ -107,12 +115,28 @@ class WorkbookStore:
         except (TypeError, ValueError):
             return DEFAULT_MAX_OVERRIDE_HOURS
 
+    def _read_max_rate_projects(self) -> int:
+        raw = os.getenv("CAPACITY_MAX_RATE_PROJECTS", str(DEFAULT_MAX_RATE_PROJECTS))
+        try:
+            return max(1, int(raw))
+        except (TypeError, ValueError):
+            return DEFAULT_MAX_RATE_PROJECTS
+
+    def _read_max_rate_per_hour(self) -> float:
+        raw = os.getenv("CAPACITY_MAX_RATE_PER_HOUR", str(DEFAULT_MAX_RATE_PER_HOUR))
+        try:
+            return max(0.0, float(raw))
+        except (TypeError, ValueError):
+            return DEFAULT_MAX_RATE_PER_HOUR
+
     def _ensure_store(self) -> None:
         self.data_root.mkdir(parents=True, exist_ok=True)
         self.manifest_dir.mkdir(parents=True, exist_ok=True)
         for dataset in DATASETS:
             if not self._local_manifest_path(dataset).exists():
                 self._write_local_manifest(dataset, self._default_manifest(dataset))
+            if not self._local_revenue_rates_path(dataset).exists():
+                self._write_local_revenue_rates_state(dataset, self._default_revenue_rates_state(dataset))
 
     def _validate_dataset(self, dataset: str) -> str:
         normalized = (dataset or "").strip().lower()
@@ -140,6 +164,9 @@ class WorkbookStore:
     def _local_planning_state_path(self, dataset: str) -> Path:
         return self.data_root / f"planning_state_{dataset}.json"
 
+    def _local_revenue_rates_path(self, dataset: str) -> Path:
+        return self.data_root / f"revenue_rates_{dataset}.json"
+
     def _default_planning_state(self, dataset: str) -> Dict[str, Any]:
         return {
             "dataset": dataset,
@@ -148,6 +175,16 @@ class WorkbookStore:
             "source": "system",
             "overrideCount": 0,
             "overrides": {},
+        }
+
+    def _default_revenue_rates_state(self, dataset: str) -> Dict[str, Any]:
+        return {
+            "dataset": dataset,
+            "version": 0,
+            "updatedAt": None,
+            "source": "system",
+            "rateCount": 0,
+            "rates": {},
         }
 
     def _normalize_source(self, source: Any) -> str:
@@ -199,6 +236,51 @@ class WorkbookStore:
             normalized[key] = value
         return normalized
 
+    def _normalize_rate_value(self, value: Any, project: str, field_name: str) -> float:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid {field_name} for project '{project}'.") from exc
+        if not math.isfinite(numeric) or numeric < 0:
+            raise ValueError(f"{field_name} for project '{project}' must be a finite non-negative number.")
+        if numeric > self.max_rate_per_hour:
+            raise ValueError(
+                f"{field_name} for project '{project}' exceeds maximum of {self.max_rate_per_hour}."
+            )
+        return numeric
+
+    def _normalize_revenue_rates(self, rates: Any) -> Dict[str, Dict[str, float]]:
+        if rates is None:
+            return {}
+        if not isinstance(rates, dict):
+            raise ValueError("Invalid revenue rates payload. 'rates' must be an object.")
+        if len(rates) > self.max_rate_projects:
+            raise ValueError(f"Revenue rates exceed maximum of {self.max_rate_projects} projects.")
+
+        normalized: Dict[str, Dict[str, float]] = {}
+        for raw_project, raw_rate in rates.items():
+            if not isinstance(raw_project, str):
+                raise ValueError("Invalid revenue rate project key.")
+            project = raw_project.strip()
+            if not project:
+                raise ValueError("Revenue rate project keys cannot be empty.")
+            if len(project) > 256 or "\n" in project or "\r" in project:
+                raise ValueError("Invalid revenue rate project key format.")
+            if not isinstance(raw_rate, dict):
+                raise ValueError(f"Invalid revenue rate payload for project '{project}'.")
+
+            revenue_per_hour = self._normalize_rate_value(raw_rate.get("revenuePerHour", 0), project, "revenuePerHour")
+            gross_profit_per_hour = self._normalize_rate_value(
+                raw_rate.get("grossProfitPerHour", 0),
+                project,
+                "grossProfitPerHour",
+            )
+            normalized[project] = {
+                "revenuePerHour": revenue_per_hour,
+                "grossProfitPerHour": gross_profit_per_hour,
+            }
+        return normalized
+
     def _coerce_planning_state(self, dataset: str, payload: Any) -> Dict[str, Any]:
         default_state = self._default_planning_state(dataset)
         if not isinstance(payload, dict):
@@ -225,6 +307,34 @@ class WorkbookStore:
             "source": self._normalize_source(payload.get("source")),
             "overrideCount": len(overrides),
             "overrides": overrides,
+        }
+
+    def _coerce_revenue_rates_state(self, dataset: str, payload: Any) -> Dict[str, Any]:
+        default_state = self._default_revenue_rates_state(dataset)
+        if not isinstance(payload, dict):
+            return default_state
+
+        version = payload.get("version")
+        if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+            version = 0
+
+        updated_at = payload.get("updatedAt")
+        if not isinstance(updated_at, str):
+            updated_at = None
+
+        rates_payload = payload.get("rates")
+        try:
+            rates = self._normalize_revenue_rates(rates_payload if rates_payload is not None else {})
+        except ValueError:
+            rates = {}
+
+        return {
+            "dataset": dataset,
+            "version": version,
+            "updatedAt": updated_at,
+            "source": self._normalize_source(payload.get("source")),
+            "rateCount": len(rates),
+            "rates": rates,
         }
 
     def _write_json_atomic(self, path: Path, payload: Dict[str, Any]) -> None:
@@ -270,6 +380,20 @@ class WorkbookStore:
 
     def _write_local_planning_state(self, dataset: str, payload: Dict[str, Any]) -> None:
         self._write_json_atomic(self._local_planning_state_path(dataset), payload)
+
+    def _read_local_revenue_rates_state(self, dataset: str) -> Dict[str, Any]:
+        path = self._local_revenue_rates_path(dataset)
+        if not path.exists():
+            return self._default_revenue_rates_state(dataset)
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception:
+            return self._default_revenue_rates_state(dataset)
+        return self._coerce_revenue_rates_state(dataset, payload)
+
+    def _write_local_revenue_rates_state(self, dataset: str, payload: Dict[str, Any]) -> None:
+        self._write_json_atomic(self._local_revenue_rates_path(dataset), payload)
 
     def _blob_common_kwargs(self) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {}
@@ -520,6 +644,80 @@ class WorkbookStore:
             return next_state
 
         self._write_local_planning_state(normalized, next_state)
+        return next_state
+
+    def revenue_rates(self, dataset: str) -> Dict[str, Any]:
+        normalized = self._validate_dataset(dataset)
+        if self.use_blob:
+            manifest = self._blob_latest_json_manifest(f"capacity-dashboard/revenue-manifests/{normalized}/")
+            if not manifest:
+                return self._default_revenue_rates_state(normalized)
+            state_url = str(manifest.get("stateUrl") or "")
+            if not state_url:
+                return self._default_revenue_rates_state(normalized)
+            with urllib.request.urlopen(state_url, timeout=20) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            return self._coerce_revenue_rates_state(normalized, payload)
+        return self._read_local_revenue_rates_state(normalized)
+
+    def save_revenue_rates(
+        self,
+        dataset: str,
+        rates: Any,
+        base_version: Any = None,
+        source: Any = "ui",
+    ) -> Dict[str, Any]:
+        normalized = self._validate_dataset(dataset)
+        normalized_rates = self._normalize_revenue_rates(rates)
+        normalized_base_version = self._normalize_base_version(base_version)
+        normalized_source = self._normalize_source(source)
+        updated_at = _utc_now_iso()
+
+        current_state = self.revenue_rates(normalized)
+        current_version = int(current_state.get("version") or 0)
+        if normalized_base_version is not None and normalized_base_version != current_version:
+            raise RevenueRatesConflictError(
+                f"Revenue rates version conflict for dataset '{normalized}'. "
+                f"Expected {normalized_base_version}, current is {current_version}."
+            )
+
+        next_state = {
+            "dataset": normalized,
+            "version": current_version + 1,
+            "updatedAt": updated_at,
+            "source": normalized_source,
+            "rateCount": len(normalized_rates),
+            "rates": normalized_rates,
+        }
+
+        if self.use_blob:
+            timestamp = _timestamp_ms()
+            state_path = f"capacity-dashboard/revenue-rates/{normalized}/{timestamp}.json"
+            state_blob = self._blob_put(
+                state_path,
+                json.dumps(next_state, separators=(",", ":")).encode("utf-8"),
+                PLANNING_STATE_MIME,
+            )
+            state_url = str(state_blob.get("url") or "")
+            state_storage_path = str(state_blob.get("pathname") or state_path)
+            manifest_payload = {
+                "dataset": normalized,
+                "version": next_state["version"],
+                "updatedAt": next_state["updatedAt"],
+                "source": normalized_source,
+                "rateCount": next_state["rateCount"],
+                "stateUrl": state_url,
+                "statePath": state_storage_path,
+            }
+            manifest_path = f"capacity-dashboard/revenue-manifests/{normalized}/{timestamp}.json"
+            self._blob_put(
+                manifest_path,
+                json.dumps(manifest_payload, separators=(",", ":")).encode("utf-8"),
+                PLANNING_STATE_MIME,
+            )
+            return next_state
+
+        self._write_local_revenue_rates_state(normalized, next_state)
         return next_state
 
 

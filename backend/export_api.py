@@ -42,6 +42,10 @@ DEFAULT_MAX_PLANNING_OVERRIDES = 100_000
 MAX_PLANNING_OVERRIDES = _env_int("CAPACITY_MAX_PLANNING_OVERRIDES", DEFAULT_MAX_PLANNING_OVERRIDES)
 DEFAULT_MAX_OVERRIDE_HOURS = 1_000_000.0
 MAX_OVERRIDE_HOURS = _env_float("CAPACITY_MAX_OVERRIDE_HOURS", DEFAULT_MAX_OVERRIDE_HOURS)
+DEFAULT_MAX_RATE_PROJECTS = 10_000
+MAX_RATE_PROJECTS = _env_int("CAPACITY_MAX_RATE_PROJECTS", DEFAULT_MAX_RATE_PROJECTS)
+DEFAULT_MAX_RATE_PER_HOUR = 1_000_000.0
+MAX_RATE_PER_HOUR = _env_float("CAPACITY_MAX_RATE_PER_HOUR", DEFAULT_MAX_RATE_PER_HOUR)
 DATA_ROOT = Path(os.getenv("CAPACITY_SHARED_DATA_DIR", Path(__file__).resolve().parent / "shared_store")).resolve()
 DATASETS = {"main", "sales"}
 MANIFEST_DIR = DATA_ROOT / "manifests"
@@ -81,6 +85,10 @@ def _planning_state_path(dataset: str) -> Path:
     return DATA_ROOT / f"planning_state_{dataset}.json"
 
 
+def _revenue_rates_path(dataset: str) -> Path:
+    return DATA_ROOT / f"revenue_rates_{dataset}.json"
+
+
 def _default_planning_state(dataset: str) -> Dict[str, Any]:
     return {
         "dataset": dataset,
@@ -89,6 +97,17 @@ def _default_planning_state(dataset: str) -> Dict[str, Any]:
         "source": "system",
         "overrideCount": 0,
         "overrides": {},
+    }
+
+
+def _default_revenue_rates_state(dataset: str) -> Dict[str, Any]:
+    return {
+        "dataset": dataset,
+        "version": 0,
+        "updatedAt": None,
+        "source": "system",
+        "rateCount": 0,
+        "rates": {},
     }
 
 
@@ -144,6 +163,49 @@ def _normalize_overrides(overrides: Any) -> Dict[str, float]:
     return normalized
 
 
+def _normalize_rate_value(value: Any, project: str, field_name: str) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid {field_name} for project '{project}'.") from exc
+    if not math.isfinite(numeric) or numeric < 0:
+        raise ValueError(f"{field_name} for project '{project}' must be a finite non-negative number.")
+    if numeric > MAX_RATE_PER_HOUR:
+        raise ValueError(f"{field_name} for project '{project}' exceeds maximum of {MAX_RATE_PER_HOUR}.")
+    return numeric
+
+
+def _normalize_revenue_rates(rates: Any) -> Dict[str, Dict[str, float]]:
+    if rates is None:
+        return {}
+    if not isinstance(rates, dict):
+        raise ValueError("Invalid revenue rates payload. 'rates' must be an object.")
+    if len(rates) > MAX_RATE_PROJECTS:
+        raise ValueError(f"Revenue rates exceed maximum of {MAX_RATE_PROJECTS} projects.")
+    normalized: Dict[str, Dict[str, float]] = {}
+    for raw_project, raw_rate in rates.items():
+        if not isinstance(raw_project, str):
+            raise ValueError("Invalid revenue rate project key.")
+        project = raw_project.strip()
+        if not project:
+            raise ValueError("Revenue rate project keys cannot be empty.")
+        if len(project) > 256 or "\n" in project or "\r" in project:
+            raise ValueError("Invalid revenue rate project key format.")
+        if not isinstance(raw_rate, dict):
+            raise ValueError(f"Invalid revenue rate payload for project '{project}'.")
+        revenue_per_hour = _normalize_rate_value(raw_rate.get("revenuePerHour", 0), project, "revenuePerHour")
+        gross_profit_per_hour = _normalize_rate_value(
+            raw_rate.get("grossProfitPerHour", 0),
+            project,
+            "grossProfitPerHour",
+        )
+        normalized[project] = {
+            "revenuePerHour": revenue_per_hour,
+            "grossProfitPerHour": gross_profit_per_hour,
+        }
+    return normalized
+
+
 def _coerce_planning_state(dataset: str, payload: Any) -> Dict[str, Any]:
     if not isinstance(payload, dict):
         return _default_planning_state(dataset)
@@ -165,6 +227,30 @@ def _coerce_planning_state(dataset: str, payload: Any) -> Dict[str, Any]:
         "source": _normalize_source(payload.get("source")),
         "overrideCount": len(overrides),
         "overrides": overrides,
+    }
+
+
+def _coerce_revenue_rates_state(dataset: str, payload: Any) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return _default_revenue_rates_state(dataset)
+    version = payload.get("version")
+    if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+        version = 0
+    updated_at = payload.get("updatedAt")
+    if not isinstance(updated_at, str):
+        updated_at = None
+    rates_raw = payload.get("rates")
+    try:
+        rates = _normalize_revenue_rates(rates_raw if rates_raw is not None else {})
+    except ValueError:
+        rates = {}
+    return {
+        "dataset": dataset,
+        "version": version,
+        "updatedAt": updated_at,
+        "source": _normalize_source(payload.get("source")),
+        "rateCount": len(rates),
+        "rates": rates,
     }
 
 
@@ -210,6 +296,19 @@ def _read_planning_state(dataset: str) -> Dict[str, Any]:
     return _coerce_planning_state(dataset, payload)
 
 
+def _read_revenue_rates_state(dataset: str) -> Dict[str, Any]:
+    path = _revenue_rates_path(dataset)
+    if not path.exists():
+        return _default_revenue_rates_state(dataset)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception:
+        app.logger.exception("Failed reading revenue rates state. dataset=%s", dataset)
+        return _default_revenue_rates_state(dataset)
+    return _coerce_revenue_rates_state(dataset, payload)
+
+
 def _save_planning_state(dataset: str, overrides: Any, base_version: Any, source: Any) -> Dict[str, Any]:
     normalized = _validate_dataset(dataset)
     normalized_overrides = _normalize_overrides(overrides)
@@ -233,6 +332,29 @@ def _save_planning_state(dataset: str, overrides: Any, base_version: Any, source
     return next_state
 
 
+def _save_revenue_rates(dataset: str, rates: Any, base_version: Any, source: Any) -> Dict[str, Any]:
+    normalized = _validate_dataset(dataset)
+    normalized_rates = _normalize_revenue_rates(rates)
+    normalized_base_version = _normalize_base_version(base_version)
+    current_state = _read_revenue_rates_state(normalized)
+    current_version = int(current_state.get("version") or 0)
+    if normalized_base_version is not None and normalized_base_version != current_version:
+        raise RuntimeError(
+            f"Revenue rates version conflict for dataset '{normalized}'. "
+            f"Expected {normalized_base_version}, current is {current_version}."
+        )
+    next_state = {
+        "dataset": normalized,
+        "version": current_version + 1,
+        "updatedAt": _utc_now_iso(),
+        "source": _normalize_source(source),
+        "rateCount": len(normalized_rates),
+        "rates": normalized_rates,
+    }
+    _write_json_atomic(_revenue_rates_path(normalized), next_state)
+    return next_state
+
+
 def _ensure_store() -> None:
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
@@ -243,6 +365,9 @@ def _ensure_store() -> None:
         planning_path = _planning_state_path(dataset)
         if not planning_path.exists():
             _write_json_atomic(planning_path, _default_planning_state(dataset))
+        revenue_path = _revenue_rates_path(dataset)
+        if not revenue_path.exists():
+            _write_json_atomic(revenue_path, _default_revenue_rates_state(dataset))
 
 
 def _workbook_state_response(dataset: str) -> Dict[str, Any]:
@@ -505,12 +630,49 @@ def save_planning_state() -> Response:
         return _json_no_store({"error": "Failed saving planning state."}, 500)
 
 
+@app.get("/api/revenue-rates")
+def get_revenue_rates() -> Response:
+    dataset = request.args.get("dataset", "main")
+    try:
+        normalized = _validate_dataset(dataset)
+    except ValueError as exc:
+        return _json_no_store({"error": str(exc)}, 400)
+    return _json_no_store(_read_revenue_rates_state(normalized))
+
+
+@app.post("/api/revenue-rates")
+def save_revenue_rates() -> Response:
+    dataset = request.args.get("dataset", "main")
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict):
+        return _json_no_store({"error": "Invalid JSON payload."}, 400)
+
+    rates = payload.get("rates", {})
+    base_version = payload.get("baseVersion")
+    source = payload.get("source", "ui")
+
+    try:
+        saved = _save_revenue_rates(dataset, rates, base_version, source)
+        return _json_no_store(saved)
+    except ValueError as exc:
+        return _json_no_store({"error": str(exc)}, 400)
+    except RuntimeError as exc:
+        return _json_no_store({"error": str(exc)}, 409)
+    except Exception:
+        app.logger.exception("Failed saving revenue rates. dataset=%s", dataset)
+        return _json_no_store({"error": "Failed saving revenue rates."}, 500)
+
+
 @app.get("/api/shared-health")
 def shared_health() -> Response:
     main_state = _workbook_state_response("main")
     sales_state = _workbook_state_response("sales")
     main_planning = _read_planning_state("main")
     sales_planning = _read_planning_state("sales")
+    main_revenue = _read_revenue_rates_state("main")
+    sales_revenue = _read_revenue_rates_state("sales")
     return jsonify(
         {
             "status": "ok",
@@ -529,6 +691,18 @@ def shared_health() -> Response:
                     "version": sales_planning.get("version", 0),
                     "updatedAt": sales_planning.get("updatedAt"),
                     "overrideCount": sales_planning.get("overrideCount", 0),
+                },
+            },
+            "revenueRates": {
+                "main": {
+                    "version": main_revenue.get("version", 0),
+                    "updatedAt": main_revenue.get("updatedAt"),
+                    "rateCount": main_revenue.get("rateCount", 0),
+                },
+                "sales": {
+                    "version": sales_revenue.get("version", 0),
+                    "updatedAt": sales_revenue.get("updatedAt"),
+                    "rateCount": sales_revenue.get("rateCount", 0),
                 },
             },
         }
