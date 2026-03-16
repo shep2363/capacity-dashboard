@@ -115,13 +115,31 @@ function CompactLegend({
 }
 
 interface WeeklyTooltipEntry {
+  dataKey?: string | number
+  color?: string
   payload?: WeeklyRevenueRow
 }
 
-function WeeklyRevenueTooltip({ active, payload }: { active?: boolean; payload?: WeeklyTooltipEntry[] }) {
+function WeeklyRevenueTooltip({
+  active,
+  payload,
+  projectColorMap,
+}: {
+  active?: boolean
+  payload?: WeeklyTooltipEntry[]
+  projectColorMap: Record<string, string>
+}) {
   if (!active || !payload || payload.length === 0) return null
   const row = payload[0]?.payload
   if (!row) return null
+  const payloadColorMap: Record<string, string> = {}
+  payload.forEach((entry) => {
+    const dataKey = typeof entry.dataKey === 'string' ? entry.dataKey : null
+    if (!dataKey || !entry.color) {
+      return
+    }
+    payloadColorMap[dataKey] = entry.color
+  })
 
   return (
     <div className="revenue-tooltip">
@@ -134,14 +152,25 @@ function WeeklyRevenueTooltip({ active, payload }: { active?: boolean; payload?:
         {row.details.length === 0 ? (
           <div className="revenue-tooltip-empty">No planned hours for this week.</div>
         ) : (
-          row.details.map((detail) => (
-            <div key={`${row.weekStartIso}-${detail.projectLabel}`} className="revenue-tooltip-row">
-              <div className="revenue-tooltip-project">{detail.projectLabel}</div>
-              <div className="revenue-tooltip-metric">{detail.plannedHours.toFixed(1)} h</div>
-              <div className="revenue-tooltip-metric">{formatCurrency(detail.revenuePerHour)}/h</div>
-              <div className="revenue-tooltip-metric">{formatCurrency(detail.revenueAmount)}</div>
-            </div>
-          ))
+          row.details.map((detail) => {
+            const projectColor = payloadColorMap[detail.projectLabel] ?? projectColorMap[detail.projectLabel] ?? '#bfdbfe'
+            return (
+              <div key={`${row.weekStartIso}-${detail.projectLabel}`} className="revenue-tooltip-row">
+                <div className="revenue-tooltip-project" style={{ color: projectColor }}>
+                  {detail.projectLabel}
+                </div>
+                <div className="revenue-tooltip-metric" style={{ color: projectColor }}>
+                  {detail.plannedHours.toFixed(1)} h
+                </div>
+                <div className="revenue-tooltip-metric" style={{ color: projectColor }}>
+                  {formatCurrency(detail.revenuePerHour)}/h
+                </div>
+                <div className="revenue-tooltip-metric" style={{ color: projectColor }}>
+                  {formatCurrency(detail.revenueAmount)}
+                </div>
+              </div>
+            )
+          })
         )}
       </div>
     </div>
@@ -285,6 +314,13 @@ export function RevenueWorkspace({
       })),
     [monthlyGrossProfitRows],
   )
+  const weeklyProjectColorMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    weeklyProjectKeys.forEach((projectKey, index) => {
+      map[projectKey] = COLOR_PALETTE[index % COLOR_PALETTE.length]
+    })
+    return map
+  }, [weeklyProjectKeys])
 
   return (
     <section className="panel revenue-page">
@@ -439,7 +475,10 @@ export function RevenueWorkspace({
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip formatter={(value) => formatHours(value)} content={<WeeklyRevenueTooltip />} />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<WeeklyRevenueTooltip projectColorMap={weeklyProjectColorMap} />}
+                    />
                     <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
                     {weeklyProjectKeys.map((projectKey, index) => (
                       <Bar
@@ -447,7 +486,7 @@ export function RevenueWorkspace({
                         dataKey={projectKey}
                         name={projectKey}
                         stackId="weekly-revenue"
-                        fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                        fill={weeklyProjectColorMap[projectKey] ?? COLOR_PALETTE[index % COLOR_PALETTE.length]}
                       />
                     ))}
                   </ComposedChart>
