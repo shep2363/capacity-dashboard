@@ -1,4 +1,4 @@
-import { parseISO } from 'date-fns'
+import { addDays, format, parseISO } from 'date-fns'
 import type { WorkbookDataset } from './activeWorkbookApi'
 import type { RevenueRateMap } from './revenueRatesApi'
 import { parseLeafKey, shortWeekLabel, weekRangeLabel } from './planner'
@@ -38,6 +38,38 @@ export interface GrossProfitByProjectRow {
   grossProfitAmount: number
 }
 
+export interface MonthlyRevenueProjectDetail {
+  projectLabel: string
+  plannedHours: number
+  revenuePerHour: number
+  revenueAmount: number
+}
+
+export interface MonthlyRevenueRow {
+  monthKey: string
+  monthLabel: string
+  totalPlannedHours: number
+  totalRevenue: number
+  amountsByProject: Record<string, number>
+  details: MonthlyRevenueProjectDetail[]
+}
+
+export interface MonthlyGrossProfitProjectDetail {
+  projectLabel: string
+  plannedHours: number
+  grossProfitPerHour: number
+  grossProfitAmount: number
+}
+
+export interface MonthlyGrossProfitRow {
+  monthKey: string
+  monthLabel: string
+  totalPlannedHours: number
+  totalGrossProfit: number
+  amountsByProject: Record<string, number>
+  details: MonthlyGrossProfitProjectDetail[]
+}
+
 interface BuildRevenueMetricsParams {
   mainFinalByKey: Record<string, number>
   salesFinalByKey: Record<string, number>
@@ -51,6 +83,11 @@ interface ProjectHoursByWeek {
   weekByProject: Map<string, Map<string, number>>
   totalByProject: Map<string, number>
   allWeeks: string[]
+}
+
+interface MonthlyProjectAggregation {
+  hoursByProject: Map<string, number>
+  amountByProject: Map<string, number>
 }
 
 function sortWeekKeys(weekKeys: string[]): string[] {
@@ -141,6 +178,55 @@ function collectProjectHoursByWeek(
   return { weekByProject, totalByProject, allWeeks: allWeekKeys }
 }
 
+function monthLabelFromKey(monthKey: string): string {
+  return format(parseISO(`${monthKey}-01`), 'MMM yyyy')
+}
+
+function buildMonthlyAggregation(
+  weekByProject: Map<string, Map<string, number>>,
+  allWeeks: string[],
+  amountForProjectHour: (projectLabel: string, hourValue: number) => number,
+): Map<string, MonthlyProjectAggregation> {
+  const byMonth = new Map<string, MonthlyProjectAggregation>()
+
+  allWeeks.forEach((weekStartIso) => {
+    const projectHours = weekByProject.get(weekStartIso)
+    if (!projectHours || projectHours.size === 0) {
+      return
+    }
+    const monday = parseISO(weekStartIso)
+
+    for (let offset = 0; offset < 5; offset += 1) {
+      const day = addDays(monday, offset)
+      const monthKey = format(day, 'yyyy-MM')
+      const monthBucket = byMonth.get(monthKey) ?? {
+        hoursByProject: new Map<string, number>(),
+        amountByProject: new Map<string, number>(),
+      }
+
+      projectHours.forEach((weekHours, projectLabel) => {
+        const dailyHours = weekHours / 5
+        if (!Number.isFinite(dailyHours) || dailyHours <= 0) {
+          return
+        }
+        const dailyAmount = amountForProjectHour(projectLabel, dailyHours)
+        monthBucket.hoursByProject.set(
+          projectLabel,
+          (monthBucket.hoursByProject.get(projectLabel) ?? 0) + dailyHours,
+        )
+        monthBucket.amountByProject.set(
+          projectLabel,
+          (monthBucket.amountByProject.get(projectLabel) ?? 0) + dailyAmount,
+        )
+      })
+
+      byMonth.set(monthKey, monthBucket)
+    }
+  })
+
+  return byMonth
+}
+
 export function buildRevenueRateRows(
   availableProjects: string[],
   salesAvailableProjects: string[],
@@ -189,6 +275,9 @@ export function buildRevenueMetrics({
   weeklyRevenueRows: WeeklyRevenueRow[]
   weeklyProjectKeys: string[]
   grossProfitRows: GrossProfitByProjectRow[]
+  monthlyRevenueRows: MonthlyRevenueRow[]
+  monthlyGrossProfitRows: MonthlyGrossProfitRow[]
+  monthlyProjectKeys: string[]
 } {
   const { weekByProject, totalByProject, allWeeks } = collectProjectHoursByWeek(
     mainFinalByKey,
@@ -241,5 +330,94 @@ export function buildRevenueMetrics({
     })
     .sort((a, b) => b.grossProfitAmount - a.grossProfitAmount)
 
-  return { weeklyRevenueRows, weeklyProjectKeys, grossProfitRows }
+  const monthlyRevenueByMonth = buildMonthlyAggregation(
+    weekByProject,
+    allWeeks,
+    (projectLabel, hourValue) => hourValue * revenueRateForLabel(projectLabel, mainRates, salesRates),
+  )
+  const monthlyGrossProfitByMonth = buildMonthlyAggregation(
+    weekByProject,
+    allWeeks,
+    (projectLabel, hourValue) => hourValue * grossProfitRateForLabel(projectLabel, mainRates, salesRates),
+  )
+
+  const sortedMonthKeys = [...new Set([...monthlyRevenueByMonth.keys(), ...monthlyGrossProfitByMonth.keys()])].sort((a, b) =>
+    parseISO(`${a}-01`).getTime() - parseISO(`${b}-01`).getTime(),
+  )
+
+  const monthlyRevenueRows = sortedMonthKeys.map((monthKey) => {
+    const bucket = monthlyRevenueByMonth.get(monthKey) ?? { hoursByProject: new Map(), amountByProject: new Map() }
+    const details = [...bucket.amountByProject.entries()]
+      .map(([projectLabel, revenueAmount]) => {
+        const plannedHours = bucket.hoursByProject.get(projectLabel) ?? 0
+        const revenuePerHour = revenueRateForLabel(projectLabel, mainRates, salesRates)
+        return { projectLabel, plannedHours, revenuePerHour, revenueAmount }
+      })
+      .sort((a, b) => b.revenueAmount - a.revenueAmount)
+
+    const amountsByProject: Record<string, number> = {}
+    details.forEach((detail) => {
+      amountsByProject[detail.projectLabel] = detail.revenueAmount
+    })
+    const totalPlannedHours = details.reduce((sum, detail) => sum + detail.plannedHours, 0)
+    const totalRevenue = details.reduce((sum, detail) => sum + detail.revenueAmount, 0)
+
+    return {
+      monthKey,
+      monthLabel: monthLabelFromKey(monthKey),
+      totalPlannedHours,
+      totalRevenue,
+      amountsByProject,
+      details,
+    }
+  })
+
+  const monthlyGrossProfitRows = sortedMonthKeys.map((monthKey) => {
+    const bucket = monthlyGrossProfitByMonth.get(monthKey) ?? { hoursByProject: new Map(), amountByProject: new Map() }
+    const details = [...bucket.amountByProject.entries()]
+      .map(([projectLabel, grossProfitAmount]) => {
+        const plannedHours = bucket.hoursByProject.get(projectLabel) ?? 0
+        const grossProfitPerHour = grossProfitRateForLabel(projectLabel, mainRates, salesRates)
+        return { projectLabel, plannedHours, grossProfitPerHour, grossProfitAmount }
+      })
+      .sort((a, b) => b.grossProfitAmount - a.grossProfitAmount)
+
+    const amountsByProject: Record<string, number> = {}
+    details.forEach((detail) => {
+      amountsByProject[detail.projectLabel] = detail.grossProfitAmount
+    })
+    const totalPlannedHours = details.reduce((sum, detail) => sum + detail.plannedHours, 0)
+    const totalGrossProfit = details.reduce((sum, detail) => sum + detail.grossProfitAmount, 0)
+
+    return {
+      monthKey,
+      monthLabel: monthLabelFromKey(monthKey),
+      totalPlannedHours,
+      totalGrossProfit,
+      amountsByProject,
+      details,
+    }
+  })
+
+  const monthlyProjectTotals = new Map<string, number>()
+  monthlyGrossProfitRows.forEach((row) => {
+    row.details.forEach((detail) => {
+      monthlyProjectTotals.set(
+        detail.projectLabel,
+        (monthlyProjectTotals.get(detail.projectLabel) ?? 0) + detail.grossProfitAmount,
+      )
+    })
+  })
+  const monthlyProjectKeys = [...monthlyProjectTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([projectLabel]) => projectLabel)
+
+  return {
+    weeklyRevenueRows,
+    weeklyProjectKeys,
+    grossProfitRows,
+    monthlyRevenueRows,
+    monthlyGrossProfitRows,
+    monthlyProjectKeys: monthlyProjectKeys.length > 0 ? monthlyProjectKeys : weeklyProjectKeys,
+  }
 }

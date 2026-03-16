@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import {
   Bar,
-  BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -10,7 +10,13 @@ import {
   YAxis,
 } from 'recharts'
 import type { WorkbookDataset } from '../utils/activeWorkbookApi'
-import type { GrossProfitByProjectRow, RevenueRateRow, WeeklyRevenueRow } from '../utils/revenue'
+import type {
+  GrossProfitByProjectRow,
+  MonthlyGrossProfitRow,
+  MonthlyRevenueRow,
+  RevenueRateRow,
+  WeeklyRevenueRow,
+} from '../utils/revenue'
 
 const COLOR_PALETTE = [
   '#4f46e5',
@@ -29,13 +35,16 @@ const COLOR_PALETTE = [
 
 type RevenueSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type RevenueRateField = 'revenuePerHour' | 'grossProfitPerHour'
-type RevenueViewTab = 'data' | 'revenue-chart' | 'gross-profit-chart'
+type RevenueViewTab = 'data' | 'revenue-chart' | 'gross-profit-chart' | 'revenue-monthly' | 'gross-profit-monthly'
 
 interface RevenueWorkspaceProps {
   rateRows: RevenueRateRow[]
   weeklyRevenueRows: WeeklyRevenueRow[]
   weeklyProjectKeys: string[]
   grossProfitRows: GrossProfitByProjectRow[]
+  monthlyRevenueRows: MonthlyRevenueRow[]
+  monthlyGrossProfitRows: MonthlyGrossProfitRow[]
+  monthlyProjectKeys: string[]
   maxRatePerHour: number
   onRateChange: (dataset: WorkbookDataset, project: string, field: RevenueRateField, value: string) => void
   mainSaveLabel: string
@@ -55,6 +64,12 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
+function formatHours(value: unknown): string {
+  const normalized = Array.isArray(value) ? value[0] : value
+  const numeric = typeof normalized === 'number' ? normalized : Number(normalized ?? 0)
+  return `${numeric.toFixed(1)} h`
+}
+
 function statusColor(status: RevenueSaveStatus): string {
   if (status === 'error') {
     return '#fca5a5'
@@ -65,19 +80,48 @@ function statusColor(status: RevenueSaveStatus): string {
   return '#cbd5e1'
 }
 
+function truncateLabel(label: string): string {
+  return label.length > 26 ? `${label.slice(0, 26)}...` : label
+}
+
+function resolveBarSize(itemCount: number): number {
+  if (itemCount > 80) return 14
+  if (itemCount > 60) return 17
+  if (itemCount > 40) return 20
+  if (itemCount > 24) return 24
+  return 30
+}
+
+function CompactLegend({
+  payload,
+}: {
+  payload?: Array<{ value?: string | number; color?: string }>
+}) {
+  const items = payload ?? []
+  const visibleItems = items.slice(0, 12)
+  const hiddenCount = Math.max(0, items.length - visibleItems.length)
+
+  return (
+    <div className="compact-legend">
+      {visibleItems.map((entry) => (
+        <span key={String(entry.value)} className="legend-chip" title={String(entry.value)}>
+          <span className="legend-chip-dot" style={{ backgroundColor: entry.color }} />
+          {truncateLabel(String(entry.value))}
+        </span>
+      ))}
+      {hiddenCount > 0 && <span className="legend-chip legend-chip-more">+{hiddenCount} more</span>}
+    </div>
+  )
+}
+
 interface WeeklyTooltipEntry {
   payload?: WeeklyRevenueRow
 }
 
 function WeeklyRevenueTooltip({ active, payload }: { active?: boolean; payload?: WeeklyTooltipEntry[] }) {
-  if (!active || !payload || payload.length === 0) {
-    return null
-  }
-
+  if (!active || !payload || payload.length === 0) return null
   const row = payload[0]?.payload
-  if (!row) {
-    return null
-  }
+  if (!row) return null
 
   return (
     <div className="revenue-tooltip">
@@ -104,18 +148,48 @@ function WeeklyRevenueTooltip({ active, payload }: { active?: boolean; payload?:
   )
 }
 
+interface MonthlyRevenueTooltipEntry {
+  payload?: MonthlyRevenueRow
+}
+
+function MonthlyRevenueTooltip({ active, payload }: { active?: boolean; payload?: MonthlyRevenueTooltipEntry[] }) {
+  if (!active || !payload || payload.length === 0) return null
+  const row = payload[0]?.payload
+  if (!row) return null
+
+  return (
+    <div className="revenue-tooltip">
+      <div className="revenue-tooltip-title">{row.monthLabel}</div>
+      <div className="revenue-tooltip-summary">
+        <div>Total Project Hours: {row.totalPlannedHours.toFixed(1)}</div>
+        <div>Total Revenue: {formatCurrency(row.totalRevenue)}</div>
+      </div>
+      <div className="revenue-tooltip-grid">
+        {row.details.length === 0 ? (
+          <div className="revenue-tooltip-empty">No planned hours for this month.</div>
+        ) : (
+          row.details.map((detail) => (
+            <div key={`${row.monthKey}-${detail.projectLabel}`} className="revenue-tooltip-row">
+              <div className="revenue-tooltip-project">{detail.projectLabel}</div>
+              <div className="revenue-tooltip-metric">{detail.plannedHours.toFixed(1)} h</div>
+              <div className="revenue-tooltip-metric">{formatCurrency(detail.revenuePerHour)}/h</div>
+              <div className="revenue-tooltip-metric">{formatCurrency(detail.revenueAmount)}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface GrossProfitTooltipEntry {
   payload?: GrossProfitByProjectRow
 }
 
 function GrossProfitTooltip({ active, payload }: { active?: boolean; payload?: GrossProfitTooltipEntry[] }) {
-  if (!active || !payload || payload.length === 0) {
-    return null
-  }
+  if (!active || !payload || payload.length === 0) return null
   const row = payload[0]?.payload
-  if (!row) {
-    return null
-  }
+  if (!row) return null
   return (
     <div className="revenue-tooltip">
       <div className="revenue-tooltip-title">{row.projectLabel}</div>
@@ -128,11 +202,54 @@ function GrossProfitTooltip({ active, payload }: { active?: boolean; payload?: G
   )
 }
 
+interface MonthlyGrossProfitTooltipEntry {
+  payload?: MonthlyGrossProfitRow
+}
+
+function MonthlyGrossProfitTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: MonthlyGrossProfitTooltipEntry[]
+}) {
+  if (!active || !payload || payload.length === 0) return null
+  const row = payload[0]?.payload
+  if (!row) return null
+
+  return (
+    <div className="revenue-tooltip">
+      <div className="revenue-tooltip-title">{row.monthLabel}</div>
+      <div className="revenue-tooltip-summary">
+        <div>Total Project Hours: {row.totalPlannedHours.toFixed(1)}</div>
+        <div>Total Gross Profit: {formatCurrency(row.totalGrossProfit)}</div>
+      </div>
+      <div className="revenue-tooltip-grid">
+        {row.details.length === 0 ? (
+          <div className="revenue-tooltip-empty">No planned hours for this month.</div>
+        ) : (
+          row.details.map((detail) => (
+            <div key={`${row.monthKey}-${detail.projectLabel}`} className="revenue-tooltip-row">
+              <div className="revenue-tooltip-project">{detail.projectLabel}</div>
+              <div className="revenue-tooltip-metric">{detail.plannedHours.toFixed(1)} h</div>
+              <div className="revenue-tooltip-metric">{formatCurrency(detail.grossProfitPerHour)}/h</div>
+              <div className="revenue-tooltip-metric">{formatCurrency(detail.grossProfitAmount)}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function RevenueWorkspace({
   rateRows,
   weeklyRevenueRows,
   weeklyProjectKeys,
   grossProfitRows,
+  monthlyRevenueRows,
+  monthlyGrossProfitRows,
+  monthlyProjectKeys,
   maxRatePerHour,
   onRateChange,
   mainSaveLabel,
@@ -141,6 +258,7 @@ export function RevenueWorkspace({
   salesSaveStatus,
 }: RevenueWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<RevenueViewTab>('data')
+
   const weeklyChartData = useMemo(
     () =>
       weeklyRevenueRows.map((row) => ({
@@ -148,6 +266,24 @@ export function RevenueWorkspace({
         ...row.amountsByProject,
       })),
     [weeklyRevenueRows],
+  )
+
+  const monthlyRevenueChartData = useMemo(
+    () =>
+      monthlyRevenueRows.map((row) => ({
+        ...row,
+        ...row.amountsByProject,
+      })),
+    [monthlyRevenueRows],
+  )
+
+  const monthlyGrossProfitChartData = useMemo(
+    () =>
+      monthlyGrossProfitRows.map((row) => ({
+        ...row,
+        ...row.amountsByProject,
+      })),
+    [monthlyGrossProfitRows],
   )
 
   return (
@@ -178,6 +314,20 @@ export function RevenueWorkspace({
           onClick={() => setActiveTab('gross-profit-chart')}
         >
           Gross Profit Chart
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'revenue-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveTab('revenue-monthly')}
+        >
+          Revenue Monthly Forecast
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'gross-profit-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveTab('gross-profit-monthly')}
+        >
+          Gross Profit Monthly Forecast
         </button>
       </div>
 
@@ -258,27 +408,49 @@ export function RevenueWorkspace({
               <h3>Weekly Revenue</h3>
               <p>Calculated as planned hours multiplied by project revenue-per-hour rates.</p>
             </div>
-            {weeklyChartData.length === 0 ? (
+            {weeklyChartData.length === 0 || weeklyProjectKeys.length === 0 ? (
               <div className="status">No weekly revenue data available for the current scope.</div>
             ) : (
               <div className="chart-wrap revenue-chart-wrap">
-                <ResponsiveContainer width="100%" height={470}>
-                  <BarChart data={weeklyChartData} margin={{ top: 16, right: 20, left: 20, bottom: 28 }}>
-                    <CartesianGrid stroke="#334155" vertical={false} />
-                    <XAxis dataKey="weekLabel" angle={-28} textAnchor="end" interval={0} height={62} />
-                    <YAxis tickFormatter={(value: number) => formatCurrency(value)} />
-                    <Tooltip content={<WeeklyRevenueTooltip />} />
-                    <Legend />
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={weeklyChartData}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="2%"
+                    barGap={0}
+                    barSize={resolveBarSize(weeklyChartData.length)}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="weekLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={72}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip formatter={(value) => formatHours(value)} content={<WeeklyRevenueTooltip />} />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
                     {weeklyProjectKeys.map((projectKey, index) => (
                       <Bar
                         key={projectKey}
                         dataKey={projectKey}
                         name={projectKey}
-                        stackId="revenue"
+                        stackId="weekly-revenue"
                         fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
                       />
                     ))}
-                  </BarChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             )}
@@ -297,14 +469,150 @@ export function RevenueWorkspace({
               <div className="status">No gross profit data available for the current scope.</div>
             ) : (
               <div className="chart-wrap revenue-chart-wrap">
-                <ResponsiveContainer width="100%" height={470}>
-                  <BarChart data={grossProfitRows} margin={{ top: 16, right: 20, left: 20, bottom: 28 }}>
-                    <CartesianGrid stroke="#334155" vertical={false} />
-                    <XAxis dataKey="projectLabel" interval={0} angle={-28} textAnchor="end" height={80} />
-                    <YAxis tickFormatter={(value: number) => formatCurrency(value)} />
-                    <Tooltip content={<GrossProfitTooltip />} />
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={grossProfitRows}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="6%"
+                    barGap={0}
+                    barSize={resolveBarSize(grossProfitRows.length)}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="projectLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={88}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip formatter={(value) => formatHours(value)} content={<GrossProfitTooltip />} />
                     <Bar dataKey="grossProfitAmount" name="Gross Profit" fill="#22c55e" />
-                  </BarChart>
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'revenue-monthly' && (
+        <div className="report-tab-panel">
+          <div className="panel chart-panel">
+            <div className="section-header">
+              <h3>Revenue Monthly Forecast</h3>
+              <p>Monthly revenue forecast aggregated from weekly planned hours and project rates.</p>
+            </div>
+            {monthlyRevenueChartData.length === 0 || monthlyProjectKeys.length === 0 ? (
+              <div className="status">No monthly revenue data available for the current scope.</div>
+            ) : (
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={monthlyRevenueChartData}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="4%"
+                    barGap={0}
+                    barSize={resolveBarSize(monthlyRevenueChartData.length)}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={72}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip formatter={(value) => formatHours(value)} content={<MonthlyRevenueTooltip />} />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+                    {monthlyProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="monthly-revenue"
+                        fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                      />
+                    ))}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'gross-profit-monthly' && (
+        <div className="report-tab-panel">
+          <div className="panel chart-panel">
+            <div className="section-header">
+              <h3>Gross Profit Monthly Forecast</h3>
+              <p>Monthly gross profit forecast aggregated from weekly planned hours and project rates.</p>
+            </div>
+            {monthlyGrossProfitChartData.length === 0 || monthlyProjectKeys.length === 0 ? (
+              <div className="status">No monthly gross profit data available for the current scope.</div>
+            ) : (
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={monthlyGrossProfitChartData}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="4%"
+                    barGap={0}
+                    barSize={resolveBarSize(monthlyGrossProfitChartData.length)}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={72}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip formatter={(value) => formatHours(value)} content={<MonthlyGrossProfitTooltip />} />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+                    {monthlyProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="monthly-gross-profit"
+                        fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                      />
+                    ))}
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             )}

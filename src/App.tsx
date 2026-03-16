@@ -1235,7 +1235,14 @@ function App() {
     ],
   )
 
-  const { weeklyRevenueRows, weeklyProjectKeys, grossProfitRows } = useMemo(
+  const {
+    weeklyRevenueRows,
+    weeklyProjectKeys,
+    grossProfitRows,
+    monthlyRevenueRows,
+    monthlyGrossProfitRows,
+    monthlyProjectKeys,
+  } = useMemo(
     () =>
       buildRevenueMetrics({
         mainFinalByKey: finalByKey,
@@ -2415,6 +2422,9 @@ function App() {
               weeklyRevenueRows={weeklyRevenueRows}
               weeklyProjectKeys={weeklyProjectKeys}
               grossProfitRows={grossProfitRows}
+              monthlyRevenueRows={monthlyRevenueRows}
+              monthlyGrossProfitRows={monthlyGrossProfitRows}
+              monthlyProjectKeys={monthlyProjectKeys}
               maxRatePerHour={maxRatePerHour}
               onRateChange={handleRevenueRateChange}
               mainSaveLabel={mainRevenueSaveLabel}
