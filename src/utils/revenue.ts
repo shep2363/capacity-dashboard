@@ -31,11 +31,21 @@ export interface WeeklyRevenueRow {
   details: WeeklyRevenueProjectDetail[]
 }
 
-export interface GrossProfitByProjectRow {
+export interface WeeklyGrossProfitProjectDetail {
   projectLabel: string
   plannedHours: number
   grossProfitPerHour: number
   grossProfitAmount: number
+}
+
+export interface WeeklyGrossProfitRow {
+  weekStartIso: string
+  weekLabel: string
+  weekRangeLabel: string
+  totalPlannedHours: number
+  totalGrossProfit: number
+  amountsByProject: Record<string, number>
+  details: WeeklyGrossProfitProjectDetail[]
 }
 
 export interface MonthlyRevenueProjectDetail {
@@ -274,7 +284,8 @@ export function buildRevenueMetrics({
 }: BuildRevenueMetricsParams): {
   weeklyRevenueRows: WeeklyRevenueRow[]
   weeklyProjectKeys: string[]
-  grossProfitRows: GrossProfitByProjectRow[]
+  weeklyGrossProfitRows: WeeklyGrossProfitRow[]
+  weeklyGrossProfitProjectKeys: string[]
   monthlyRevenueRows: MonthlyRevenueRow[]
   monthlyGrossProfitRows: MonthlyGrossProfitRow[]
   monthlyProjectKeys: string[]
@@ -318,17 +329,46 @@ export function buildRevenueMetrics({
     .sort((a, b) => b[1] - a[1])
     .map(([projectLabel]) => projectLabel)
 
-  const grossProfitRows = [...totalByProject.entries()]
-    .map(([projectLabel, plannedHours]) => {
-      const grossProfitPerHour = grossProfitRateForLabel(projectLabel, mainRates, salesRates)
-      return {
-        projectLabel,
-        plannedHours,
-        grossProfitPerHour,
-        grossProfitAmount: plannedHours * grossProfitPerHour,
-      }
+  const weeklyGrossProfitRows = allWeeks.map((weekStartIso) => {
+    const projectHours = weekByProject.get(weekStartIso) ?? new Map<string, number>()
+    const details = [...projectHours.entries()]
+      .map(([projectLabel, plannedHours]) => {
+        const grossProfitPerHour = grossProfitRateForLabel(projectLabel, mainRates, salesRates)
+        const grossProfitAmount = plannedHours * grossProfitPerHour
+        return { projectLabel, plannedHours, grossProfitPerHour, grossProfitAmount }
+      })
+      .sort((a, b) => b.grossProfitAmount - a.grossProfitAmount)
+
+    const amountsByProject: Record<string, number> = {}
+    details.forEach((detail) => {
+      amountsByProject[detail.projectLabel] = detail.grossProfitAmount
     })
-    .sort((a, b) => b.grossProfitAmount - a.grossProfitAmount)
+    const totalPlannedHours = details.reduce((sum, detail) => sum + detail.plannedHours, 0)
+    const totalGrossProfit = details.reduce((sum, detail) => sum + detail.grossProfitAmount, 0)
+
+    return {
+      weekStartIso,
+      weekLabel: shortWeekLabel(weekStartIso),
+      weekRangeLabel: weekRangeLabel(weekStartIso),
+      totalPlannedHours,
+      totalGrossProfit,
+      amountsByProject,
+      details,
+    }
+  })
+
+  const grossProfitTotalsByProject = new Map<string, number>()
+  weeklyGrossProfitRows.forEach((row) => {
+    row.details.forEach((detail) => {
+      grossProfitTotalsByProject.set(
+        detail.projectLabel,
+        (grossProfitTotalsByProject.get(detail.projectLabel) ?? 0) + detail.grossProfitAmount,
+      )
+    })
+  })
+  const weeklyGrossProfitProjectKeys = [...grossProfitTotalsByProject.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([projectLabel]) => projectLabel)
 
   const monthlyRevenueByMonth = buildMonthlyAggregation(
     weekByProject,
@@ -415,9 +455,16 @@ export function buildRevenueMetrics({
   return {
     weeklyRevenueRows,
     weeklyProjectKeys,
-    grossProfitRows,
+    weeklyGrossProfitRows,
+    weeklyGrossProfitProjectKeys:
+      weeklyGrossProfitProjectKeys.length > 0 ? weeklyGrossProfitProjectKeys : weeklyProjectKeys,
     monthlyRevenueRows,
     monthlyGrossProfitRows,
-    monthlyProjectKeys: monthlyProjectKeys.length > 0 ? monthlyProjectKeys : weeklyProjectKeys,
+    monthlyProjectKeys:
+      monthlyProjectKeys.length > 0
+        ? monthlyProjectKeys
+        : weeklyGrossProfitProjectKeys.length > 0
+          ? weeklyGrossProfitProjectKeys
+          : weeklyProjectKeys,
   }
 }

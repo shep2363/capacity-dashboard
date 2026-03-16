@@ -1238,7 +1238,8 @@ function App() {
   const {
     weeklyRevenueRows,
     weeklyProjectKeys,
-    grossProfitRows,
+    weeklyGrossProfitRows,
+    weeklyGrossProfitProjectKeys,
     monthlyRevenueRows,
     monthlyGrossProfitRows,
     monthlyProjectKeys,
@@ -2421,7 +2422,8 @@ function App() {
               rateRows={revenueRateRows}
               weeklyRevenueRows={weeklyRevenueRows}
               weeklyProjectKeys={weeklyProjectKeys}
-              grossProfitRows={grossProfitRows}
+              weeklyGrossProfitRows={weeklyGrossProfitRows}
+              weeklyGrossProfitProjectKeys={weeklyGrossProfitProjectKeys}
               monthlyRevenueRows={monthlyRevenueRows}
               monthlyGrossProfitRows={monthlyGrossProfitRows}
               monthlyProjectKeys={monthlyProjectKeys}

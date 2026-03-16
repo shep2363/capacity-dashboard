@@ -11,10 +11,10 @@ import {
 } from 'recharts'
 import type { WorkbookDataset } from '../utils/activeWorkbookApi'
 import type {
-  GrossProfitByProjectRow,
   MonthlyGrossProfitRow,
   MonthlyRevenueRow,
   RevenueRateRow,
+  WeeklyGrossProfitRow,
   WeeklyRevenueRow,
 } from '../utils/revenue'
 
@@ -41,7 +41,8 @@ interface RevenueWorkspaceProps {
   rateRows: RevenueRateRow[]
   weeklyRevenueRows: WeeklyRevenueRow[]
   weeklyProjectKeys: string[]
-  grossProfitRows: GrossProfitByProjectRow[]
+  weeklyGrossProfitRows: WeeklyGrossProfitRow[]
+  weeklyGrossProfitProjectKeys: string[]
   monthlyRevenueRows: MonthlyRevenueRow[]
   monthlyGrossProfitRows: MonthlyGrossProfitRow[]
   monthlyProjectKeys: string[]
@@ -211,21 +212,65 @@ function MonthlyRevenueTooltip({ active, payload }: { active?: boolean; payload?
   )
 }
 
-interface GrossProfitTooltipEntry {
-  payload?: GrossProfitByProjectRow
+interface WeeklyGrossProfitTooltipEntry {
+  dataKey?: string | number
+  color?: string
+  payload?: WeeklyGrossProfitRow
 }
 
-function GrossProfitTooltip({ active, payload }: { active?: boolean; payload?: GrossProfitTooltipEntry[] }) {
+function WeeklyGrossProfitTooltip({
+  active,
+  payload,
+  projectColorMap,
+}: {
+  active?: boolean
+  payload?: WeeklyGrossProfitTooltipEntry[]
+  projectColorMap: Record<string, string>
+}) {
   if (!active || !payload || payload.length === 0) return null
   const row = payload[0]?.payload
   if (!row) return null
+
+  const payloadColorMap: Record<string, string> = {}
+  payload.forEach((entry) => {
+    const dataKey = typeof entry.dataKey === 'string' ? entry.dataKey : null
+    if (!dataKey || !entry.color) {
+      return
+    }
+    payloadColorMap[dataKey] = entry.color
+  })
+
   return (
     <div className="revenue-tooltip">
-      <div className="revenue-tooltip-title">{row.projectLabel}</div>
+      <div className="revenue-tooltip-title">{row.weekRangeLabel}</div>
       <div className="revenue-tooltip-summary">
-        <div>Hours: {row.plannedHours.toFixed(1)}</div>
-        <div>Rate: {formatCurrency(row.grossProfitPerHour)}/h</div>
-        <div>Gross Profit: {formatCurrency(row.grossProfitAmount)}</div>
+        <div>Total Project Hours: {row.totalPlannedHours.toFixed(1)}</div>
+        <div>Total Gross Profit: {formatCurrency(row.totalGrossProfit)}</div>
+      </div>
+      <div className="revenue-tooltip-grid">
+        {row.details.length === 0 ? (
+          <div className="revenue-tooltip-empty">No planned hours for this week.</div>
+        ) : (
+          row.details.map((detail) => {
+            const projectColor = payloadColorMap[detail.projectLabel] ?? projectColorMap[detail.projectLabel] ?? '#bfdbfe'
+            return (
+              <div key={`${row.weekStartIso}-${detail.projectLabel}`} className="revenue-tooltip-row">
+                <div className="revenue-tooltip-project" style={{ color: projectColor }}>
+                  {detail.projectLabel}
+                </div>
+                <div className="revenue-tooltip-metric" style={{ color: projectColor }}>
+                  {detail.plannedHours.toFixed(1)} h
+                </div>
+                <div className="revenue-tooltip-metric" style={{ color: projectColor }}>
+                  {formatCurrency(detail.grossProfitPerHour)}/h
+                </div>
+                <div className="revenue-tooltip-metric" style={{ color: projectColor }}>
+                  {formatCurrency(detail.grossProfitAmount)}
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )
@@ -275,7 +320,8 @@ export function RevenueWorkspace({
   rateRows,
   weeklyRevenueRows,
   weeklyProjectKeys,
-  grossProfitRows,
+  weeklyGrossProfitRows,
+  weeklyGrossProfitProjectKeys,
   monthlyRevenueRows,
   monthlyGrossProfitRows,
   monthlyProjectKeys,
@@ -314,6 +360,14 @@ export function RevenueWorkspace({
       })),
     [monthlyGrossProfitRows],
   )
+  const weeklyGrossProfitChartData = useMemo(
+    () =>
+      weeklyGrossProfitRows.map((row) => ({
+        ...row,
+        ...row.amountsByProject,
+      })),
+    [weeklyGrossProfitRows],
+  )
   const weeklyProjectColorMap = useMemo(() => {
     const map: Record<string, string> = {}
     weeklyProjectKeys.forEach((projectKey, index) => {
@@ -321,6 +375,13 @@ export function RevenueWorkspace({
     })
     return map
   }, [weeklyProjectKeys])
+  const weeklyGrossProfitProjectColorMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    weeklyGrossProfitProjectKeys.forEach((projectKey, index) => {
+      map[projectKey] = COLOR_PALETTE[index % COLOR_PALETTE.length]
+    })
+    return map
+  }, [weeklyGrossProfitProjectKeys])
 
   return (
     <section className="panel revenue-page">
@@ -504,26 +565,26 @@ export function RevenueWorkspace({
               <h3>Gross Profit by Project</h3>
               <p>Calculated as planned hours multiplied by project gross-profit-per-hour rates.</p>
             </div>
-            {grossProfitRows.length === 0 ? (
+            {weeklyGrossProfitChartData.length === 0 || weeklyGrossProfitProjectKeys.length === 0 ? (
               <div className="status">No gross profit data available for the current scope.</div>
             ) : (
               <div className="chart-wrap revenue-chart-wrap">
                 <ResponsiveContainer width="100%" height={560}>
                   <ComposedChart
-                    data={grossProfitRows}
+                    data={weeklyGrossProfitChartData}
                     margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
-                    barCategoryGap="6%"
+                    barCategoryGap="2%"
                     barGap={0}
-                    barSize={resolveBarSize(grossProfitRows.length)}
+                    barSize={resolveBarSize(weeklyGrossProfitChartData.length)}
                   >
                     <CartesianGrid vertical={false} stroke="#334155" />
                     <XAxis
-                      dataKey="projectLabel"
+                      dataKey="weekLabel"
                       angle={-34}
                       textAnchor="end"
                       interval={0}
                       minTickGap={0}
-                      height={88}
+                      height={72}
                       tickMargin={8}
                       tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
                       axisLine={{ stroke: '#475569' }}
@@ -535,8 +596,22 @@ export function RevenueWorkspace({
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip formatter={(value) => formatHours(value)} content={<GrossProfitTooltip />} />
-                    <Bar dataKey="grossProfitAmount" name="Gross Profit" fill="#22c55e" />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<WeeklyGrossProfitTooltip projectColorMap={weeklyGrossProfitProjectColorMap} />}
+                    />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+                    {weeklyGrossProfitProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="weekly-gross-profit"
+                        fill={
+                          weeklyGrossProfitProjectColorMap[projectKey] ?? COLOR_PALETTE[index % COLOR_PALETTE.length]
+                        }
+                      />
+                    ))}
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
