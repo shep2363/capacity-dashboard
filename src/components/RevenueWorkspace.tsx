@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -29,6 +29,7 @@ const COLOR_PALETTE = [
 
 type RevenueSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type RevenueRateField = 'revenuePerHour' | 'grossProfitPerHour'
+type RevenueViewTab = 'data' | 'revenue-chart' | 'gross-profit-chart'
 
 interface RevenueWorkspaceProps {
   rateRows: RevenueRateRow[]
@@ -139,6 +140,7 @@ export function RevenueWorkspace({
   mainSaveStatus,
   salesSaveStatus,
 }: RevenueWorkspaceProps) {
+  const [activeTab, setActiveTab] = useState<RevenueViewTab>('data')
   const weeklyChartData = useMemo(
     () =>
       weeklyRevenueRows.map((row) => ({
@@ -155,124 +157,160 @@ export function RevenueWorkspace({
         <p>Set project financial rates and monitor weekly revenue and gross profit from current planning hours.</p>
       </div>
 
-      <div className="revenue-status-row">
-        <span>
-          <strong>Shop Rates Sync:</strong>{' '}
-          <span style={{ color: statusColor(mainSaveStatus) }}>{mainSaveLabel}</span>
-        </span>
-        <span>
-          <strong>Sales Rates Sync:</strong>{' '}
-          <span style={{ color: statusColor(salesSaveStatus) }}>{salesSaveLabel}</span>
-        </span>
+      <div className="report-tabs" aria-label="Revenue Views">
+        <button
+          type="button"
+          className={activeTab === 'data' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveTab('data')}
+        >
+          Data
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'revenue-chart' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveTab('revenue-chart')}
+        >
+          Revenue Chart
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'gross-profit-chart' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+          onClick={() => setActiveTab('gross-profit-chart')}
+        >
+          Gross Profit Chart
+        </button>
       </div>
 
-      <div className="panel table-panel revenue-rate-editor">
-        <div className="section-header">
-          <h3>Rates by Project</h3>
-          <p>Changes save to shared storage and are visible to all users.</p>
-        </div>
-        {rateRows.length === 0 ? (
-          <div className="status">No projects are available in the current filter scope.</div>
-        ) : (
-          <div className="table-wrap">
-            <table className="revenue-rate-table">
-              <thead>
-                <tr>
-                  <th>Project</th>
-                  <th>Planned Hours (Current Scope)</th>
-                  <th>Revenue per Hour</th>
-                  <th>Gross Profit per Hour</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rateRows.map((row) => (
-                  <tr key={`${row.dataset}-${row.project}`}>
-                    <td>{row.label}</td>
-                    <td>{row.plannedHours.toFixed(1)}</td>
-                    <td>
-                      <input
-                        type="number"
-                        min={0}
-                        max={maxRatePerHour}
-                        step="0.01"
-                        value={row.revenuePerHour}
-                        onChange={(event) => onRateChange(row.dataset, row.project, 'revenuePerHour', event.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        min={0}
-                        max={maxRatePerHour}
-                        step="0.01"
-                        value={row.grossProfitPerHour}
-                        onChange={(event) =>
-                          onRateChange(row.dataset, row.project, 'grossProfitPerHour', event.target.value)
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {activeTab === 'data' && (
+        <div className="report-tab-panel">
+          <div className="revenue-status-row">
+            <span>
+              <strong>Shop Rates Sync:</strong>{' '}
+              <span style={{ color: statusColor(mainSaveStatus) }}>{mainSaveLabel}</span>
+            </span>
+            <span>
+              <strong>Sales Rates Sync:</strong>{' '}
+              <span style={{ color: statusColor(salesSaveStatus) }}>{salesSaveLabel}</span>
+            </span>
           </div>
-        )}
-      </div>
 
-      <div className="revenue-grid">
-        <div className="panel chart-panel">
-          <div className="section-header">
-            <h3>Weekly Revenue</h3>
-            <p>Calculated as planned hours multiplied by project revenue-per-hour rates.</p>
-          </div>
-          {weeklyChartData.length === 0 ? (
-            <div className="status">No weekly revenue data available for the current scope.</div>
-          ) : (
-            <div className="chart-wrap revenue-chart-wrap">
-              <ResponsiveContainer width="100%" height={470}>
-                <BarChart data={weeklyChartData} margin={{ top: 16, right: 20, left: 20, bottom: 28 }}>
-                  <CartesianGrid stroke="#334155" vertical={false} />
-                  <XAxis dataKey="weekLabel" angle={-28} textAnchor="end" interval={0} height={62} />
-                  <YAxis tickFormatter={(value: number) => formatCurrency(value)} />
-                  <Tooltip content={<WeeklyRevenueTooltip />} />
-                  <Legend />
-                  {weeklyProjectKeys.map((projectKey, index) => (
-                    <Bar
-                      key={projectKey}
-                      dataKey={projectKey}
-                      name={projectKey}
-                      stackId="revenue"
-                      fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
-                    />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="panel table-panel revenue-rate-editor">
+            <div className="section-header">
+              <h3>Rates by Project</h3>
+              <p>Changes save to shared storage and are visible to all users.</p>
             </div>
-          )}
-        </div>
-
-        <div className="panel chart-panel">
-          <div className="section-header">
-            <h3>Gross Profit by Project</h3>
-            <p>Calculated as planned hours multiplied by project gross-profit-per-hour rates.</p>
+            {rateRows.length === 0 ? (
+              <div className="status">No projects are available in the current filter scope.</div>
+            ) : (
+              <div className="table-wrap">
+                <table className="revenue-rate-table">
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Planned Hours (Current Scope)</th>
+                      <th>Revenue per Hour</th>
+                      <th>Gross Profit per Hour</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rateRows.map((row) => (
+                      <tr key={`${row.dataset}-${row.project}`}>
+                        <td>{row.label}</td>
+                        <td>{row.plannedHours.toFixed(1)}</td>
+                        <td>
+                          <input
+                            type="number"
+                            min={0}
+                            max={maxRatePerHour}
+                            step="0.01"
+                            value={row.revenuePerHour}
+                            onChange={(event) =>
+                              onRateChange(row.dataset, row.project, 'revenuePerHour', event.target.value)
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min={0}
+                            max={maxRatePerHour}
+                            step="0.01"
+                            value={row.grossProfitPerHour}
+                            onChange={(event) =>
+                              onRateChange(row.dataset, row.project, 'grossProfitPerHour', event.target.value)
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          {grossProfitRows.length === 0 ? (
-            <div className="status">No gross profit data available for the current scope.</div>
-          ) : (
-            <div className="chart-wrap revenue-chart-wrap">
-              <ResponsiveContainer width="100%" height={470}>
-                <BarChart data={grossProfitRows} margin={{ top: 16, right: 20, left: 20, bottom: 28 }}>
-                  <CartesianGrid stroke="#334155" vertical={false} />
-                  <XAxis dataKey="projectLabel" interval={0} angle={-28} textAnchor="end" height={80} />
-                  <YAxis tickFormatter={(value: number) => formatCurrency(value)} />
-                  <Tooltip content={<GrossProfitTooltip />} />
-                  <Bar dataKey="grossProfitAmount" name="Gross Profit" fill="#22c55e" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
         </div>
-      </div>
+      )}
+
+      {activeTab === 'revenue-chart' && (
+        <div className="report-tab-panel">
+          <div className="panel chart-panel">
+            <div className="section-header">
+              <h3>Weekly Revenue</h3>
+              <p>Calculated as planned hours multiplied by project revenue-per-hour rates.</p>
+            </div>
+            {weeklyChartData.length === 0 ? (
+              <div className="status">No weekly revenue data available for the current scope.</div>
+            ) : (
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={470}>
+                  <BarChart data={weeklyChartData} margin={{ top: 16, right: 20, left: 20, bottom: 28 }}>
+                    <CartesianGrid stroke="#334155" vertical={false} />
+                    <XAxis dataKey="weekLabel" angle={-28} textAnchor="end" interval={0} height={62} />
+                    <YAxis tickFormatter={(value: number) => formatCurrency(value)} />
+                    <Tooltip content={<WeeklyRevenueTooltip />} />
+                    <Legend />
+                    {weeklyProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="revenue"
+                        fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'gross-profit-chart' && (
+        <div className="report-tab-panel">
+          <div className="panel chart-panel">
+            <div className="section-header">
+              <h3>Gross Profit by Project</h3>
+              <p>Calculated as planned hours multiplied by project gross-profit-per-hour rates.</p>
+            </div>
+            {grossProfitRows.length === 0 ? (
+              <div className="status">No gross profit data available for the current scope.</div>
+            ) : (
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={470}>
+                  <BarChart data={grossProfitRows} margin={{ top: 16, right: 20, left: 20, bottom: 28 }}>
+                    <CartesianGrid stroke="#334155" vertical={false} />
+                    <XAxis dataKey="projectLabel" interval={0} angle={-28} textAnchor="end" height={80} />
+                    <YAxis tickFormatter={(value: number) => formatCurrency(value)} />
+                    <Tooltip content={<GrossProfitTooltip />} />
+                    <Bar dataKey="grossProfitAmount" name="Gross Profit" fill="#22c55e" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   )
 }
