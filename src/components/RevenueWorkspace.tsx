@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { WorkbookDataset } from '../utils/activeWorkbookApi'
+import { exportRevenueMonthlyWorkbook } from '../utils/revenueExport'
 import type {
   MonthlyGrossProfitRow,
   MonthlyRevenueRow,
@@ -91,6 +92,11 @@ function resolveBarSize(itemCount: number): number {
   if (itemCount > 40) return 20
   if (itemCount > 24) return 24
   return 30
+}
+
+function buildRevenueExportFileName(): string {
+  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, '').replace(/[:]/g, '').replace('T', '-')
+  return `revenue-monthly-forecast-${timestamp}.xlsx`
 }
 
 function CompactLegend({
@@ -333,6 +339,7 @@ export function RevenueWorkspace({
   salesSaveStatus,
 }: RevenueWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<RevenueViewTab>('data')
+  const [exportError, setExportError] = useState('')
 
   const weeklyChartData = useMemo(
     () =>
@@ -383,11 +390,33 @@ export function RevenueWorkspace({
     return map
   }, [weeklyGrossProfitProjectKeys])
 
+  const exportRevenueWorkbook = (): void => {
+    setExportError('')
+    try {
+      exportRevenueMonthlyWorkbook({
+        monthlyRevenueRows,
+        monthlyGrossProfitRows,
+        fileName: buildRevenueExportFileName(),
+      })
+    } catch (saveError) {
+      console.error('[capacity-dashboard] revenue workbook export failed', saveError)
+      setExportError('Failed to export revenue workbook. Please try again.')
+    }
+  }
+
   return (
     <section className="panel revenue-page">
-      <div className="section-header">
-        <h2>Revenue</h2>
-        <p>Set project financial rates and monitor weekly revenue and gross profit from current planning hours.</p>
+      <div className="section-header section-header-row revenue-header-row">
+        <div>
+          <h2>Revenue</h2>
+          <p>Set project financial rates and monitor weekly revenue and gross profit from current planning hours.</p>
+        </div>
+        <div className="revenue-header-actions">
+          <button type="button" onClick={exportRevenueWorkbook}>
+            Export Monthly Forecast Excel
+          </button>
+          {exportError && <div className="export-error revenue-export-error">{exportError}</div>}
+        </div>
       </div>
 
       <div className="report-tabs" aria-label="Revenue Views">
@@ -429,71 +458,73 @@ export function RevenueWorkspace({
       </div>
 
       {activeTab === 'data' && (
-        <div className="report-tab-panel">
-          <div className="revenue-status-row">
-            <span>
-              <strong>Shop Rates Sync:</strong>{' '}
-              <span style={{ color: statusColor(mainSaveStatus) }}>{mainSaveLabel}</span>
-            </span>
-            <span>
-              <strong>Sales Rates Sync:</strong>{' '}
-              <span style={{ color: statusColor(salesSaveStatus) }}>{salesSaveLabel}</span>
-            </span>
-          </div>
-
-          <div className="panel table-panel revenue-rate-editor">
-            <div className="section-header">
-              <h3>Rates by Project</h3>
-              <p>Changes save to shared storage and are visible to all users.</p>
+        <div className="report-tab-panel revenue-data-panel">
+          <div className="revenue-data-shell">
+            <div className="revenue-status-row">
+              <span>
+                <strong>Shop Rates Sync:</strong>{' '}
+                <span style={{ color: statusColor(mainSaveStatus) }}>{mainSaveLabel}</span>
+              </span>
+              <span>
+                <strong>Sales Rates Sync:</strong>{' '}
+                <span style={{ color: statusColor(salesSaveStatus) }}>{salesSaveLabel}</span>
+              </span>
             </div>
-            {rateRows.length === 0 ? (
-              <div className="status">No projects are available in the current filter scope.</div>
-            ) : (
-              <div className="table-wrap">
-                <table className="revenue-rate-table">
-                  <thead>
-                    <tr>
-                      <th>Project</th>
-                      <th>Planned Hours (Current Scope)</th>
-                      <th>Revenue per Hour</th>
-                      <th>Gross Profit per Hour</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rateRows.map((row) => (
-                      <tr key={`${row.dataset}-${row.project}`}>
-                        <td>{row.label}</td>
-                        <td>{row.plannedHours.toFixed(1)}</td>
-                        <td>
-                          <input
-                            type="number"
-                            min={0}
-                            max={maxRatePerHour}
-                            step="0.01"
-                            value={row.revenuePerHour}
-                            onChange={(event) =>
-                              onRateChange(row.dataset, row.project, 'revenuePerHour', event.target.value)
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min={0}
-                            max={maxRatePerHour}
-                            step="0.01"
-                            value={row.grossProfitPerHour}
-                            onChange={(event) =>
-                              onRateChange(row.dataset, row.project, 'grossProfitPerHour', event.target.value)
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+            <div className="panel table-panel revenue-rate-editor revenue-rate-panel">
+              <div className="section-header">
+                <h3>Rates by Project</h3>
+                <p>Changes save to shared storage and are visible to all users.</p>
               </div>
-            )}
+              {rateRows.length === 0 ? (
+                <div className="status">No projects are available in the current filter scope.</div>
+              ) : (
+                <div className="table-wrap revenue-rate-table-wrap">
+                  <table className="revenue-rate-table">
+                    <thead>
+                      <tr>
+                        <th>Project</th>
+                        <th>Planned Hours (Current Scope)</th>
+                        <th>Revenue per Hour</th>
+                        <th>Gross Profit per Hour</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rateRows.map((row) => (
+                        <tr key={`${row.dataset}-${row.project}`}>
+                          <td>{row.label}</td>
+                          <td>{row.plannedHours.toFixed(1)}</td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              max={maxRatePerHour}
+                              step="0.01"
+                              value={row.revenuePerHour}
+                              onChange={(event) =>
+                                onRateChange(row.dataset, row.project, 'revenuePerHour', event.target.value)
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              max={maxRatePerHour}
+                              step="0.01"
+                              value={row.grossProfitPerHour}
+                              onChange={(event) =>
+                                onRateChange(row.dataset, row.project, 'grossProfitPerHour', event.target.value)
+                              }
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
