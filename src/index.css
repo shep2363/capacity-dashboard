@@ -1280,6 +1280,75 @@ button.sortable {
   text-align: center;
 }
 
+.weekly-capacity-override-panel {
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  background: #0f172a;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.weekly-capacity-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.6rem 0.7rem;
+  align-items: end;
+}
+
+.weekly-capacity-controls input {
+  width: 100%;
+}
+
+.weekly-capacity-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.weekly-capacity-summary strong {
+  color: #e5e7eb;
+}
+
+.weekly-capacity-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: #111827;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.weekly-capacity-tag-override {
+  border-color: #38bdf8;
+  color: #7dd3fc;
+}
+
+.weekly-capacity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.weekly-capacity-actions button {
+  min-width: 170px;
+}
+
+.weekly-capacity-override-table-wrap {
+  max-height: 250px;
+}
+
+.weekly-capacity-override-table th,
+.weekly-capacity-override-table td {
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
 .toggle-switch {
   position: relative;
   display: inline-block;
@@ -1479,6 +1548,11 @@ button.sortable {
 
   .meta-card-actions button {
     width: 100%;
+  }
+
+  .weekly-capacity-actions button {
+    width: 100%;
+    min-width: 0;
   }
 
   .report-header-main {

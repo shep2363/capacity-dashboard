@@ -46,11 +46,18 @@ def save_planning_state() -> Response:
         return _json_no_store({"error": "Invalid JSON payload."}, 400)
 
     overrides = payload.get("overrides", {})
+    week_capacity_overrides = payload.get("weekCapacityOverrides", {})
     base_version = payload.get("baseVersion")
     source = payload.get("source", "ui")
 
     try:
-        saved = store.save_planning_state(dataset, overrides, base_version=base_version, source=source)
+        saved = store.save_planning_state(
+            dataset,
+            overrides,
+            week_capacity_overrides=week_capacity_overrides,
+            base_version=base_version,
+            source=source,
+        )
         return _json_no_store(saved)
     except PlanningStateConflictError as exc:
         return _json_no_store({"error": str(exc)}, 409)

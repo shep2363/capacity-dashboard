@@ -22,6 +22,7 @@ DEFAULT_MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 WORKBOOK_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 PLANNING_STATE_MIME = "application/json"
 DEFAULT_MAX_PLANNING_OVERRIDES = 100_000
+DEFAULT_MAX_WEEK_CAPACITY_OVERRIDES = 100_000
 DEFAULT_MAX_OVERRIDE_HOURS = 1_000_000.0
 DEFAULT_MAX_RATE_PROJECTS = 10_000
 DEFAULT_MAX_RATE_PER_HOUR = 1_000_000.0
@@ -87,6 +88,7 @@ class WorkbookStore:
         self.manifest_dir = self.data_root / "manifests"
         self.max_upload_bytes = self._read_max_upload_bytes()
         self.max_planning_overrides = self._read_max_planning_overrides()
+        self.max_week_capacity_overrides = self._read_max_week_capacity_overrides()
         self.max_override_hours = self._read_max_override_hours()
         self.max_rate_projects = self._read_max_rate_projects()
         self.max_rate_per_hour = self._read_max_rate_per_hour()
@@ -107,6 +109,13 @@ class WorkbookStore:
             return max(1, int(raw))
         except (TypeError, ValueError):
             return DEFAULT_MAX_PLANNING_OVERRIDES
+
+    def _read_max_week_capacity_overrides(self) -> int:
+        raw = os.getenv("CAPACITY_MAX_WEEK_CAPACITY_OVERRIDES", str(DEFAULT_MAX_WEEK_CAPACITY_OVERRIDES))
+        try:
+            return max(1, int(raw))
+        except (TypeError, ValueError):
+            return DEFAULT_MAX_WEEK_CAPACITY_OVERRIDES
 
     def _read_max_override_hours(self) -> float:
         raw = os.getenv("CAPACITY_MAX_OVERRIDE_HOURS", str(DEFAULT_MAX_OVERRIDE_HOURS))
@@ -175,6 +184,8 @@ class WorkbookStore:
             "source": "system",
             "overrideCount": 0,
             "overrides": {},
+            "weekCapacityOverrideCount": 0,
+            "weekCapacityOverrides": {},
         }
 
     def _default_revenue_rates_state(self, dataset: str) -> Dict[str, Any]:
@@ -234,6 +245,67 @@ class WorkbookStore:
             if value > self.max_override_hours:
                 raise ValueError(f"Planning override value for key '{key}' exceeds maximum of {self.max_override_hours}.")
             normalized[key] = value
+        return normalized
+
+    def _normalize_week_capacity_overrides(self, overrides: Any) -> Dict[str, Dict[str, float]]:
+        if overrides is None:
+            return {}
+        if not isinstance(overrides, dict):
+            raise ValueError("Invalid planning state payload. 'weekCapacityOverrides' must be an object.")
+
+        normalized: Dict[str, Dict[str, float]] = {}
+        total_entries = 0
+        for raw_resource, raw_week_map in overrides.items():
+            if not isinstance(raw_resource, str):
+                raise ValueError("Invalid week capacity override resource key.")
+            resource = raw_resource.strip()
+            if not resource:
+                raise ValueError("Week capacity override resource keys cannot be empty.")
+            if len(resource) > 256 or "\n" in resource or "\r" in resource:
+                raise ValueError("Invalid week capacity override resource key format.")
+            if not isinstance(raw_week_map, dict):
+                raise ValueError(f"Week capacity overrides for resource '{resource}' must be an object.")
+
+            normalized_week_map: Dict[str, float] = {}
+            for raw_week_key, raw_value in raw_week_map.items():
+                if not isinstance(raw_week_key, str):
+                    raise ValueError(f"Invalid week key for resource '{resource}'.")
+                week_key = raw_week_key.strip()
+                if not week_key:
+                    raise ValueError(f"Week capacity override keys cannot be empty for resource '{resource}'.")
+                try:
+                    datetime.strptime(week_key, "%Y-%m-%d")
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Invalid week capacity override key '{week_key}' for resource '{resource}'."
+                    ) from exc
+
+                try:
+                    value = float(raw_value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"Invalid week capacity override value for '{resource}' in week '{week_key}'."
+                    ) from exc
+                if not math.isfinite(value) or value < 0:
+                    raise ValueError(
+                        f"Week capacity override for '{resource}' in week '{week_key}' must be a finite non-negative number."
+                    )
+                if value > self.max_override_hours:
+                    raise ValueError(
+                        f"Week capacity override for '{resource}' in week '{week_key}' exceeds maximum of {self.max_override_hours}."
+                    )
+
+                normalized_week_map[week_key] = value
+                total_entries += 1
+                if total_entries > self.max_week_capacity_overrides:
+                    raise ValueError(
+                        "Week capacity overrides exceed maximum of "
+                        f"{self.max_week_capacity_overrides} entries."
+                    )
+
+            if normalized_week_map:
+                normalized[resource] = normalized_week_map
+
         return normalized
 
     def _normalize_rate_value(self, value: Any, project: str, field_name: str) -> float:
@@ -300,6 +372,16 @@ class WorkbookStore:
         except ValueError:
             overrides = {}
 
+        weekly_override_payload = payload.get("weekCapacityOverrides")
+        try:
+            week_capacity_overrides = self._normalize_week_capacity_overrides(
+                weekly_override_payload if weekly_override_payload is not None else {}
+            )
+        except ValueError:
+            week_capacity_overrides = {}
+
+        week_capacity_override_count = sum(len(weeks) for weeks in week_capacity_overrides.values())
+
         return {
             "dataset": dataset,
             "version": version,
@@ -307,6 +389,8 @@ class WorkbookStore:
             "source": self._normalize_source(payload.get("source")),
             "overrideCount": len(overrides),
             "overrides": overrides,
+            "weekCapacityOverrideCount": week_capacity_override_count,
+            "weekCapacityOverrides": week_capacity_overrides,
         }
 
     def _coerce_revenue_rates_state(self, dataset: str, payload: Any) -> Dict[str, Any]:
@@ -590,11 +674,14 @@ class WorkbookStore:
         self,
         dataset: str,
         overrides: Any,
+        week_capacity_overrides: Any = None,
         base_version: Any = None,
         source: Any = "ui",
     ) -> Dict[str, Any]:
         normalized = self._validate_dataset(dataset)
         normalized_overrides = self._normalize_overrides(overrides)
+        normalized_week_capacity_overrides = self._normalize_week_capacity_overrides(week_capacity_overrides)
+        week_capacity_override_count = sum(len(weeks) for weeks in normalized_week_capacity_overrides.values())
         normalized_base_version = self._normalize_base_version(base_version)
         normalized_source = self._normalize_source(source)
         uploaded_at = _utc_now_iso()
@@ -614,6 +701,8 @@ class WorkbookStore:
             "source": normalized_source,
             "overrideCount": len(normalized_overrides),
             "overrides": normalized_overrides,
+            "weekCapacityOverrideCount": week_capacity_override_count,
+            "weekCapacityOverrides": normalized_week_capacity_overrides,
         }
 
         if self.use_blob:
@@ -632,6 +721,7 @@ class WorkbookStore:
                 "updatedAt": next_state["updatedAt"],
                 "source": normalized_source,
                 "overrideCount": next_state["overrideCount"],
+                "weekCapacityOverrideCount": next_state["weekCapacityOverrideCount"],
                 "stateUrl": state_url,
                 "statePath": state_storage_path,
             }
