@@ -1691,7 +1691,15 @@ function App() {
   }
 
   function handleSetWeekCapacityOverride(resource: string, weekStartIso: string, capacityHours: number): void {
-    if (!resource || !allWeekKeys.includes(weekStartIso)) {
+    handleSetWeekCapacityOverrides(resource, [weekStartIso], capacityHours)
+  }
+
+  function handleSetWeekCapacityOverrides(resource: string, weekStartIsos: string[], capacityHours: number): void {
+    if (!resource || weekStartIsos.length === 0) {
+      return
+    }
+    const validWeeks = [...new Set(weekStartIsos)].filter((weekIso) => allWeekKeys.includes(weekIso))
+    if (validWeeks.length === 0) {
       return
     }
     if (!Number.isFinite(capacityHours) || capacityHours < 0) {
@@ -1700,27 +1708,53 @@ function App() {
 
     setWeekCapacityOverridesByResource((current) => {
       const currentResourceOverrides = current[resource] ?? {}
-      if (currentResourceOverrides[weekStartIso] === capacityHours) {
+      let changed = false
+      const nextResourceOverrides: Record<string, number> = { ...currentResourceOverrides }
+      validWeeks.forEach((weekIso) => {
+        if (nextResourceOverrides[weekIso] === capacityHours) {
+          return
+        }
+        nextResourceOverrides[weekIso] = capacityHours
+        changed = true
+      })
+      if (!changed) {
         return current
       }
       return {
         ...current,
-        [resource]: {
-          ...currentResourceOverrides,
-          [weekStartIso]: capacityHours,
-        },
+        [resource]: nextResourceOverrides,
       }
     })
   }
 
   function handleClearWeekCapacityOverride(resource: string, weekStartIso: string): void {
+    handleClearWeekCapacityOverrides(resource, [weekStartIso])
+  }
+
+  function handleClearWeekCapacityOverrides(resource: string, weekStartIsos: string[]): void {
+    if (!resource || weekStartIsos.length === 0) {
+      return
+    }
+    const validWeeks = new Set(weekStartIsos.filter((weekIso) => allWeekKeys.includes(weekIso)))
+    if (validWeeks.size === 0) {
+      return
+    }
     setWeekCapacityOverridesByResource((current) => {
       const currentResourceOverrides = current[resource]
-      if (!currentResourceOverrides || !(weekStartIso in currentResourceOverrides)) {
+      if (!currentResourceOverrides) {
         return current
       }
       const nextResourceOverrides = { ...currentResourceOverrides }
-      delete nextResourceOverrides[weekStartIso]
+      let changed = false
+      validWeeks.forEach((weekIso) => {
+        if (weekIso in nextResourceOverrides) {
+          delete nextResourceOverrides[weekIso]
+          changed = true
+        }
+      })
+      if (!changed) {
+        return current
+      }
       if (Object.keys(nextResourceOverrides).length === 0) {
         const next = { ...current }
         delete next[resource]
@@ -2387,7 +2421,9 @@ function App() {
               weeklyCapacityOverridesByResource={weekCapacityOverridesByResource}
               onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
               onSetWeeklyCapacityOverride={handleSetWeekCapacityOverride}
+              onSetWeeklyCapacityOverrides={handleSetWeekCapacityOverrides}
               onClearWeeklyCapacityOverride={handleClearWeekCapacityOverride}
+              onClearWeeklyCapacityOverrides={handleClearWeekCapacityOverrides}
               onClearAllWeeklyCapacityOverrides={handleClearAllWeekCapacityOverrides}
               onToggleResource={handleToggleResource}
               weekendExtraByResource={weekendExtraByResource}

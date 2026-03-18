@@ -1313,6 +1313,56 @@ button.sortable {
   color: #e5e7eb;
 }
 
+.weekly-capacity-week-picker {
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0b1625;
+  padding: 0.55rem 0.65rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.weekly-capacity-week-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.weekly-capacity-week-picker-actions {
+  display: inline-flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.weekly-capacity-week-picker-actions .ghost-btn {
+  padding: 0.28rem 0.55rem;
+}
+
+.weekly-capacity-week-list {
+  display: grid;
+  gap: 0.3rem;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.weekly-capacity-week-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  color: #dbeafe;
+  font-weight: 600;
+}
+
+.weekly-capacity-week-option input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+}
+
 .weekly-capacity-tag {
   display: inline-flex;
   align-items: center;
@@ -1553,6 +1603,14 @@ button.sortable {
   .weekly-capacity-actions button {
     width: 100%;
     min-width: 0;
+  }
+
+  .weekly-capacity-week-picker-actions {
+    width: 100%;
+  }
+
+  .weekly-capacity-week-picker-actions .ghost-btn {
+    width: 100%;
   }
 
   .report-header-main {
