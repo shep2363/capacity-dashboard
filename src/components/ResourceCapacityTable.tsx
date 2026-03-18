@@ -331,280 +331,282 @@ export function ResourceCapacityTable({
         </div>
       </div>
 
-      <div className="weekly-capacity-override-panel">
-        <div className="section-header">
-          <h3>Weekly Capacity Overrides</h3>
-          <p>Set a specific weekly capacity for a resource. Overrides replace the default weekly capacity for that week.</p>
-        </div>
-
-        {resources.length === 0 || weekKeys.length === 0 ? (
-          <div className="status">No resources or weeks are available for override editing.</div>
-        ) : (
-          <>
-            <div className="weekly-capacity-controls">
-              <label>
-                Resource
-                <select
-                  value={selectedOverrideResource}
-                  onChange={(event) => setSelectedOverrideResource(event.target.value)}
-                >
-                  {resources.map((resource) => (
-                    <option key={resource} value={resource}>
-                      {resource}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Week
-                <select value={selectedOverrideWeek} onChange={(event) => setSelectedOverrideWeek(event.target.value)}>
-                  {weekKeys.map((weekKey) => (
-                    <option key={weekKey} value={weekKey}>
-                      {weekRangeLabel(weekKey)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Override Capacity Hours
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={draftWeekOverrideHours}
-                  onChange={(event) => updateWeekOverrideDraft(event.target.value)}
-                  onBlur={applyWeekOverride}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      applyWeekOverride()
-                      ;(event.currentTarget as HTMLInputElement).blur()
-                    }
-                    if (event.key === 'Escape') {
-                      event.preventDefault()
-                      if (hasSelectedOverride) {
-                        setDraftWeekOverrideHours(String(selectedOverrideWeekly))
-                      } else {
-                        setDraftWeekOverrideHours('')
-                      }
-                      ;(event.currentTarget as HTMLInputElement).blur()
-                    }
-                  }}
-                  placeholder={hasSelectedOverride ? '' : `${selectedDefaultWeekly.toFixed(2)} default`}
-                  aria-label="Weekly capacity override hours"
-                />
-              </label>
-            </div>
-
-            <div className="weekly-capacity-week-picker">
-              <div className="weekly-capacity-week-picker-header">
-                <strong>Weeks for Bulk Apply ({selectedOverrideWeeks.length} selected)</strong>
-                <div className="weekly-capacity-week-picker-actions">
-                  <button type="button" className="ghost-btn" onClick={selectAllWeeks}>
-                    Select All Visible Weeks
-                  </button>
-                  <button type="button" className="ghost-btn" onClick={clearWeekSelection}>
-                    Clear Week Selection
-                  </button>
-                </div>
-              </div>
-              <div className="weekly-capacity-week-list">
-                {weekKeys.map((weekKey) => (
-                  <label key={weekKey} className="weekly-capacity-week-option">
-                    <input
-                      type="checkbox"
-                      checked={selectedOverrideWeekSet.has(weekKey)}
-                      onChange={() => toggleSelectedWeek(weekKey)}
-                    />
-                    <span>{weekRangeLabel(weekKey)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="weekly-capacity-summary">
-              <span>
-                <strong>Default:</strong> {selectedDefaultWeekly.toFixed(2)} h
-              </span>
-              <span>
-                <strong>Override:</strong> {hasSelectedOverride ? `${Number(selectedOverrideWeekly).toFixed(2)} h` : 'None'}
-              </span>
-              <span>
-                <strong>Effective:</strong> {selectedEffectiveWeekly.toFixed(2)} h
-              </span>
-              <span className={hasSelectedOverride ? 'weekly-capacity-tag weekly-capacity-tag-override' : 'weekly-capacity-tag'}>
-                {hasSelectedOverride ? 'Override Active' : 'Using Default'}
-              </span>
-            </div>
-
-            <div className="weekly-capacity-actions">
-              <button type="button" onClick={applyWeekOverride} disabled={!selectedOverrideResource || !selectedOverrideWeek}>
-                Save Override
-              </button>
-              <button type="button" onClick={applyOverrideToSelectedWeeks} disabled={!selectedOverrideResource}>
-                Apply To Selected Weeks
-              </button>
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={clearSelectedWeekOverride}
-                disabled={!hasSelectedOverride}
-              >
-                Clear Selected Override
-              </button>
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={clearSelectedWeeksOverrides}
-                disabled={!selectedOverrideResource}
-              >
-                Clear Selected Weeks Overrides
-              </button>
-              <button
-                type="button"
-                className="ghost-btn"
-                onClick={clearAllOverrides}
-                disabled={weeklyOverrideRows.length === 0}
-              >
-                Clear All Overrides
-              </button>
-            </div>
-
-            {bulkValidationMessage && <div className="error-text">{bulkValidationMessage}</div>}
-
-            {weeklyOverrideRows.length > 0 && (
-              <div className="table-wrap weekly-capacity-override-table-wrap">
-                <table className="weekly-capacity-override-table">
-                  <thead>
-                    <tr>
-                      <th>Resource</th>
-                      <th>Week</th>
-                      <th>Default</th>
-                      <th>Override</th>
-                      <th>Effective</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyOverrideRows.map((row) => (
-                      <tr key={`${row.resource}::${row.weekIso}`}>
-                        <td>{row.resource}</td>
-                        <td>{weekRangeLabel(row.weekIso)}</td>
-                        <td>{row.defaultWeekly.toFixed(2)}</td>
-                        <td>{row.hours.toFixed(2)}</td>
-                        <td>{row.hours.toFixed(2)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="ghost-btn"
-                            onClick={() => onClearWeeklyCapacityOverride(row.resource, row.weekIso)}
-                          >
-                            Clear
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
       {!isCollapsed && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Enabled</th>
-                <th>Resource Name</th>
-                <th>Weekly Capacity Hours</th>
-                <th>Weekend Capacity Contribution</th>
-                <th>Holiday Impact (per holiday day)</th>
-                <th>Effective Weekly Capacity</th>
-                <th>Monthly Capacity Hours</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resources.map((resource) => {
-                const weekly = weeklyCapacitiesByResource[resource] ?? 0
-                const manualWeekend = weekendExtraByResource[resource] ?? 0
-                const holidayImpact = weekly / 5
-                const effectiveWeekly = weekly + manualWeekend
-                const monthly = monthlyFromWeekly(effectiveWeekly)
-                const isEnabled = enabledResources[resource] !== false
+        <>
+          <div className="weekly-capacity-override-panel">
+            <div className="section-header">
+              <h3>Weekly Capacity Overrides</h3>
+              <p>Set a specific weekly capacity for a resource. Overrides replace the default weekly capacity for that week.</p>
+            </div>
 
-                return (
-                  <tr key={resource} className={isEnabled ? 'capacity-selected-row' : ''}>
-                    <td>
-                      <label className="toggle-switch">
+            {resources.length === 0 || weekKeys.length === 0 ? (
+              <div className="status">No resources or weeks are available for override editing.</div>
+            ) : (
+              <>
+                <div className="weekly-capacity-controls">
+                  <label>
+                    Resource
+                    <select
+                      value={selectedOverrideResource}
+                      onChange={(event) => setSelectedOverrideResource(event.target.value)}
+                    >
+                      {resources.map((resource) => (
+                        <option key={resource} value={resource}>
+                          {resource}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Week
+                    <select value={selectedOverrideWeek} onChange={(event) => setSelectedOverrideWeek(event.target.value)}>
+                      {weekKeys.map((weekKey) => (
+                        <option key={weekKey} value={weekKey}>
+                          {weekRangeLabel(weekKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Override Capacity Hours
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={draftWeekOverrideHours}
+                      onChange={(event) => updateWeekOverrideDraft(event.target.value)}
+                      onBlur={applyWeekOverride}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          applyWeekOverride()
+                          ;(event.currentTarget as HTMLInputElement).blur()
+                        }
+                        if (event.key === 'Escape') {
+                          event.preventDefault()
+                          if (hasSelectedOverride) {
+                            setDraftWeekOverrideHours(String(selectedOverrideWeekly))
+                          } else {
+                            setDraftWeekOverrideHours('')
+                          }
+                          ;(event.currentTarget as HTMLInputElement).blur()
+                        }
+                      }}
+                      placeholder={hasSelectedOverride ? '' : `${selectedDefaultWeekly.toFixed(2)} default`}
+                      aria-label="Weekly capacity override hours"
+                    />
+                  </label>
+                </div>
+
+                <div className="weekly-capacity-week-picker">
+                  <div className="weekly-capacity-week-picker-header">
+                    <strong>Weeks for Bulk Apply ({selectedOverrideWeeks.length} selected)</strong>
+                    <div className="weekly-capacity-week-picker-actions">
+                      <button type="button" className="ghost-btn" onClick={selectAllWeeks}>
+                        Select All Visible Weeks
+                      </button>
+                      <button type="button" className="ghost-btn" onClick={clearWeekSelection}>
+                        Clear Week Selection
+                      </button>
+                    </div>
+                  </div>
+                  <div className="weekly-capacity-week-list">
+                    {weekKeys.map((weekKey) => (
+                      <label key={weekKey} className="weekly-capacity-week-option">
                         <input
                           type="checkbox"
-                          checked={isEnabled}
-                          onChange={(event) => onToggleResource(resource, event.target.checked)}
-                          aria-label={`Toggle ${resource}`}
+                          checked={selectedOverrideWeekSet.has(weekKey)}
+                          onChange={() => toggleSelectedWeek(weekKey)}
                         />
-                        <span className="toggle-slider" />
+                        <span>{weekRangeLabel(weekKey)}</span>
                       </label>
-                    </td>
-                    <td>{resource}</td>
-                    <td>
-                      <input
-                        className="capacity-cell"
-                        type="text"
-                        inputMode="decimal"
-                        value={draftWeeklyByResource[resource] ?? String(Number.isFinite(weekly) ? weekly : 0)}
-                        onChange={(event) => updateDraftValue(setDraftWeeklyByResource, resource, event.target.value)}
-                        onBlur={() => commitWeeklyDraft(resource)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            commitWeeklyDraft(resource)
-                            ;(event.currentTarget as HTMLInputElement).blur()
-                          }
-                          if (event.key === 'Escape') {
-                            event.preventDefault()
-                            resetWeeklyDraft(resource)
-                            ;(event.currentTarget as HTMLInputElement).blur()
-                          }
-                        }}
-                        aria-label={`Weekly capacity for ${resource}`}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="capacity-cell"
-                        type="text"
-                        inputMode="decimal"
-                        value={draftWeekendByResource[resource] ?? String(Number.isFinite(manualWeekend) ? manualWeekend : 0)}
-                        onChange={(event) => updateDraftValue(setDraftWeekendByResource, resource, event.target.value)}
-                        onBlur={() => commitWeekendDraft(resource)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            commitWeekendDraft(resource)
-                            ;(event.currentTarget as HTMLInputElement).blur()
-                          }
-                          if (event.key === 'Escape') {
-                            event.preventDefault()
-                            resetWeekendDraft(resource)
-                            ;(event.currentTarget as HTMLInputElement).blur()
-                          }
-                        }}
-                        aria-label={`Weekend capacity for ${resource}`}
-                      />
-                    </td>
-                    <td>{holidayImpact.toFixed(2)}</td>
-                    <td>{effectiveWeekly.toFixed(2)}</td>
-                    <td>{monthly.toFixed(2)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="weekly-capacity-summary">
+                  <span>
+                    <strong>Default:</strong> {selectedDefaultWeekly.toFixed(2)} h
+                  </span>
+                  <span>
+                    <strong>Override:</strong> {hasSelectedOverride ? `${Number(selectedOverrideWeekly).toFixed(2)} h` : 'None'}
+                  </span>
+                  <span>
+                    <strong>Effective:</strong> {selectedEffectiveWeekly.toFixed(2)} h
+                  </span>
+                  <span className={hasSelectedOverride ? 'weekly-capacity-tag weekly-capacity-tag-override' : 'weekly-capacity-tag'}>
+                    {hasSelectedOverride ? 'Override Active' : 'Using Default'}
+                  </span>
+                </div>
+
+                <div className="weekly-capacity-actions">
+                  <button type="button" onClick={applyWeekOverride} disabled={!selectedOverrideResource || !selectedOverrideWeek}>
+                    Save Override
+                  </button>
+                  <button type="button" onClick={applyOverrideToSelectedWeeks} disabled={!selectedOverrideResource}>
+                    Apply To Selected Weeks
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={clearSelectedWeekOverride}
+                    disabled={!hasSelectedOverride}
+                  >
+                    Clear Selected Override
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={clearSelectedWeeksOverrides}
+                    disabled={!selectedOverrideResource}
+                  >
+                    Clear Selected Weeks Overrides
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={clearAllOverrides}
+                    disabled={weeklyOverrideRows.length === 0}
+                  >
+                    Clear All Overrides
+                  </button>
+                </div>
+
+                {bulkValidationMessage && <div className="error-text">{bulkValidationMessage}</div>}
+
+                {weeklyOverrideRows.length > 0 && (
+                  <div className="table-wrap weekly-capacity-override-table-wrap">
+                    <table className="weekly-capacity-override-table">
+                      <thead>
+                        <tr>
+                          <th>Resource</th>
+                          <th>Week</th>
+                          <th>Default</th>
+                          <th>Override</th>
+                          <th>Effective</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeklyOverrideRows.map((row) => (
+                          <tr key={`${row.resource}::${row.weekIso}`}>
+                            <td>{row.resource}</td>
+                            <td>{weekRangeLabel(row.weekIso)}</td>
+                            <td>{row.defaultWeekly.toFixed(2)}</td>
+                            <td>{row.hours.toFixed(2)}</td>
+                            <td>{row.hours.toFixed(2)}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="ghost-btn"
+                                onClick={() => onClearWeeklyCapacityOverride(row.resource, row.weekIso)}
+                              >
+                                Clear
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Enabled</th>
+                  <th>Resource Name</th>
+                  <th>Weekly Capacity Hours</th>
+                  <th>Weekend Capacity Contribution</th>
+                  <th>Holiday Impact (per holiday day)</th>
+                  <th>Effective Weekly Capacity</th>
+                  <th>Monthly Capacity Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resources.map((resource) => {
+                  const weekly = weeklyCapacitiesByResource[resource] ?? 0
+                  const manualWeekend = weekendExtraByResource[resource] ?? 0
+                  const holidayImpact = weekly / 5
+                  const effectiveWeekly = weekly + manualWeekend
+                  const monthly = monthlyFromWeekly(effectiveWeekly)
+                  const isEnabled = enabledResources[resource] !== false
+
+                  return (
+                    <tr key={resource} className={isEnabled ? 'capacity-selected-row' : ''}>
+                      <td>
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={isEnabled}
+                            onChange={(event) => onToggleResource(resource, event.target.checked)}
+                            aria-label={`Toggle ${resource}`}
+                          />
+                          <span className="toggle-slider" />
+                        </label>
+                      </td>
+                      <td>{resource}</td>
+                      <td>
+                        <input
+                          className="capacity-cell"
+                          type="text"
+                          inputMode="decimal"
+                          value={draftWeeklyByResource[resource] ?? String(Number.isFinite(weekly) ? weekly : 0)}
+                          onChange={(event) => updateDraftValue(setDraftWeeklyByResource, resource, event.target.value)}
+                          onBlur={() => commitWeeklyDraft(resource)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              commitWeeklyDraft(resource)
+                              ;(event.currentTarget as HTMLInputElement).blur()
+                            }
+                            if (event.key === 'Escape') {
+                              event.preventDefault()
+                              resetWeeklyDraft(resource)
+                              ;(event.currentTarget as HTMLInputElement).blur()
+                            }
+                          }}
+                          aria-label={`Weekly capacity for ${resource}`}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="capacity-cell"
+                          type="text"
+                          inputMode="decimal"
+                          value={draftWeekendByResource[resource] ?? String(Number.isFinite(manualWeekend) ? manualWeekend : 0)}
+                          onChange={(event) => updateDraftValue(setDraftWeekendByResource, resource, event.target.value)}
+                          onBlur={() => commitWeekendDraft(resource)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              commitWeekendDraft(resource)
+                              ;(event.currentTarget as HTMLInputElement).blur()
+                            }
+                            if (event.key === 'Escape') {
+                              event.preventDefault()
+                              resetWeekendDraft(resource)
+                              ;(event.currentTarget as HTMLInputElement).blur()
+                            }
+                          }}
+                          aria-label={`Weekend capacity for ${resource}`}
+                        />
+                      </td>
+                      <td>{holidayImpact.toFixed(2)}</td>
+                      <td>{effectiveWeekly.toFixed(2)}</td>
+                      <td>{monthly.toFixed(2)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   )
