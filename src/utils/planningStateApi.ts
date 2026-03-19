@@ -1,6 +1,5 @@
 import type { WorkbookDataset } from './activeWorkbookApi'
-
-export type WeekCapacityOverridesByResource = Record<string, Record<string, number>>
+export type WeekCapacitySchedule = Record<string, number>
 
 export interface PlanningStatePayload {
   dataset: WorkbookDataset
@@ -9,14 +8,14 @@ export interface PlanningStatePayload {
   source: string
   overrideCount: number
   overrides: Record<string, number>
-  weekCapacityOverrideCount?: number
-  weekCapacityOverrides?: WeekCapacityOverridesByResource
+  weekCapacityScheduleCount?: number
+  weekCapacitySchedule?: WeekCapacitySchedule
 }
 
 export interface SavePlanningStateOptions {
   baseVersion?: number | null
   source?: string
-  weekCapacityOverrides?: WeekCapacityOverridesByResource
+  weekCapacitySchedule?: WeekCapacitySchedule
 }
 
 export class PlanningStateApiError extends Error {
@@ -78,8 +77,8 @@ export async function savePlanningState(
   if (typeof options.baseVersion === 'number' && Number.isFinite(options.baseVersion) && options.baseVersion >= 0) {
     payload.baseVersion = options.baseVersion
   }
-  if (options.weekCapacityOverrides) {
-    payload.weekCapacityOverrides = options.weekCapacityOverrides
+  if (options.weekCapacitySchedule !== undefined) {
+    payload.weekCapacitySchedule = options.weekCapacitySchedule
   }
   const response = await fetch(buildApiUrl(`/api/planning-state?dataset=${dataset}`), {
     method: 'POST',

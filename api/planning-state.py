@@ -46,7 +46,7 @@ def save_planning_state() -> Response:
         return _json_no_store({"error": "Invalid JSON payload."}, 400)
 
     overrides = payload.get("overrides", {})
-    week_capacity_overrides = payload.get("weekCapacityOverrides", {})
+    week_capacity_schedule = payload.get("weekCapacitySchedule", {})
     base_version = payload.get("baseVersion")
     source = payload.get("source", "ui")
 
@@ -54,7 +54,7 @@ def save_planning_state() -> Response:
         saved = store.save_planning_state(
             dataset,
             overrides,
-            week_capacity_overrides=week_capacity_overrides,
+            week_capacity_schedule=week_capacity_schedule,
             base_version=base_version,
             source=source,
         )

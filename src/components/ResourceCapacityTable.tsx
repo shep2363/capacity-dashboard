@@ -7,17 +7,17 @@ interface ResourceCapacityTableProps {
   enabledResources: Record<string, boolean>
   weeklyCapacitiesByResource: Record<string, number>
   weekKeys: string[]
-  weeklyCapacityOverridesByResource: Record<string, Record<string, number>>
+  totalWeekCapacitySchedule: Record<string, number>
+  baseTotalCapacityByWeek: Record<string, number>
+  effectiveTotalCapacityByWeek: Record<string, number>
   onWeeklyCapacityChange: (resource: string, weeklyCapacity: number) => void
-  onSetWeeklyCapacityOverride: (resource: string, weekStartIso: string, weeklyCapacity: number) => void
-  onSetWeeklyCapacityOverrides: (resource: string, weekStartIsos: string[], weeklyCapacity: number) => void
-  onClearWeeklyCapacityOverride: (resource: string, weekStartIso: string) => void
-  onClearWeeklyCapacityOverrides: (resource: string, weekStartIsos: string[]) => void
-  onClearAllWeeklyCapacityOverrides: () => void
+  onSetTotalWeekCapacityForWeek: (weekStartIso: string, weeklyCapacity: number) => void
+  onSetTotalWeekCapacityFromWeekForward: (weekStartIso: string, weeklyCapacity: number) => void
+  onClearTotalWeekCapacityEntry: (weekStartIso: string) => void
+  onClearAllTotalWeekCapacityEntries: () => void
   onToggleResource: (resource: string, enabled: boolean) => void
   weekendExtraByResource: Record<string, number>
   onWeekendExtraChange: (resource: string, weekendHours: number) => void
-  // holidayWeeks is unused here but kept for future per-week breakdowns
   holidayWeeks?: Map<string, number>
 }
 
@@ -32,13 +32,14 @@ export function ResourceCapacityTable({
   enabledResources,
   weeklyCapacitiesByResource,
   weekKeys,
-  weeklyCapacityOverridesByResource,
+  totalWeekCapacitySchedule,
+  baseTotalCapacityByWeek,
+  effectiveTotalCapacityByWeek,
   onWeeklyCapacityChange,
-  onSetWeeklyCapacityOverride,
-  onSetWeeklyCapacityOverrides,
-  onClearWeeklyCapacityOverride,
-  onClearWeeklyCapacityOverrides,
-  onClearAllWeeklyCapacityOverrides,
+  onSetTotalWeekCapacityForWeek,
+  onSetTotalWeekCapacityFromWeekForward,
+  onClearTotalWeekCapacityEntry,
+  onClearAllTotalWeekCapacityEntries,
   onToggleResource,
   weekendExtraByResource,
   onWeekendExtraChange,
@@ -46,30 +47,24 @@ export function ResourceCapacityTable({
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [draftWeeklyByResource, setDraftWeeklyByResource] = useState<Record<string, string>>({})
   const [draftWeekendByResource, setDraftWeekendByResource] = useState<Record<string, string>>({})
-  const [selectedOverrideResource, setSelectedOverrideResource] = useState('')
-  const [selectedOverrideWeek, setSelectedOverrideWeek] = useState('')
-  const [selectedOverrideWeeks, setSelectedOverrideWeeks] = useState<string[]>([])
-  const [draftWeekOverrideHours, setDraftWeekOverrideHours] = useState('')
-  const [bulkValidationMessage, setBulkValidationMessage] = useState('')
+  const [selectedCapacityWeek, setSelectedCapacityWeek] = useState('')
+  const [draftScheduledCapacityHours, setDraftScheduledCapacityHours] = useState('')
+  const [scheduleValidationMessage, setScheduleValidationMessage] = useState('')
 
   const resourceSet = useMemo(() => new Set(resources), [resources])
   const weekSet = useMemo(() => new Set(weekKeys), [weekKeys])
 
-  const weeklyOverrideRows = useMemo(
-    () =>
-      Object.entries(weeklyCapacityOverridesByResource)
-        .flatMap(([resource, weekMap]) =>
-          Object.entries(weekMap).map(([weekIso, hours]) => ({
-            resource,
-            weekIso,
-            hours,
-            defaultWeekly: weeklyCapacitiesByResource[resource] ?? 0,
-          })),
-        )
-        .filter((row) => Number.isFinite(row.hours))
-        .sort((a, b) => (a.weekIso === b.weekIso ? a.resource.localeCompare(b.resource) : a.weekIso.localeCompare(b.weekIso))),
-    [weeklyCapacityOverridesByResource, weeklyCapacitiesByResource],
-  )
+  const scheduleRows = useMemo(() => {
+    const explicitWeeks = weekKeys
+      .filter((weekIso) => Object.prototype.hasOwnProperty.call(totalWeekCapacitySchedule, weekIso))
+      .sort((a, b) => a.localeCompare(b))
+
+    return explicitWeeks.map((weekIso, index) => ({
+      weekIso,
+      hours: totalWeekCapacitySchedule[weekIso] ?? 0,
+      nextWeekIso: explicitWeeks[index + 1] ?? null,
+    }))
+  }, [totalWeekCapacitySchedule, weekKeys])
 
   useEffect(() => {
     const next: Record<string, string> = {}
@@ -94,47 +89,29 @@ export function ResourceCapacityTable({
   }, [resources, weekendExtraByResource])
 
   useEffect(() => {
-    if (resources.length === 0) {
-      setSelectedOverrideResource('')
-      return
-    }
-    setSelectedOverrideResource((current) =>
-      current && resourceSet.has(current) ? current : resources[0],
-    )
-  }, [resources, resourceSet])
-
-  useEffect(() => {
     if (weekKeys.length === 0) {
-      setSelectedOverrideWeek('')
-      setSelectedOverrideWeeks([])
+      setSelectedCapacityWeek('')
       return
     }
-    setSelectedOverrideWeek((current) => (current && weekSet.has(current) ? current : weekKeys[0]))
-    setSelectedOverrideWeeks((current) => {
-      if (current.length === 0) {
-        return [weekKeys[0]]
-      }
-      const filtered = current.filter((weekIso) => weekSet.has(weekIso))
-      return filtered.length > 0 ? filtered : [weekKeys[0]]
-    })
+    setSelectedCapacityWeek((current) => (current && weekSet.has(current) ? current : weekKeys[0]))
   }, [weekKeys, weekSet])
 
   useEffect(() => {
-    if (!selectedOverrideResource || !selectedOverrideWeek) {
-      setDraftWeekOverrideHours('')
+    if (!selectedCapacityWeek) {
+      setDraftScheduledCapacityHours('')
       return
     }
-    const override = weeklyCapacityOverridesByResource[selectedOverrideResource]?.[selectedOverrideWeek]
-    if (Number.isFinite(override)) {
-      setDraftWeekOverrideHours(String(override))
+    const scheduledCapacity = totalWeekCapacitySchedule[selectedCapacityWeek]
+    if (Number.isFinite(scheduledCapacity)) {
+      setDraftScheduledCapacityHours(String(scheduledCapacity))
       return
     }
-    setDraftWeekOverrideHours('')
-  }, [selectedOverrideResource, selectedOverrideWeek, weeklyCapacityOverridesByResource])
+    setDraftScheduledCapacityHours('')
+  }, [selectedCapacityWeek, totalWeekCapacitySchedule])
 
   useEffect(() => {
-    setBulkValidationMessage('')
-  }, [selectedOverrideResource, selectedOverrideWeek, selectedOverrideWeeks])
+    setScheduleValidationMessage('')
+  }, [selectedCapacityWeek])
 
   function parseCommittedHours(draft: string): number {
     if (draft.trim() === '') {
@@ -202,114 +179,71 @@ export function ResourceCapacityTable({
     }))
   }
 
-  function updateWeekOverrideDraft(rawValue: string): void {
+  function updateScheduledCapacityDraft(rawValue: string): void {
     if (rawValue !== '' && !/^\d*\.?\d*$/.test(rawValue)) {
       return
     }
-    setDraftWeekOverrideHours(rawValue)
+    setDraftScheduledCapacityHours(rawValue)
   }
 
-  function applyWeekOverride(): void {
-    if (!selectedOverrideResource || !selectedOverrideWeek) {
+  function applyCapacityToThisWeek(): void {
+    if (!selectedCapacityWeek) {
+      setScheduleValidationMessage('Select a week before applying total capacity.')
       return
     }
-    if (!weekSet.has(selectedOverrideWeek)) {
+    if (draftScheduledCapacityHours.trim() === '') {
+      setScheduleValidationMessage('Enter total weekly capacity hours before saving.')
       return
     }
-    if (draftWeekOverrideHours.trim() === '') {
-      return
-    }
-    const committed = parseCommittedHours(draftWeekOverrideHours)
-    onSetWeeklyCapacityOverride(selectedOverrideResource, selectedOverrideWeek, committed)
-    setDraftWeekOverrideHours(String(committed))
-    setBulkValidationMessage('')
+    const committed = parseCommittedHours(draftScheduledCapacityHours)
+    onSetTotalWeekCapacityForWeek(selectedCapacityWeek, committed)
+    setDraftScheduledCapacityHours(String(committed))
+    setScheduleValidationMessage('')
   }
 
-  function clearSelectedWeekOverride(): void {
-    if (!selectedOverrideResource || !selectedOverrideWeek) {
+  function applyCapacityFromWeekForward(): void {
+    if (!selectedCapacityWeek) {
+      setScheduleValidationMessage('Select a week before applying total capacity.')
       return
     }
-    onClearWeeklyCapacityOverride(selectedOverrideResource, selectedOverrideWeek)
-    setDraftWeekOverrideHours('')
-    setBulkValidationMessage('')
+    if (draftScheduledCapacityHours.trim() === '') {
+      setScheduleValidationMessage('Enter total weekly capacity hours before saving.')
+      return
+    }
+    const committed = parseCommittedHours(draftScheduledCapacityHours)
+    onSetTotalWeekCapacityFromWeekForward(selectedCapacityWeek, committed)
+    setDraftScheduledCapacityHours(String(committed))
+    setScheduleValidationMessage('')
   }
 
-  function toggleSelectedWeek(weekIso: string): void {
-    setSelectedOverrideWeeks((current) => {
-      if (current.includes(weekIso)) {
-        return current.filter((value) => value !== weekIso)
-      }
-      return [...current, weekIso].sort((a, b) => a.localeCompare(b))
-    })
+  function clearSelectedWeekSetting(): void {
+    if (!selectedCapacityWeek) {
+      return
+    }
+    onClearTotalWeekCapacityEntry(selectedCapacityWeek)
+    setDraftScheduledCapacityHours('')
+    setScheduleValidationMessage('')
   }
 
-  function selectAllWeeks(): void {
-    setSelectedOverrideWeeks([...weekKeys])
-    setBulkValidationMessage('')
-  }
-
-  function clearWeekSelection(): void {
-    setSelectedOverrideWeeks([])
-    setBulkValidationMessage('')
-  }
-
-  function applyOverrideToSelectedWeeks(): void {
-    if (!selectedOverrideResource) {
-      setBulkValidationMessage('Select a resource before applying override hours.')
+  function clearAllScheduleEntries(): void {
+    if (scheduleRows.length === 0) {
       return
     }
-    if (selectedOverrideWeeks.length === 0) {
-      setBulkValidationMessage('Select at least one week for bulk override.')
-      return
-    }
-    if (draftWeekOverrideHours.trim() === '') {
-      setBulkValidationMessage('Enter override capacity hours before bulk apply.')
-      return
-    }
-
-    const committed = parseCommittedHours(draftWeekOverrideHours)
-    onSetWeeklyCapacityOverrides(selectedOverrideResource, selectedOverrideWeeks, committed)
-    setDraftWeekOverrideHours(String(committed))
-    setBulkValidationMessage('')
-  }
-
-  function clearSelectedWeeksOverrides(): void {
-    if (!selectedOverrideResource) {
-      setBulkValidationMessage('Select a resource before clearing overrides.')
-      return
-    }
-    if (selectedOverrideWeeks.length === 0) {
-      setBulkValidationMessage('Select at least one week to clear overrides.')
-      return
-    }
-    onClearWeeklyCapacityOverrides(selectedOverrideResource, selectedOverrideWeeks)
-    if (selectedOverrideWeeks.includes(selectedOverrideWeek)) {
-      setDraftWeekOverrideHours('')
-    }
-    setBulkValidationMessage('')
-  }
-
-  function clearAllOverrides(): void {
-    if (weeklyOverrideRows.length === 0) {
-      return
-    }
-    const confirmed = window.confirm('Clear all weekly capacity overrides?')
+    const confirmed = window.confirm('Clear all total weekly capacity schedule entries?')
     if (!confirmed) {
       return
     }
-    onClearAllWeeklyCapacityOverrides()
-    setDraftWeekOverrideHours('')
-    setBulkValidationMessage('')
+    onClearAllTotalWeekCapacityEntries()
+    setDraftScheduledCapacityHours('')
+    setScheduleValidationMessage('')
   }
 
-  const selectedDefaultWeekly = selectedOverrideResource ? (weeklyCapacitiesByResource[selectedOverrideResource] ?? 0) : 0
-  const selectedOverrideWeekly =
-    selectedOverrideResource && selectedOverrideWeek
-      ? weeklyCapacityOverridesByResource[selectedOverrideResource]?.[selectedOverrideWeek]
-      : undefined
-  const hasSelectedOverride = Number.isFinite(selectedOverrideWeekly)
-  const selectedEffectiveWeekly = hasSelectedOverride ? Number(selectedOverrideWeekly) : selectedDefaultWeekly
-  const selectedOverrideWeekSet = useMemo(() => new Set(selectedOverrideWeeks), [selectedOverrideWeeks])
+  const selectedBaseTotal = selectedCapacityWeek ? (baseTotalCapacityByWeek[selectedCapacityWeek] ?? 0) : 0
+  const selectedScheduledTotal = selectedCapacityWeek ? totalWeekCapacitySchedule[selectedCapacityWeek] : undefined
+  const hasSelectedScheduleEntry = Number.isFinite(selectedScheduledTotal)
+  const selectedEffectiveTotal = selectedCapacityWeek
+    ? (effectiveTotalCapacityByWeek[selectedCapacityWeek] ?? selectedBaseTotal)
+    : 0
 
   return (
     <section className="panel table-panel resource-panel">
@@ -324,7 +258,7 @@ export function ResourceCapacityTable({
         <div className="section-actions">
           <button type="button" className="ghost-btn" onClick={() => setIsCollapsed((current) => !current)}>
             <span className={`chevron ${isCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
-              ▾
+              v
             </span>
             {isCollapsed ? 'Expand Table' : 'Collapse Table'}
           </button>
@@ -333,34 +267,23 @@ export function ResourceCapacityTable({
 
       {!isCollapsed && (
         <>
-          <div className="weekly-capacity-override-panel">
+          <div className="total-weekly-capacity-panel">
             <div className="section-header">
-              <h3>Weekly Capacity Overrides</h3>
-              <p>Set a specific weekly capacity for a resource. Overrides replace the default weekly capacity for that week.</p>
+              <h3>Total Weekly Capacity</h3>
+              <p>
+                Set a total capacity schedule for the full week. Explicit entries become breakpoints and stay active
+                until the next scheduled change.
+              </p>
             </div>
 
-            {resources.length === 0 || weekKeys.length === 0 ? (
-              <div className="status">No resources or weeks are available for override editing.</div>
+            {weekKeys.length === 0 ? (
+              <div className="status">No weeks are available for total weekly capacity planning.</div>
             ) : (
               <>
-                <div className="weekly-capacity-controls">
-                  <label>
-                    Resource
-                    <select
-                      value={selectedOverrideResource}
-                      onChange={(event) => setSelectedOverrideResource(event.target.value)}
-                    >
-                      {resources.map((resource) => (
-                        <option key={resource} value={resource}>
-                          {resource}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
+                <div className="total-weekly-capacity-controls">
                   <label>
                     Week
-                    <select value={selectedOverrideWeek} onChange={(event) => setSelectedOverrideWeek(event.target.value)}>
+                    <select value={selectedCapacityWeek} onChange={(event) => setSelectedCapacityWeek(event.target.value)}>
                       {weekKeys.map((weekKey) => (
                         <option key={weekKey} value={weekKey}>
                           {weekRangeLabel(weekKey)}
@@ -370,137 +293,93 @@ export function ResourceCapacityTable({
                   </label>
 
                   <label>
-                    Override Capacity Hours
+                    Total Capacity Hours
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={draftWeekOverrideHours}
-                      onChange={(event) => updateWeekOverrideDraft(event.target.value)}
-                      onBlur={applyWeekOverride}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault()
-                          applyWeekOverride()
-                          ;(event.currentTarget as HTMLInputElement).blur()
-                        }
-                        if (event.key === 'Escape') {
-                          event.preventDefault()
-                          if (hasSelectedOverride) {
-                            setDraftWeekOverrideHours(String(selectedOverrideWeekly))
-                          } else {
-                            setDraftWeekOverrideHours('')
-                          }
-                          ;(event.currentTarget as HTMLInputElement).blur()
-                        }
-                      }}
-                      placeholder={hasSelectedOverride ? '' : `${selectedDefaultWeekly.toFixed(2)} default`}
-                      aria-label="Weekly capacity override hours"
+                      value={draftScheduledCapacityHours}
+                      onChange={(event) => updateScheduledCapacityDraft(event.target.value)}
+                      placeholder={hasSelectedScheduleEntry ? '' : `${selectedBaseTotal.toFixed(2)} base`}
+                      aria-label="Total weekly capacity hours"
                     />
                   </label>
                 </div>
 
-                <div className="weekly-capacity-week-picker">
-                  <div className="weekly-capacity-week-picker-header">
-                    <strong>Weeks for Bulk Apply ({selectedOverrideWeeks.length} selected)</strong>
-                    <div className="weekly-capacity-week-picker-actions">
-                      <button type="button" className="ghost-btn" onClick={selectAllWeeks}>
-                        Select All Visible Weeks
-                      </button>
-                      <button type="button" className="ghost-btn" onClick={clearWeekSelection}>
-                        Clear Week Selection
-                      </button>
-                    </div>
-                  </div>
-                  <div className="weekly-capacity-week-list">
-                    {weekKeys.map((weekKey) => (
-                      <label key={weekKey} className="weekly-capacity-week-option">
-                        <input
-                          type="checkbox"
-                          checked={selectedOverrideWeekSet.has(weekKey)}
-                          onChange={() => toggleSelectedWeek(weekKey)}
-                        />
-                        <span>{weekRangeLabel(weekKey)}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="weekly-capacity-summary">
+                <div className="total-weekly-capacity-summary">
                   <span>
-                    <strong>Default:</strong> {selectedDefaultWeekly.toFixed(2)} h
+                    <strong>Base Total:</strong> {selectedBaseTotal.toFixed(2)} h
                   </span>
                   <span>
-                    <strong>Override:</strong> {hasSelectedOverride ? `${Number(selectedOverrideWeekly).toFixed(2)} h` : 'None'}
+                    <strong>Scheduled Entry:</strong>{' '}
+                    {hasSelectedScheduleEntry ? `${Number(selectedScheduledTotal).toFixed(2)} h` : 'None'}
                   </span>
                   <span>
-                    <strong>Effective:</strong> {selectedEffectiveWeekly.toFixed(2)} h
+                    <strong>Effective Total:</strong> {selectedEffectiveTotal.toFixed(2)} h
                   </span>
-                  <span className={hasSelectedOverride ? 'weekly-capacity-tag weekly-capacity-tag-override' : 'weekly-capacity-tag'}>
-                    {hasSelectedOverride ? 'Override Active' : 'Using Default'}
+                  <span
+                    className={
+                      hasSelectedScheduleEntry
+                        ? 'total-weekly-capacity-tag total-weekly-capacity-tag-scheduled'
+                        : 'total-weekly-capacity-tag'
+                    }
+                  >
+                    {hasSelectedScheduleEntry ? 'Scheduled Entry Active' : 'Using Base Total'}
                   </span>
                 </div>
 
-                <div className="weekly-capacity-actions">
-                  <button type="button" onClick={applyWeekOverride} disabled={!selectedOverrideResource || !selectedOverrideWeek}>
-                    Save Override
+                <div className="total-weekly-capacity-actions">
+                  <button type="button" onClick={applyCapacityToThisWeek} disabled={!selectedCapacityWeek}>
+                    Apply to This Week
                   </button>
-                  <button type="button" onClick={applyOverrideToSelectedWeeks} disabled={!selectedOverrideResource}>
-                    Apply To Selected Weeks
+                  <button type="button" onClick={applyCapacityFromWeekForward} disabled={!selectedCapacityWeek}>
+                    Apply From This Week Forward
                   </button>
                   <button
                     type="button"
                     className="ghost-btn"
-                    onClick={clearSelectedWeekOverride}
-                    disabled={!hasSelectedOverride}
+                    onClick={clearSelectedWeekSetting}
+                    disabled={!hasSelectedScheduleEntry}
                   >
-                    Clear Selected Override
+                    Clear This Week Setting
                   </button>
                   <button
                     type="button"
                     className="ghost-btn"
-                    onClick={clearSelectedWeeksOverrides}
-                    disabled={!selectedOverrideResource}
+                    onClick={clearAllScheduleEntries}
+                    disabled={scheduleRows.length === 0}
                   >
-                    Clear Selected Weeks Overrides
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    onClick={clearAllOverrides}
-                    disabled={weeklyOverrideRows.length === 0}
-                  >
-                    Clear All Overrides
+                    Clear All Capacity Schedule Entries
                   </button>
                 </div>
 
-                {bulkValidationMessage && <div className="error-text">{bulkValidationMessage}</div>}
+                {scheduleValidationMessage && <div className="error-text">{scheduleValidationMessage}</div>}
 
-                {weeklyOverrideRows.length > 0 && (
-                  <div className="table-wrap weekly-capacity-override-table-wrap">
-                    <table className="weekly-capacity-override-table">
+                {scheduleRows.length > 0 && (
+                  <div className="table-wrap total-weekly-capacity-table-wrap">
+                    <table className="total-weekly-capacity-table">
                       <thead>
                         <tr>
-                          <th>Resource</th>
                           <th>Week</th>
-                          <th>Default</th>
-                          <th>Override</th>
-                          <th>Effective</th>
+                          <th>Scheduled Total</th>
+                          <th>Effective Behavior</th>
                           <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {weeklyOverrideRows.map((row) => (
-                          <tr key={`${row.resource}::${row.weekIso}`}>
-                            <td>{row.resource}</td>
+                        {scheduleRows.map((row) => (
+                          <tr key={row.weekIso}>
                             <td>{weekRangeLabel(row.weekIso)}</td>
-                            <td>{row.defaultWeekly.toFixed(2)}</td>
                             <td>{row.hours.toFixed(2)}</td>
-                            <td>{row.hours.toFixed(2)}</td>
+                            <td>
+                              {row.nextWeekIso
+                                ? `Active until next change on ${weekRangeLabel(row.nextWeekIso)}`
+                                : 'Active through remaining visible weeks'}
+                            </td>
                             <td>
                               <button
                                 type="button"
                                 className="ghost-btn"
-                                onClick={() => onClearWeeklyCapacityOverride(row.resource, row.weekIso)}
+                                onClick={() => onClearTotalWeekCapacityEntry(row.weekIso)}
                               >
                                 Clear
                               </button>

@@ -1280,7 +1280,7 @@ button.sortable {
   text-align: center;
 }
 
-.weekly-capacity-override-panel {
+.total-weekly-capacity-panel {
   margin-bottom: 0.9rem;
   padding: 0.85rem 0.95rem;
   border: 1px solid #1f2937;
@@ -1290,18 +1290,18 @@ button.sortable {
   gap: 0.7rem;
 }
 
-.weekly-capacity-controls {
+.total-weekly-capacity-controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 0.6rem 0.7rem;
   align-items: end;
 }
 
-.weekly-capacity-controls input {
+.total-weekly-capacity-controls input {
   width: 100%;
 }
 
-.weekly-capacity-summary {
+.total-weekly-capacity-summary {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 0.75rem;
@@ -1309,61 +1309,11 @@ button.sortable {
   font-size: 0.9rem;
 }
 
-.weekly-capacity-summary strong {
+.total-weekly-capacity-summary strong {
   color: #e5e7eb;
 }
 
-.weekly-capacity-week-picker {
-  border: 1px solid #334155;
-  border-radius: 10px;
-  background: #0b1625;
-  padding: 0.55rem 0.65rem;
-  display: grid;
-  gap: 0.45rem;
-}
-
-.weekly-capacity-week-picker-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-}
-
-.weekly-capacity-week-picker-actions {
-  display: inline-flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-}
-
-.weekly-capacity-week-picker-actions .ghost-btn {
-  padding: 0.28rem 0.55rem;
-}
-
-.weekly-capacity-week-list {
-  display: grid;
-  gap: 0.3rem;
-  max-height: 180px;
-  overflow-y: auto;
-  padding-right: 0.2rem;
-}
-
-.weekly-capacity-week-option {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.86rem;
-  color: #dbeafe;
-  font-weight: 600;
-}
-
-.weekly-capacity-week-option input[type='checkbox'] {
-  width: 14px;
-  height: 14px;
-}
-
-.weekly-capacity-tag {
+.total-weekly-capacity-tag {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.55rem;
@@ -1374,29 +1324,29 @@ button.sortable {
   font-weight: 700;
 }
 
-.weekly-capacity-tag-override {
+.total-weekly-capacity-tag-scheduled {
   border-color: #38bdf8;
   color: #7dd3fc;
 }
 
-.weekly-capacity-actions {
+.total-weekly-capacity-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.weekly-capacity-actions button {
+.total-weekly-capacity-actions button {
   min-width: 170px;
 }
 
-.weekly-capacity-override-table-wrap {
+.total-weekly-capacity-table-wrap {
   max-height: 250px;
 }
 
-.weekly-capacity-override-table th,
-.weekly-capacity-override-table td {
+.total-weekly-capacity-table th,
+.total-weekly-capacity-table td {
   font-size: 0.88rem;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .toggle-switch {
@@ -1600,17 +1550,9 @@ button.sortable {
     width: 100%;
   }
 
-  .weekly-capacity-actions button {
+  .total-weekly-capacity-actions button {
     width: 100%;
     min-width: 0;
-  }
-
-  .weekly-capacity-week-picker-actions {
-    width: 100%;
-  }
-
-  .weekly-capacity-week-picker-actions .ghost-btn {
-    width: 100%;
   }
 
   .report-header-main {

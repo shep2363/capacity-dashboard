@@ -17,7 +17,7 @@ import {
   fetchPlanningState,
   savePlanningState,
   type PlanningStatePayload,
-  type WeekCapacityOverridesByResource,
+  type WeekCapacitySchedule,
 } from './utils/planningStateApi'
 import {
   RevenueRatesApiError,
@@ -106,30 +106,19 @@ function toNumericOverrides(overrides: Record<string, number>): Record<string, n
   return normalized
 }
 
-function toNumericWeekCapacityOverrides(
-  overrides: WeekCapacityOverridesByResource | undefined,
-): WeekCapacityOverridesByResource {
-  const normalized: WeekCapacityOverridesByResource = {}
-  if (!overrides || typeof overrides !== 'object') {
+function toNumericWeekCapacitySchedule(schedule: WeekCapacitySchedule | undefined): WeekCapacitySchedule {
+  const normalized: WeekCapacitySchedule = {}
+  if (!schedule || typeof schedule !== 'object') {
     return normalized
   }
 
-  Object.entries(overrides).forEach(([resource, weekMap]) => {
-    if (!resource || !weekMap || typeof weekMap !== 'object') {
+  Object.entries(schedule).forEach(([weekIso, value]) => {
+    if (!weekIso) {
       return
     }
-    const resourceWeekOverrides: Record<string, number> = {}
-    Object.entries(weekMap).forEach(([weekIso, value]) => {
-      if (!weekIso) {
-        return
-      }
-      const numeric = Number(value)
-      if (Number.isFinite(numeric) && numeric >= 0) {
-        resourceWeekOverrides[weekIso] = numeric
-      }
-    })
-    if (Object.keys(resourceWeekOverrides).length > 0) {
-      normalized[resource] = resourceWeekOverrides
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric >= 0) {
+      normalized[weekIso] = numeric
     }
   })
 
@@ -250,8 +239,7 @@ function App() {
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
   const [salesSelectedProjects, setSalesSelectedProjects] = useState<Set<string>>(new Set())
   const [resourceWeeklyCapacities, setResourceWeeklyCapacities] = useState<Record<string, number>>({})
-  const [weekCapacityOverridesByResource, setWeekCapacityOverridesByResource] =
-    useState<WeekCapacityOverridesByResource>({})
+  const [weekCapacitySchedule, setWeekCapacitySchedule] = useState<WeekCapacitySchedule>({})
   const [enabledResources, setEnabledResources] = useState<Record<string, boolean>>({})
   const [salesEnabledResources, setSalesEnabledResources] = useState<Record<string, boolean>>({})
   const [weekendExtraByResource, setWeekendExtraByResource] = useState<Record<string, number>>({})
@@ -337,7 +325,7 @@ function App() {
       setManualOverrides({})
       setEnabledResources({})
       setResourceWeeklyCapacities({})
-      setWeekCapacityOverridesByResource({})
+      setWeekCapacitySchedule({})
       setFilters(createDefaultFilters())
       setSelectedWeekendDates(new Set())
       setWeekendExtraByResource({})
@@ -385,7 +373,7 @@ function App() {
               setManualOverrides({})
               setEnabledResources({})
               setResourceWeeklyCapacities({})
-              setWeekCapacityOverridesByResource({})
+              setWeekCapacitySchedule({})
               setFilters(createDefaultFilters())
               setSelectedWeekendDates(new Set())
               setWeekendExtraByResource({})
@@ -405,11 +393,9 @@ function App() {
           const mainPlanningState = await fetchPlanningState('main')
           if (!cancelled) {
             const normalized = toNumericOverrides(mainPlanningState.overrides ?? {})
-            const normalizedWeekCapacityOverrides = toNumericWeekCapacityOverrides(
-              mainPlanningState.weekCapacityOverrides,
-            )
+            const normalizedWeekCapacitySchedule = toNumericWeekCapacitySchedule(mainPlanningState.weekCapacitySchedule)
             setManualOverrides(normalized)
-            setWeekCapacityOverridesByResource(normalizedWeekCapacityOverrides)
+            setWeekCapacitySchedule(normalizedWeekCapacitySchedule)
             mainPlanningVersionRef.current = mainPlanningState.version ?? 0
             setMainPlanningUpdatedAt(mainPlanningState.updatedAt ?? null)
             setMainPlanningSaveError('')
@@ -419,7 +405,7 @@ function App() {
           console.warn('[capacity-dashboard] shared main planning state load failed', planningLoadError)
           if (!cancelled) {
             setManualOverrides({})
-            setWeekCapacityOverridesByResource({})
+            setWeekCapacitySchedule({})
             mainPlanningVersionRef.current = 0
             setMainPlanningUpdatedAt(null)
             setMainPlanningSaveStatus('error')
@@ -558,7 +544,7 @@ function App() {
     }
 
     const normalizedOverrides = toNumericOverrides(manualOverrides)
-    const normalizedWeekCapacityOverrides = toNumericWeekCapacityOverrides(weekCapacityOverridesByResource)
+    const normalizedWeekCapacitySchedule = toNumericWeekCapacitySchedule(weekCapacitySchedule)
     const requestSeq = mainPlanningRequestSeqRef.current + 1
     mainPlanningRequestSeqRef.current = requestSeq
     setMainPlanningSaveStatus('saving')
@@ -572,7 +558,7 @@ function App() {
             saved = await savePlanningState('main', normalizedOverrides, {
               baseVersion: mainPlanningVersionRef.current,
               source: 'planning-ui',
-              weekCapacityOverrides: normalizedWeekCapacityOverrides,
+              weekCapacitySchedule: normalizedWeekCapacitySchedule,
             })
           } catch (error) {
             if (error instanceof PlanningStateApiError && error.status === 409) {
@@ -581,7 +567,7 @@ function App() {
               saved = await savePlanningState('main', normalizedOverrides, {
                 baseVersion: mainPlanningVersionRef.current,
                 source: 'planning-ui-retry',
-                weekCapacityOverrides: normalizedWeekCapacityOverrides,
+                weekCapacitySchedule: normalizedWeekCapacitySchedule,
               })
             } else {
               throw error
@@ -606,7 +592,7 @@ function App() {
     }, 350)
 
     return () => window.clearTimeout(timer)
-  }, [mainPlanningSyncReady, manualOverrides, weekCapacityOverridesByResource])
+  }, [mainPlanningSyncReady, manualOverrides, weekCapacitySchedule])
 
   useEffect(() => {
     if (!salesPlanningSyncReady) {
@@ -808,7 +794,7 @@ function App() {
     if (resources.length === 0) {
       setEnabledResources({})
       setResourceWeeklyCapacities({})
-      setWeekCapacityOverridesByResource({})
+      setWeekCapacitySchedule({})
       return
     }
 
@@ -1105,35 +1091,22 @@ function App() {
       return
     }
 
-    const resourceSet = new Set(resources)
     const weekSet = new Set(allWeekKeys)
-    setWeekCapacityOverridesByResource((current) => {
+    setWeekCapacitySchedule((current) => {
       let changed = false
-      const next: WeekCapacityOverridesByResource = {}
+      const next: WeekCapacitySchedule = {}
 
-      Object.entries(current).forEach(([resource, weekMap]) => {
-        if (!resourceSet.has(resource)) {
+      Object.entries(current).forEach(([weekIso, value]) => {
+        if (!weekSet.has(weekIso)) {
           changed = true
           return
         }
-        const filteredWeeks: Record<string, number> = {}
-        Object.entries(weekMap).forEach(([weekIso, value]) => {
-          if (!weekSet.has(weekIso)) {
-            changed = true
-            return
-          }
-          filteredWeeks[weekIso] = value
-        })
-        if (Object.keys(filteredWeeks).length > 0) {
-          next[resource] = filteredWeeks
-        } else if (Object.keys(weekMap).length > 0) {
-          changed = true
-        }
+        next[weekIso] = value
       })
 
       return changed ? next : current
     })
-  }, [resources, allWeekKeys])
+  }, [allWeekKeys, resources.length])
 
   const holidayWeeks = useMemo(() => {
     const map = new Map<string, Array<{ name: string; iso: string }>>()
@@ -1162,15 +1135,15 @@ function App() {
     return rec
   }, [holidayWeeks])
 
-  const weekCapacities = useMemo(() => {
+  const sortedAllWeekKeys = useMemo(() => [...allWeekKeys].sort((a, b) => a.localeCompare(b)), [allWeekKeys])
+
+  const baseWeekCapacities = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const weekIso of allWeekKeys) {
+    for (const weekIso of sortedAllWeekKeys) {
       let weeklyTotal = 0
       const holidays = holidayWeeks.get(weekIso) ?? []
       for (const resource of enabledResourceList) {
-        // Week-level override becomes the source of truth for this resource+week when present.
-        const weeklyOverride = weekCapacityOverridesByResource[resource]?.[weekIso]
-        const weekly = Number.isFinite(weeklyOverride) ? weeklyOverride : (resourceWeeklyCapacities[resource] ?? 0)
+        const weekly = resourceWeeklyCapacities[resource] ?? 0
         const weekendExtra = weekendExtraByResource[resource] ?? 0
         const holidayReduction =
           holidays.length > 0 ? Math.min(weekly, (weekly / 5) * holidays.length) : 0
@@ -1181,14 +1154,29 @@ function App() {
     }
     return map
   }, [
-    allWeekKeys,
+    sortedAllWeekKeys,
     enabledResourceList,
     resourceWeeklyCapacities,
-    weekCapacityOverridesByResource,
     weekendExtraByResource,
     weekendWeeks,
     holidayWeeks,
   ])
+
+  const weekCapacities = useMemo(() => {
+    const map: Record<string, number> = {}
+    let scheduledCapacity: number | null = null
+
+    for (const weekIso of sortedAllWeekKeys) {
+      const scheduledEntry = weekCapacitySchedule[weekIso]
+      if (Number.isFinite(scheduledEntry)) {
+        scheduledCapacity = scheduledEntry
+      }
+      // Explicit total-week schedule entries override the resource-derived base total from that week onward.
+      map[weekIso] = scheduledCapacity ?? baseWeekCapacities[weekIso] ?? 0
+    }
+
+    return map
+  }, [sortedAllWeekKeys, weekCapacitySchedule, baseWeekCapacities])
 
   const selectedWeeklyCapacity = useMemo(() => {
     if (baseLayer.weekKeys.length === 0) return 0
@@ -1616,7 +1604,7 @@ function App() {
       setFileName(activeWorkbook.fileName || file.name)
       setManualOverrides({})
       setResourceWeeklyCapacities({})
-      setWeekCapacityOverridesByResource({})
+      setWeekCapacitySchedule({})
       setEnabledResources({})
       setFilters(createDefaultFilters())
       setSelectedWeekendDates(new Set())
@@ -1690,85 +1678,125 @@ function App() {
     }))
   }
 
-  function handleSetWeekCapacityOverride(resource: string, weekStartIso: string, capacityHours: number): void {
-    handleSetWeekCapacityOverrides(resource, [weekStartIso], capacityHours)
+  function areWeekCapacitySchedulesEqual(left: WeekCapacitySchedule, right: WeekCapacitySchedule): boolean {
+    const leftKeys = Object.keys(left)
+    const rightKeys = Object.keys(right)
+    if (leftKeys.length !== rightKeys.length) {
+      return false
+    }
+    return leftKeys.every((key) => right[key] === left[key])
   }
 
-  function handleSetWeekCapacityOverrides(resource: string, weekStartIsos: string[], capacityHours: number): void {
-    if (!resource || weekStartIsos.length === 0) {
-      return
+  function getEffectiveScheduledWeekCapacity(weekStartIso: string, schedule: WeekCapacitySchedule): number {
+    let scheduledCapacity: number | null = null
+    for (const weekIso of sortedAllWeekKeys) {
+      if (weekIso > weekStartIso) {
+        break
+      }
+      const explicitValue = schedule[weekIso]
+      if (Number.isFinite(explicitValue)) {
+        scheduledCapacity = explicitValue
+      }
     }
-    const validWeeks = [...new Set(weekStartIsos)].filter((weekIso) => allWeekKeys.includes(weekIso))
-    if (validWeeks.length === 0) {
+    return scheduledCapacity ?? baseWeekCapacities[weekStartIso] ?? 0
+  }
+
+  function normalizeWeekCapacityScheduleState(schedule: WeekCapacitySchedule): WeekCapacitySchedule {
+    const normalized: WeekCapacitySchedule = {}
+
+    Object.entries(schedule)
+      .filter(([weekIso]) => !sortedAllWeekKeys.includes(weekIso))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .forEach(([weekIso, value]) => {
+        if (Number.isFinite(value) && value >= 0) {
+          normalized[weekIso] = value
+        }
+      })
+
+    let scheduledCapacity: number | null = null
+    sortedAllWeekKeys.forEach((weekIso) => {
+      if (!Object.prototype.hasOwnProperty.call(schedule, weekIso)) {
+        return
+      }
+      const value = schedule[weekIso]
+      if (!Number.isFinite(value) || value < 0) {
+        return
+      }
+      const fallbackCapacity = scheduledCapacity ?? baseWeekCapacities[weekIso] ?? 0
+      if (value === fallbackCapacity) {
+        return
+      }
+      normalized[weekIso] = value
+      scheduledCapacity = value
+    })
+
+    return normalized
+  }
+
+  function handleSetWeekCapacityForWeek(weekStartIso: string, capacityHours: number): void {
+    if (!sortedAllWeekKeys.includes(weekStartIso)) {
       return
     }
     if (!Number.isFinite(capacityHours) || capacityHours < 0) {
       return
     }
 
-    setWeekCapacityOverridesByResource((current) => {
-      const currentResourceOverrides = current[resource] ?? {}
-      let changed = false
-      const nextResourceOverrides: Record<string, number> = { ...currentResourceOverrides }
-      validWeeks.forEach((weekIso) => {
-        if (nextResourceOverrides[weekIso] === capacityHours) {
-          return
-        }
-        nextResourceOverrides[weekIso] = capacityHours
-        changed = true
-      })
-      if (!changed) {
+    setWeekCapacitySchedule((current) => {
+      const weekIndex = sortedAllWeekKeys.indexOf(weekStartIso)
+      if (weekIndex < 0) {
         return current
       }
-      return {
+
+      const nextSchedule: WeekCapacitySchedule = {
         ...current,
-        [resource]: nextResourceOverrides,
+        [weekStartIso]: capacityHours,
       }
+
+      const nextWeekIso = sortedAllWeekKeys[weekIndex + 1]
+      if (nextWeekIso && !Object.prototype.hasOwnProperty.call(current, nextWeekIso)) {
+        nextSchedule[nextWeekIso] = getEffectiveScheduledWeekCapacity(nextWeekIso, current)
+      }
+
+      const normalizedSchedule = normalizeWeekCapacityScheduleState(nextSchedule)
+      return areWeekCapacitySchedulesEqual(current, normalizedSchedule) ? current : normalizedSchedule
     })
   }
 
-  function handleClearWeekCapacityOverride(resource: string, weekStartIso: string): void {
-    handleClearWeekCapacityOverrides(resource, [weekStartIso])
-  }
+  function handleSetWeekCapacityFromWeekForward(weekStartIso: string, capacityHours: number): void {
+    if (!sortedAllWeekKeys.includes(weekStartIso)) {
+      return
+    }
+    if (!Number.isFinite(capacityHours) || capacityHours < 0) {
+      return
+    }
 
-  function handleClearWeekCapacityOverrides(resource: string, weekStartIsos: string[]): void {
-    if (!resource || weekStartIsos.length === 0) {
-      return
-    }
-    const validWeeks = new Set(weekStartIsos.filter((weekIso) => allWeekKeys.includes(weekIso)))
-    if (validWeeks.size === 0) {
-      return
-    }
-    setWeekCapacityOverridesByResource((current) => {
-      const currentResourceOverrides = current[resource]
-      if (!currentResourceOverrides) {
-        return current
-      }
-      const nextResourceOverrides = { ...currentResourceOverrides }
-      let changed = false
-      validWeeks.forEach((weekIso) => {
-        if (weekIso in nextResourceOverrides) {
-          delete nextResourceOverrides[weekIso]
-          changed = true
-        }
-      })
-      if (!changed) {
-        return current
-      }
-      if (Object.keys(nextResourceOverrides).length === 0) {
-        const next = { ...current }
-        delete next[resource]
-        return next
-      }
-      return {
+    setWeekCapacitySchedule((current) => {
+      const normalizedSchedule = normalizeWeekCapacityScheduleState({
         ...current,
-        [resource]: nextResourceOverrides,
-      }
+        [weekStartIso]: capacityHours,
+      })
+      return areWeekCapacitySchedulesEqual(current, normalizedSchedule) ? current : normalizedSchedule
     })
   }
 
-  function handleClearAllWeekCapacityOverrides(): void {
-    setWeekCapacityOverridesByResource({})
+  function handleClearWeekCapacityEntry(weekStartIso: string): void {
+    if (!sortedAllWeekKeys.includes(weekStartIso)) {
+      return
+    }
+
+    setWeekCapacitySchedule((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, weekStartIso)) {
+        return current
+      }
+      const nextSchedule = { ...current }
+      delete nextSchedule[weekStartIso]
+      const normalizedSchedule = normalizeWeekCapacityScheduleState(nextSchedule)
+      return areWeekCapacitySchedulesEqual(current, normalizedSchedule) ? current : normalizedSchedule
+    })
+  }
+
+  function handleClearAllWeekCapacityScheduleEntries(): void {
+    setWeekCapacitySchedule((current) => (Object.keys(current).length === 0 ? current : {}))
   }
 
   function handlePivotCellEdit(rowKey: string, weekStartIso: string, newValue: number): void {
@@ -2418,13 +2446,14 @@ function App() {
               enabledResources={enabledResources}
               weeklyCapacitiesByResource={resourceWeeklyCapacities}
               weekKeys={allWeekKeys}
-              weeklyCapacityOverridesByResource={weekCapacityOverridesByResource}
+              totalWeekCapacitySchedule={weekCapacitySchedule}
+              baseTotalCapacityByWeek={baseWeekCapacities}
+              effectiveTotalCapacityByWeek={weekCapacities}
               onWeeklyCapacityChange={handleResourceWeeklyCapacityChange}
-              onSetWeeklyCapacityOverride={handleSetWeekCapacityOverride}
-              onSetWeeklyCapacityOverrides={handleSetWeekCapacityOverrides}
-              onClearWeeklyCapacityOverride={handleClearWeekCapacityOverride}
-              onClearWeeklyCapacityOverrides={handleClearWeekCapacityOverrides}
-              onClearAllWeeklyCapacityOverrides={handleClearAllWeekCapacityOverrides}
+              onSetTotalWeekCapacityForWeek={handleSetWeekCapacityForWeek}
+              onSetTotalWeekCapacityFromWeekForward={handleSetWeekCapacityFromWeekForward}
+              onClearTotalWeekCapacityEntry={handleClearWeekCapacityEntry}
+              onClearAllTotalWeekCapacityEntries={handleClearAllWeekCapacityScheduleEntries}
               onToggleResource={handleToggleResource}
               weekendExtraByResource={weekendExtraByResource}
               onWeekendExtraChange={(resource, hours) =>
