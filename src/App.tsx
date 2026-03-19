@@ -191,6 +191,18 @@ function createDefaultFilters(): AppFilters {
   }
 }
 
+function applyHolidayAdjustedWeeklyCapacity(
+  baselineCapacity: number,
+  weekendCapacity: number,
+  holidayCount: number,
+): number {
+  const safeBaseline = Number.isFinite(baselineCapacity) && baselineCapacity > 0 ? baselineCapacity : 0
+  const safeWeekend = Number.isFinite(weekendCapacity) && weekendCapacity > 0 ? weekendCapacity : 0
+  const safeHolidayCount = Number.isFinite(holidayCount) && holidayCount > 0 ? holidayCount : 0
+  const holidayReduction = safeHolidayCount > 0 ? Math.min(safeBaseline, (safeBaseline / 5) * safeHolidayCount) : 0
+  return safeBaseline + safeWeekend - holidayReduction
+}
+
 function App() {
   const reportTabParam =
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('reportTab') : null
@@ -1137,30 +1149,35 @@ function App() {
 
   const sortedAllWeekKeys = useMemo(() => [...allWeekKeys].sort((a, b) => a.localeCompare(b)), [allWeekKeys])
 
+  const baseWeeklyResourceCapacityTotal = useMemo(
+    () => enabledResourceList.reduce((sum, resource) => sum + (resourceWeeklyCapacities[resource] ?? 0), 0),
+    [enabledResourceList, resourceWeeklyCapacities],
+  )
+
+  const baseWeekendCapacityByWeek = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const weekIso of sortedAllWeekKeys) {
+      let weekendTotal = 0
+      if (weekendWeeks.has(weekIso)) {
+        for (const resource of enabledResourceList) {
+          const weekendExtra = weekendExtraByResource[resource] ?? 0
+          weekendTotal += weekendExtra
+        }
+      }
+      map[weekIso] = weekendTotal
+    }
+    return map
+  }, [sortedAllWeekKeys, enabledResourceList, weekendExtraByResource, weekendWeeks])
+
   const baseWeekCapacities = useMemo(() => {
     const map: Record<string, number> = {}
     for (const weekIso of sortedAllWeekKeys) {
-      let weeklyTotal = 0
-      const holidays = holidayWeeks.get(weekIso) ?? []
-      for (const resource of enabledResourceList) {
-        const weekly = resourceWeeklyCapacities[resource] ?? 0
-        const weekendExtra = weekendExtraByResource[resource] ?? 0
-        const holidayReduction =
-          holidays.length > 0 ? Math.min(weekly, (weekly / 5) * holidays.length) : 0
-        const weekendApply = weekendWeeks.has(weekIso) ? weekendExtra : 0
-        weeklyTotal += weekly + weekendApply - holidayReduction
-      }
-      map[weekIso] = weeklyTotal
+      const holidayCount = (holidayWeeks.get(weekIso) ?? []).length
+      const weekendTotal = baseWeekendCapacityByWeek[weekIso] ?? 0
+      map[weekIso] = applyHolidayAdjustedWeeklyCapacity(baseWeeklyResourceCapacityTotal, weekendTotal, holidayCount)
     }
     return map
-  }, [
-    sortedAllWeekKeys,
-    enabledResourceList,
-    resourceWeeklyCapacities,
-    weekendExtraByResource,
-    weekendWeeks,
-    holidayWeeks,
-  ])
+  }, [sortedAllWeekKeys, holidayWeeks, baseWeekendCapacityByWeek, baseWeeklyResourceCapacityTotal])
 
   const weekCapacities = useMemo(() => {
     const map: Record<string, number> = {}
@@ -1171,12 +1188,29 @@ function App() {
       if (Number.isFinite(scheduledEntry)) {
         scheduledCapacity = scheduledEntry
       }
-      // Explicit total-week schedule entries override the resource-derived base total from that week onward.
-      map[weekIso] = scheduledCapacity ?? baseWeekCapacities[weekIso] ?? 0
+      const baselineCapacity = scheduledCapacity ?? baseWeeklyResourceCapacityTotal
+      const holidayCount = (holidayWeeks.get(weekIso) ?? []).length
+      const weekendTotal = baseWeekendCapacityByWeek[weekIso] ?? 0
+      // Scheduled total capacity remains the weekly baseline, then weekend/holiday adjustments are applied.
+      map[weekIso] = applyHolidayAdjustedWeeklyCapacity(baselineCapacity, weekendTotal, holidayCount)
     }
 
     return map
-  }, [sortedAllWeekKeys, weekCapacitySchedule, baseWeekCapacities])
+  }, [
+    sortedAllWeekKeys,
+    weekCapacitySchedule,
+    baseWeeklyResourceCapacityTotal,
+    holidayWeeks,
+    baseWeekendCapacityByWeek,
+  ])
+
+  const baseWeekCapacityBeforeAdjustments = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const weekIso of sortedAllWeekKeys) {
+      map[weekIso] = baseWeeklyResourceCapacityTotal
+    }
+    return map
+  }, [sortedAllWeekKeys, baseWeeklyResourceCapacityTotal])
 
   const selectedWeeklyCapacity = useMemo(() => {
     if (baseLayer.weekKeys.length === 0) return 0
@@ -1698,7 +1732,7 @@ function App() {
         scheduledCapacity = explicitValue
       }
     }
-    return scheduledCapacity ?? baseWeekCapacities[weekStartIso] ?? 0
+    return scheduledCapacity ?? baseWeekCapacityBeforeAdjustments[weekStartIso] ?? 0
   }
 
   function normalizeWeekCapacityScheduleState(schedule: WeekCapacitySchedule): WeekCapacitySchedule {
@@ -1722,7 +1756,7 @@ function App() {
       if (!Number.isFinite(value) || value < 0) {
         return
       }
-      const fallbackCapacity = scheduledCapacity ?? baseWeekCapacities[weekIso] ?? 0
+      const fallbackCapacity = scheduledCapacity ?? baseWeekCapacityBeforeAdjustments[weekIso] ?? 0
       if (value === fallbackCapacity) {
         return
       }

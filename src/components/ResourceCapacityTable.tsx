@@ -272,7 +272,8 @@ export function ResourceCapacityTable({
               <h3>Total Weekly Capacity</h3>
               <p>
                 Set a total capacity schedule for the full week. Explicit entries become breakpoints and stay active
-                until the next scheduled change.
+                until the next scheduled change. Holiday reductions and selected weekend work still apply to the final
+                effective weekly total.
               </p>
             </div>
 
