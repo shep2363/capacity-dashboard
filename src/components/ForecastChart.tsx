@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
@@ -24,6 +25,8 @@ interface ForecastChartProps {
   hoveredProject?: string | null
   onHoverProject?: (project: string | null) => void
   hoverProjectPrefix?: string
+  selectedWeekIds?: Set<string>
+  onWeekSelect?: (weekStartIso: string, multiSelect: boolean) => void
 }
 
 const COLOR_PALETTE = [
@@ -196,6 +199,8 @@ export function ForecastChart({
   hoveredProject = null,
   onHoverProject,
   hoverProjectPrefix = '',
+  selectedWeekIds,
+  onWeekSelect,
 }: ForecastChartProps) {
   const Y_AXIS_STEP = 500
   const MIN_Y_AXIS_MAX = 1000
@@ -244,6 +249,13 @@ export function ForecastChart({
     ...bucket.groups,
   }))
 
+  function handleWeekSelection(weekStartIso: string, event: Pick<ReactMouseEvent<Element>, 'ctrlKey' | 'metaKey'>): void {
+    if (!onWeekSelect || !weekStartIso) {
+      return
+    }
+    onWeekSelect(weekStartIso, event.ctrlKey || event.metaKey)
+  }
+
   function toHoverKey(project: string): string {
     return `${hoverProjectPrefix}${project}`
   }
@@ -270,6 +282,45 @@ export function ForecastChart({
     }
     return 30
   }, [chartData.length])
+
+  function renderWeekTick(props: {
+    x?: number | string
+    y?: number | string
+    payload?: { value?: string | number; index?: number }
+  }) {
+    const tickIndex = props.payload?.index ?? 0
+    const week = chartData[tickIndex]
+    const weekId = week?.id ?? ''
+    const isSelected = weekId ? selectedWeekIds?.has(weekId) ?? false : false
+    const x = Number(props.x ?? 0)
+    const y = Number(props.y ?? 0)
+
+    return (
+      <g
+        transform={`translate(${x},${y})`}
+        onClick={(event) => {
+          if (!weekId) {
+            return
+          }
+          handleWeekSelection(weekId, event)
+        }}
+        style={{ cursor: onWeekSelect ? 'pointer' : 'default' }}
+      >
+        <text
+          x={0}
+          y={0}
+          dy={18}
+          textAnchor="end"
+          transform="rotate(-34)"
+          fill={isSelected ? '#fbbf24' : '#e5e7eb'}
+          fontSize={12}
+          fontWeight={isSelected ? 800 : 600}
+        >
+          {String(props.payload?.value ?? '')}
+        </text>
+      </g>
+    )
+  }
 
   const { axisMax, axisTicks } = useMemo(() => {
     const peak = chartData.reduce(
@@ -327,7 +378,7 @@ export function ForecastChart({
               minTickGap={0}
               height={72}
               tickMargin={8}
-              tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+              tick={renderWeekTick}
               axisLine={{ stroke: '#475569' }}
               tickLine={false}
             />
@@ -353,7 +404,26 @@ export function ForecastChart({
                 fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
                 fillOpacity={isHighlighted(category) ? 1 : 0.25}
                 name={category}
-              />
+                onClick={(data, _index, event) => {
+                  const weekId = data?.payload?.id
+                  if (!weekId) {
+                    return
+                  }
+                  handleWeekSelection(weekId, event)
+                }}
+              >
+                {chartData.map((row) => {
+                  const isSelected = selectedWeekIds?.has(row.id) ?? false
+                  return (
+                    <Cell
+                      key={`${category}-${row.id}`}
+                      cursor={onWeekSelect ? 'pointer' : 'default'}
+                      stroke={isSelected ? '#fbbf24' : undefined}
+                      strokeWidth={isSelected ? 2 : 0}
+                    />
+                  )
+                })}
+              </Bar>
             ))}
 
             <Line
@@ -372,7 +442,10 @@ export function ForecastChart({
         </ResponsiveContainer>
       </div>
 
-      <p className="chart-note">Weeks over capacity are highlighted in the pivot and summary tables.</p>
+      <p className="chart-note">
+        Weeks over capacity are highlighted in the pivot and summary tables.
+        {onWeekSelect ? ' Ctrl + click week bars or labels to total multiple weeks.' : ''}
+      </p>
     </div>
   )
 }

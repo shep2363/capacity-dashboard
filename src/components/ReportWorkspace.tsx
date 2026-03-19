@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MonthlyBucket, WeeklyBucket } from '../types'
 import type { SummaryMetric } from '../utils/reportExport'
 import { exportReportElementToPdf } from '../utils/exportReportPdf'
@@ -86,6 +86,7 @@ export function ReportWorkspace({
   const [dealProbBucket, setDealProbBucket] = useState('all')
   const [dealsLoading, setDealsLoading] = useState(false)
   const [dealsError, setDealsError] = useState('')
+  const [selectedShopWeekIds, setSelectedShopWeekIds] = useState<Set<string>>(new Set())
   const [stageMap, setStageMap] = useState<Record<number, string>>({})
   const envToken =
     (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_API_TOKEN ??
@@ -198,6 +199,66 @@ export function ReportWorkspace({
     setDealsError('')
     setPipedriveToken(trimmed)
   }
+
+  useEffect(() => {
+    const validWeeks = new Set(weeklyBuckets.map((bucket) => bucket.weekStartIso))
+    setSelectedShopWeekIds((current) => {
+      const next = new Set([...current].filter((weekId) => validWeeks.has(weekId)))
+      if (next.size === current.size && [...next].every((weekId) => current.has(weekId))) {
+        return current
+      }
+      return next
+    })
+  }, [weeklyBuckets])
+
+  function handleSelectShopWeek(weekStartIso: string, multiSelect: boolean): void {
+    setSelectedShopWeekIds((current) => {
+      if (!multiSelect) {
+        if (current.size === 1 && current.has(weekStartIso)) {
+          return current
+        }
+        return new Set([weekStartIso])
+      }
+
+      const next = new Set(current)
+      if (next.has(weekStartIso)) {
+        next.delete(weekStartIso)
+      } else {
+        next.add(weekStartIso)
+      }
+      return next
+    })
+  }
+
+  const selectedShopWeekBuckets = useMemo(
+    () => weeklyBuckets.filter((bucket) => selectedShopWeekIds.has(bucket.weekStartIso)),
+    [weeklyBuckets, selectedShopWeekIds],
+  )
+
+  const selectedShopWeekSummary = useMemo(() => {
+    if (selectedShopWeekBuckets.length === 0) {
+      return null
+    }
+
+    const totals = selectedShopWeekBuckets.reduce(
+      (acc, bucket) => {
+        const overCapacity = Math.max(bucket.totalHours - bucket.capacity, 0)
+        const underCapacity = Math.max(bucket.capacity - bucket.totalHours, 0)
+        acc.projectHours += bucket.totalHours
+        acc.capacity += bucket.capacity
+        acc.overCapacity += overCapacity
+        acc.underCapacity += underCapacity
+        return acc
+      },
+      { projectHours: 0, capacity: 0, overCapacity: 0, underCapacity: 0 },
+    )
+
+    return {
+      count: selectedShopWeekBuckets.length,
+      weekLabels: selectedShopWeekBuckets.map((bucket) => bucket.weekLabel),
+      ...totals,
+    }
+  }, [selectedShopWeekBuckets])
 
   const probabilityLabels: Record<string, string> = {
     all: 'All probabilities',
@@ -448,6 +509,49 @@ export function ReportWorkspace({
             <h2>Shop Forecast</h2>
             <p>Stacked weekly hours with capacity line using your current filters, capacities, and manual edits.</p>
           </div>
+          <div className="forecast-selection-summary">
+            {selectedShopWeekSummary ? (
+              <>
+                <div className="forecast-selection-summary-header">
+                  <div>
+                    <strong>{selectedShopWeekSummary.count} selected week{selectedShopWeekSummary.count === 1 ? '' : 's'}</strong>
+                    <p>{selectedShopWeekSummary.weekLabels.join(', ')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={() => setSelectedShopWeekIds(new Set())}
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+                <div className="forecast-selection-summary-grid">
+                  <div>
+                    <span>Total Project Hours</span>
+                    <strong>{selectedShopWeekSummary.projectHours.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>Total Capacity</span>
+                    <strong>{selectedShopWeekSummary.capacity.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>Total Over Capacity</span>
+                    <strong className={selectedShopWeekSummary.overCapacity > 0 ? 'warning' : ''}>
+                      {selectedShopWeekSummary.overCapacity.toFixed(2)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Total Under Capacity</span>
+                    <strong className={selectedShopWeekSummary.underCapacity > 0 ? 'negative' : ''}>
+                      {selectedShopWeekSummary.underCapacity.toFixed(2)}
+                    </strong>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="forecast-selection-hint">Ctrl + click week bars or labels to total selected Shop Forecast weeks.</p>
+            )}
+          </div>
           <ForecastChart
             weeklyBuckets={weeklyBuckets}
             categoryKeys={categoryKeys}
@@ -456,6 +560,8 @@ export function ReportWorkspace({
             onToggleProject={onToggleProject}
             hoveredProject={hoveredProject}
             onHoverProject={onHoverProject}
+            selectedWeekIds={selectedShopWeekIds}
+            onWeekSelect={handleSelectShopWeek}
           />
         </div>
       )}

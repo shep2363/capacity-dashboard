@@ -126,6 +126,59 @@ p {
   gap: 0.8rem;
 }
 
+.forecast-selection-summary {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #0b1625;
+}
+
+.forecast-selection-summary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.forecast-selection-summary-header strong {
+  color: #f8fafc;
+}
+
+.forecast-selection-summary-header p,
+.forecast-selection-hint {
+  color: #cbd5e1;
+  margin: 0.18rem 0 0;
+  font-size: 0.92rem;
+}
+
+.forecast-selection-summary-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.forecast-selection-summary-grid > div {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid #1f2937;
+  background: #0f172a;
+}
+
+.forecast-selection-summary-grid span {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.forecast-selection-summary-grid strong {
+  font-size: 1rem;
+  color: #f8fafc;
+}
+
 .report-header {
   align-items: flex-start;
   gap: 1rem;
