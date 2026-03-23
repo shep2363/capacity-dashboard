@@ -180,6 +180,11 @@ function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b))
 }
 
+function normalizeSalesProbability(value: number): number {
+  const rounded = Math.round(value * 1000) / 1000
+  return Object.is(rounded, -0) ? 0 : rounded
+}
+
 function createDefaultFilters(): AppFilters {
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -250,6 +255,7 @@ function App() {
   const [isSalesPivotCollapsed, setIsSalesPivotCollapsed] = useState(true)
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
   const [salesSelectedProjects, setSalesSelectedProjects] = useState<Set<string>>(new Set())
+  const [selectedSalesProbabilities, setSelectedSalesProbabilities] = useState<Set<number>>(new Set())
   const [resourceWeeklyCapacities, setResourceWeeklyCapacities] = useState<Record<string, number>>({})
   const [weekCapacitySchedule, setWeekCapacitySchedule] = useState<WeekCapacitySchedule>({})
   const [enabledResources, setEnabledResources] = useState<Record<string, boolean>>({})
@@ -258,6 +264,7 @@ function App() {
   const [holidayDates, setHolidayDates] = useState<Array<{ iso: string; name: string }>>([])
   const [projectsInitialized, setProjectsInitialized] = useState(false)
   const [salesProjectsInitialized, setSalesProjectsInitialized] = useState(false)
+  const [salesProbabilitiesInitialized, setSalesProbabilitiesInitialized] = useState(false)
   const [pivotWeekWindowSize, setPivotWeekWindowSize] = useState(12)
   const [pivotWeekStartIndex, setPivotWeekStartIndex] = useState(0)
   const [collapseResetToken, setCollapseResetToken] = useState(0)
@@ -779,6 +786,18 @@ function App() {
 
   const resources = useMemo(() => uniqueSorted(tasks.map((task) => task.resourceName)), [tasks])
   const salesResources = useMemo(() => uniqueSorted(salesTasks.map((task) => task.resourceName)), [salesTasks])
+  const salesProbabilityOptions = useMemo(
+    () =>
+      [...new Set(
+        salesTasks.flatMap((task) => {
+          if (typeof task.salesProbability !== 'number' || !Number.isFinite(task.salesProbability)) {
+            return []
+          }
+          return [normalizeSalesProbability(task.salesProbability)]
+        }),
+      )].sort((a, b) => b - a),
+    [salesTasks],
+  )
   const years = useMemo(() => getAvailableYears(tasks), [tasks])
 
   useEffect(() => {
@@ -886,6 +905,20 @@ function App() {
     () => buildBaseLeafCells(salesTasks, filters, selectedWeekendDates, salesEnabledResourceSet),
     [salesTasks, filters, selectedWeekendDates, salesEnabledResourceSet],
   )
+  const filteredSalesTasksForReport = useMemo(
+    () =>
+      salesTasks.filter((task) => {
+        if (typeof task.salesProbability !== 'number' || !Number.isFinite(task.salesProbability)) {
+          return false
+        }
+        return selectedSalesProbabilities.has(normalizeSalesProbability(task.salesProbability))
+      }),
+    [salesTasks, selectedSalesProbabilities],
+  )
+  const reportSalesBaseLayer = useMemo(
+    () => buildBaseLeafCells(filteredSalesTasksForReport, filters, selectedWeekendDates, salesEnabledResourceSet),
+    [filteredSalesTasksForReport, filters, selectedWeekendDates, salesEnabledResourceSet],
+  )
   const availableProjects = useMemo(() => {
     const totals = new Map<string, number>()
     baseLayer.leafCells.forEach((cell) => {
@@ -906,9 +939,19 @@ function App() {
       .map(([project]) => project)
       .sort((a, b) => a.localeCompare(b))
   }, [salesBaseLayer.leafCells])
-  const combinedProjects = useMemo(
-    () => [...availableProjects, ...salesAvailableProjects.map((p) => `Sales - ${p}`)],
-    [availableProjects, salesAvailableProjects],
+  const reportSalesAvailableProjects = useMemo(() => {
+    const totals = new Map<string, number>()
+    reportSalesBaseLayer.leafCells.forEach((cell) => {
+      totals.set(cell.project, (totals.get(cell.project) ?? 0) + cell.hours)
+    })
+    return [...totals.entries()]
+      .filter(([, hours]) => hours > 0)
+      .map(([project]) => project)
+      .sort((a, b) => a.localeCompare(b))
+  }, [reportSalesBaseLayer.leafCells])
+  const reportCombinedProjects = useMemo(
+    () => [...availableProjects, ...reportSalesAvailableProjects.map((p) => `Sales - ${p}`)],
+    [availableProjects, reportSalesAvailableProjects],
   )
   const projectColors = useMemo(() => {
     const map: Record<string, string> = {}
@@ -986,13 +1029,44 @@ function App() {
 
     setSalesSelectedProjects((current) => new Set([...current].filter((project) => salesAvailableProjects.includes(project))))
   }, [salesAvailableProjects, salesProjectsInitialized])
+
+  useEffect(() => {
+    setSalesProbabilitiesInitialized(false)
+  }, [salesTasks])
+
+  useEffect(() => {
+    if (salesProbabilityOptions.length === 0) {
+      setSelectedSalesProbabilities(new Set())
+      setSalesProbabilitiesInitialized(false)
+      return
+    }
+
+    if (!salesProbabilitiesInitialized) {
+      setSelectedSalesProbabilities(new Set(salesProbabilityOptions))
+      setSalesProbabilitiesInitialized(true)
+      return
+    }
+
+    setSelectedSalesProbabilities(
+      (current) =>
+        new Set(
+          [...current].filter((probability) =>
+            salesProbabilityOptions.some((option) => option === probability),
+          ),
+        ),
+    )
+  }, [salesProbabilityOptions, salesProbabilitiesInitialized])
   const selectedProjectsForCalc = useMemo(() => selectedProjects, [selectedProjects])
   const salesSelectedProjectsForCalc = useMemo(() => salesSelectedProjects, [salesSelectedProjects])
-  const combinedSelectedProjects = useMemo(() => {
+  const reportSalesSelectedProjectsForCalc = useMemo(
+    () => new Set([...salesSelectedProjects].filter((project) => reportSalesAvailableProjects.includes(project))),
+    [salesSelectedProjects, reportSalesAvailableProjects],
+  )
+  const reportCombinedSelectedProjects = useMemo(() => {
     const ops = [...selectedProjects].filter((p) => availableProjects.includes(p))
-    const sales = [...salesSelectedProjects].map((p) => `Sales - ${p}`)
+    const sales = [...reportSalesSelectedProjectsForCalc].map((p) => `Sales - ${p}`)
     return new Set<string>([...ops, ...sales])
-  }, [selectedProjects, salesSelectedProjects, availableProjects])
+  }, [selectedProjects, availableProjects, reportSalesSelectedProjectsForCalc])
 
   const { baseByKey, finalByKey } = useMemo(
     () => buildLeafValueMap(baseLayer.leafCells, manualOverrides, selectedProjectsForCalc),
@@ -1001,6 +1075,13 @@ function App() {
   const { baseByKey: salesBaseByKey, finalByKey: salesFinalByKey } = useMemo(
     () => buildLeafValueMap(salesBaseLayer.leafCells, salesManualOverrides, salesSelectedProjectsForCalc),
     [salesBaseLayer.leafCells, salesManualOverrides, salesSelectedProjectsForCalc],
+  )
+  const { finalByKey: reportSalesFinalByKey } = useMemo(
+    () =>
+      buildLeafValueMap(reportSalesBaseLayer.leafCells, salesManualOverrides, reportSalesSelectedProjectsForCalc, {
+        limitOverridesToBase: true,
+      }),
+    [reportSalesBaseLayer.leafCells, salesManualOverrides, reportSalesSelectedProjectsForCalc],
   )
 
   const weekendWeeks = useMemo(() => {
@@ -1225,6 +1306,10 @@ function App() {
     () => buildWeeklyBucketsFromLeaf(salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek),
     [salesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek],
   )
+  const reportSalesWeeklyBuckets = useMemo(
+    () => buildWeeklyBucketsFromLeaf(reportSalesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek),
+    [reportSalesFinalByKey, allWeekKeys, weekCapacities, chartGroupBy, holidayDetailsByWeek],
+  )
 
   const combinedWeeklyBuckets = useMemo(() => {
     const weekSet = new Set<string>()
@@ -1282,6 +1367,61 @@ function App() {
         }
       })
   }, [weeklyBuckets, salesWeeklyBuckets])
+  const reportCombinedWeeklyBuckets = useMemo(() => {
+    const weekSet = new Set<string>()
+    weeklyBuckets.forEach((bucket) => weekSet.add(bucket.weekStartIso))
+    reportSalesWeeklyBuckets.forEach((bucket) => weekSet.add(bucket.weekStartIso))
+    const sortedWeeks = [...weekSet].sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime())
+
+    const opsMap = new Map(weeklyBuckets.map((bucket) => [bucket.weekStartIso, bucket]))
+    const salesMap = new Map(reportSalesWeeklyBuckets.map((bucket) => [bucket.weekStartIso, bucket]))
+
+    return sortedWeeks.map((weekStartIso) => {
+      const ops = opsMap.get(weekStartIso)
+      const sales = salesMap.get(weekStartIso)
+      const groups: Record<string, number> = {}
+
+      if (ops) {
+        Object.entries(ops.groups).forEach(([key, value]) => {
+          groups[key] = value
+        })
+      }
+      if (sales) {
+        Object.entries(sales.groups).forEach(([key, value]) => {
+          groups[`Sales - ${key}`] = value
+        })
+      }
+
+      const capacity = weekCapacities[weekStartIso] ?? ops?.capacity ?? 0
+      const totalHours = Object.values(groups).reduce((sum, value) => sum + value, 0)
+      const variance = totalHours - capacity
+      const status = getCapacityStatus(totalHours, capacity)
+      const weekEndIso = ops?.weekEndIso ?? format(addDays(parseISO(weekStartIso), 4), 'yyyy-MM-dd')
+      const mergedHolidayDetails: Array<{ name: string; date: string }> = []
+      const seenHolidayKeys = new Set<string>()
+      ;[...(ops?.holidayDetails ?? []), ...(sales?.holidayDetails ?? [])].forEach((entry) => {
+        const key = `${entry.name}|${entry.date}`
+        if (seenHolidayKeys.has(key)) {
+          return
+        }
+        seenHolidayKeys.add(key)
+        mergedHolidayDetails.push(entry)
+      })
+
+      return {
+        weekStartIso,
+        weekEndIso,
+        weekLabel: weekRangeLabel(weekStartIso),
+        totalHours,
+        capacity,
+        variance,
+        overCapacity: status === 'Over Capacity',
+        status,
+        groups,
+        holidayDetails: mergedHolidayDetails,
+      }
+    })
+  }, [weeklyBuckets, reportSalesWeeklyBuckets, weekCapacities])
   const monthlyBuckets = useMemo(() => buildMonthlyBuckets(weeklyBuckets), [weeklyBuckets])
   const salesMonthlyBuckets = useMemo(() => buildMonthlyBuckets(salesWeeklyBuckets), [salesWeeklyBuckets])
   const combinedMonthlyBuckets = useMemo(() => buildMonthlyBuckets(combinedWeeklyBuckets), [combinedWeeklyBuckets])
@@ -1293,6 +1433,11 @@ function App() {
   const categoryKeys = useMemo(() => computeCategoryKeys(weeklyBuckets), [weeklyBuckets])
   const salesCategoryKeys = useMemo(() => computeCategoryKeys(salesWeeklyBuckets), [salesWeeklyBuckets])
   const combinedCategoryKeys = useMemo(() => computeCategoryKeys(combinedWeeklyBuckets), [combinedWeeklyBuckets])
+  const reportSalesCategoryKeys = useMemo(() => computeCategoryKeys(reportSalesWeeklyBuckets), [reportSalesWeeklyBuckets])
+  const reportCombinedCategoryKeys = useMemo(
+    () => computeCategoryKeys(reportCombinedWeeklyBuckets),
+    [reportCombinedWeeklyBuckets],
+  )
 
   const projectTotals = useMemo(() => {
     const totals = new Map<string, number>()
@@ -1985,6 +2130,7 @@ function App() {
     setFilters(createDefaultFilters())
     setSelectedProjects(new Set(availableProjects))
     setSalesSelectedProjects(new Set(salesAvailableProjects))
+    setSelectedSalesProbabilities(new Set(salesProbabilityOptions))
     setSelectedWeekendDates(new Set())
     setEnabledResources(() => {
       const next: Record<string, boolean> = {}
@@ -2032,6 +2178,23 @@ function App() {
       return
     }
     handleToggleProject(project)
+  }
+  function handleToggleSalesProbability(probability: number): void {
+    setSelectedSalesProbabilities((current) => {
+      const next = new Set(current)
+      if (next.has(probability)) {
+        next.delete(probability)
+      } else {
+        next.add(probability)
+      }
+      return next
+    })
+  }
+  function handleSelectAllSalesProbabilities(): void {
+    setSelectedSalesProbabilities(new Set(salesProbabilityOptions))
+  }
+  function handleClearSalesProbabilities(): void {
+    setSelectedSalesProbabilities(new Set())
   }
 
   function handleRevenueRateChange(
@@ -2687,23 +2850,28 @@ function App() {
             <ReportWorkspace
               key={`report-workspace-${collapseResetToken}-${salesCollapseResetToken}`}
               weeklyBuckets={weeklyBuckets}
-              combinedWeeklyBuckets={combinedWeeklyBuckets}
-              salesWeeklyBuckets={salesWeeklyBuckets}
+              combinedWeeklyBuckets={reportCombinedWeeklyBuckets}
+              salesWeeklyBuckets={reportSalesWeeklyBuckets}
               salesMonthlyBuckets={salesMonthlyBuckets}
               combinedMonthlyBuckets={combinedMonthlyBuckets}
               monthlyBuckets={monthlyBuckets}
               categoryKeys={categoryKeys}
-              combinedCategoryKeys={combinedCategoryKeys}
-              salesCategoryKeys={salesCategoryKeys}
+              combinedCategoryKeys={reportCombinedCategoryKeys}
+              salesCategoryKeys={reportSalesCategoryKeys}
               projects={availableProjects}
-              combinedProjects={combinedProjects}
-              salesProjects={salesAvailableProjects}
+              combinedProjects={reportCombinedProjects}
+              salesProjects={reportSalesAvailableProjects}
               selectedProjects={selectedProjects}
-              selectedCombinedProjects={combinedSelectedProjects}
-              selectedSalesProjects={salesSelectedProjects}
+              selectedCombinedProjects={reportCombinedSelectedProjects}
+              selectedSalesProjects={reportSalesSelectedProjectsForCalc}
               onToggleProject={handleToggleProject}
               onToggleCombinedProject={handleToggleCombinedProject}
               onToggleSalesProject={handleToggleSalesProject}
+              salesProbabilityOptions={salesProbabilityOptions}
+              selectedSalesProbabilities={selectedSalesProbabilities}
+              onToggleSalesProbability={handleToggleSalesProbability}
+              onSelectAllSalesProbabilities={handleSelectAllSalesProbabilities}
+              onClearSalesProbabilities={handleClearSalesProbabilities}
               hoveredProject={hoveredProject}
               onHoverProject={setHoveredProject}
               summaryMetrics={visibleSummaryMetrics}

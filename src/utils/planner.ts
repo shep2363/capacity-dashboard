@@ -372,6 +372,7 @@ export function buildLeafValueMap(
   baseLeafCells: LeafCell[],
   manualOverrides: Record<string, number>,
   selectedProjects: Set<string>,
+  options?: { limitOverridesToBase?: boolean },
 ): { baseByKey: Record<string, number>; finalByKey: Record<string, number> } {
   const baseByKey: Record<string, number> = {}
 
@@ -385,10 +386,14 @@ export function buildLeafValueMap(
   }
 
   const finalByKey: Record<string, number> = { ...baseByKey }
+  const limitOverridesToBase = options?.limitOverridesToBase === true
 
   for (const [leafKey, overrideHours] of Object.entries(manualOverrides)) {
     const { project } = parseLeafKey(leafKey)
     if (!selectedProjects.has(project)) {
+      continue
+    }
+    if (limitOverridesToBase && !(leafKey in baseByKey)) {
       continue
     }
     finalByKey[leafKey] = overrideHours

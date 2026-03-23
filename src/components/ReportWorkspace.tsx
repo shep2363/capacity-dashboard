@@ -43,6 +43,11 @@ interface ReportWorkspaceProps {
   onToggleProject: (project: string) => void
   onToggleSalesProject: (project: string) => void
   onToggleCombinedProject: (project: string) => void
+  salesProbabilityOptions: number[]
+  selectedSalesProbabilities: Set<number>
+  onToggleSalesProbability: (probability: number) => void
+  onSelectAllSalesProbabilities: () => void
+  onClearSalesProbabilities: () => void
   hoveredProject: string | null
   onHoverProject: (project: string | null) => void
   summaryMetrics: SummaryMetric[]
@@ -89,6 +94,10 @@ function buildSelectedWeekSummary(
   }
 }
 
+function formatProbabilityLabel(probability: number): string {
+  return `${Number.isInteger(probability) ? probability.toFixed(0) : probability.toFixed(1)}%`
+}
+
 export function ReportWorkspace({
   weeklyBuckets,
   salesWeeklyBuckets,
@@ -108,6 +117,11 @@ export function ReportWorkspace({
   onToggleProject,
   onToggleSalesProject,
   onToggleCombinedProject,
+  salesProbabilityOptions,
+  selectedSalesProbabilities,
+  onToggleSalesProbability,
+  onSelectAllSalesProbabilities,
+  onClearSalesProbabilities,
   hoveredProject,
   onHoverProject,
   summaryMetrics,
@@ -313,6 +327,55 @@ export function ReportWorkspace({
           </>
         ) : (
           <p className="forecast-selection-hint">{emptyHint}</p>
+        )}
+      </div>
+    )
+  }
+
+  function renderSalesProbabilityFilter(scopeLabel: string) {
+    return (
+      <div className="forecast-filter-panel">
+        <div className="forecast-filter-header">
+          <div>
+            <strong>Sales Probability Filter</strong>
+            <p>
+              Choose which Sales Production Report probabilities to include in the {scopeLabel} chart.
+              {selectedSalesProbabilities.size === 0 ? ' No probabilities selected = no sales data shown.' : ''}
+            </p>
+          </div>
+          <div className="forecast-filter-actions">
+            <button type="button" className="ghost-btn" onClick={onSelectAllSalesProbabilities}>
+              Select All
+            </button>
+            <button type="button" className="ghost-btn" onClick={onClearSalesProbabilities}>
+              Clear All
+            </button>
+          </div>
+        </div>
+        {salesProbabilityOptions.length > 0 ? (
+          <>
+            <div className="toggle-chips">
+              {salesProbabilityOptions.map((probability) => {
+                const isSelected = selectedSalesProbabilities.has(probability)
+                return (
+                  <button
+                    key={probability}
+                    type="button"
+                    className={`chip-toggle ${isSelected ? 'chip-on' : 'chip-off'}`}
+                    onClick={() => onToggleSalesProbability(probability)}
+                    aria-pressed={isSelected}
+                  >
+                    {formatProbabilityLabel(probability)}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="forecast-filter-note">
+              {selectedSalesProbabilities.size} of {salesProbabilityOptions.length} probabilities selected
+            </p>
+          </>
+        ) : (
+          <p className="forecast-filter-note">No probability values were found in the current Sales workbook.</p>
         )}
       </div>
     )
@@ -631,6 +694,7 @@ export function ReportWorkspace({
             <h2>Weekly Sales Forecast</h2>
             <p>Stacked weekly sales forecast with capacity line using current filters and edits.</p>
           </div>
+          {renderSalesProbabilityFilter('Sales Forecast')}
           {renderWeekSelectionSummary(
             selectedSalesWeekSummary,
             () => setSelectedSalesWeekIds(new Set()),
@@ -660,6 +724,7 @@ export function ReportWorkspace({
             <h2>Sales & Capacity</h2>
             <p>View sales forecast alongside operational capacity for the current scope.</p>
           </div>
+          {renderSalesProbabilityFilter('Shop and Sales Forecast')}
           {renderWeekSelectionSummary(
             selectedCombinedWeekSummary,
             () => setSelectedCombinedWeekIds(new Set()),

@@ -56,6 +56,33 @@ function parseWorkHours(value: unknown): number | null {
   return null
 }
 
+function parseProbability(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (value >= 0 && value < 1) {
+      return value * 100
+    }
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return null
+    }
+    const cleaned = trimmed.replace(/[^\d.-]/g, '')
+    const parsed = Number.parseFloat(cleaned)
+    if (!Number.isFinite(parsed)) {
+      return null
+    }
+    if (!trimmed.includes('%') && parsed >= 0 && parsed < 1) {
+      return parsed * 100
+    }
+    return parsed
+  }
+
+  return null
+}
+
 function parseExcelDate(value: unknown): Date | null {
   if (value instanceof Date && isValid(value)) {
     return value
@@ -100,7 +127,7 @@ export function parseSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
   })
 
   return rawRows
-    .map((row, index) => {
+    .map<TaskRow | null>((row, index) => {
       const nameValue = findCellValue(row, CANDIDATE_COLUMNS.name)
       const workValue = findCellValue(row, CANDIDATE_COLUMNS.work)
       const startValue = findCellValue(row, CANDIDATE_COLUMNS.start)
@@ -172,6 +199,7 @@ export function parseSalesSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
     quote: 'quote',
     title: 'title',
   }
+  const probabilityCandidates = ['probability', 'prob', 'chance']
 
   function getNumeric(row: Record<string, unknown>, key: string): number {
     const value = row[key]
@@ -210,13 +238,15 @@ export function parseSalesSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
       const sir = normalized[requiredColumns.sir]
       const quote = normalized[requiredColumns.quote]
       const title = normalized[requiredColumns.title]
+      const probabilityValue = findCellValue(normalized, probabilityCandidates)
+      const probability = parseProbability(probabilityValue)
 
       const pieces = [sir, quote, title]
         .map((value) => (typeof value === 'string' && value.trim() ? value.trim() : ''))
         .filter(Boolean)
       const projectName = pieces.length > 0 ? pieces.join(' - ') : `Sales Project ${index + 1}`
 
-      return {
+      const task: TaskRow = {
         id: `sales-${index}-${projectName}`,
         name: projectName,
         project: projectName,
@@ -224,7 +254,10 @@ export function parseSalesSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
         workHours: totalHours,
         start,
         finish,
-      } satisfies TaskRow
+        salesProbability: probability,
+      }
+
+      return task
     })
     .filter((task): task is TaskRow => task !== null)
 }

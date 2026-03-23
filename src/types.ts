@@ -10,6 +10,7 @@ export interface TaskRow {
   finish: Date
   resourceName: string
   project: string
+  salesProbability?: number | null
 }
 
 export interface AppFilters {
