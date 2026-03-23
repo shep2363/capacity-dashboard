@@ -188,57 +188,49 @@ export function parseSalesSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
     raw: false,
   })
 
-  const requiredColumns = {
-    fab: 'fabhrs',
-    shipping: 'shipping',
-    blast: 'blast',
-    paint: 'paint',
-    start: 'expectedshopstart',
-    finish: 'expectedshopcomplete',
-    sir: 'sir',
-    quote: 'quote',
-    title: 'title',
+  const salesColumnCandidates = {
+    fab: ['fabhrs', 'fab hrs', 'fab hours', 'fab'],
+    shipping: ['shipping', 'shipping hrs', 'shipping hours'],
+    blast: ['blast', 'blast hrs', 'blast hours'],
+    paint: ['paint', 'paint hrs', 'paint hours'],
+    start: ['expectedshopstart', 'expected shop start', 'shop start', 'expected start'],
+    finish: ['expectedshopcomplete', 'expected shop complete', 'shop complete', 'expected complete'],
+    sir: ['sir'],
+    quote: ['quote'],
+    title: ['title', 'project title'],
   }
   const probabilityCandidates = ['probability', 'prob', 'chance']
 
-  function getNumeric(row: Record<string, unknown>, key: string): number {
-    const value = row[key]
+  function getNumeric(row: Record<string, unknown>, candidates: string[]): number {
+    const value = findCellValue(row, candidates)
     const parsed = parseWorkHours(value)
     return parsed ?? 0
   }
 
-  function getDate(row: Record<string, unknown>, key: string): Date | null {
-    return parseExcelDate(row[key])
-  }
-
-  function normalizeRowKeys(row: Record<string, unknown>): Record<string, unknown> {
-    const next: Record<string, unknown> = {}
-    Object.entries(row).forEach(([k, v]) => {
-      next[normalizeKey(k)] = v
-    })
-    return next
+  function getDate(row: Record<string, unknown>, candidates: string[]): Date | null {
+    return parseExcelDate(findCellValue(row, candidates))
   }
 
   return rawRows
     .map((row, index) => {
-      const normalized = normalizeRowKeys(row)
-      const totalHours =
-        getNumeric(normalized, requiredColumns.fab) +
-        getNumeric(normalized, requiredColumns.shipping) +
-        getNumeric(normalized, requiredColumns.blast) +
-        getNumeric(normalized, requiredColumns.paint)
+      const fabHours = getNumeric(row, salesColumnCandidates.fab)
+      const shippingHours = getNumeric(row, salesColumnCandidates.shipping)
+      const blastHours = getNumeric(row, salesColumnCandidates.blast)
+      const paintHours = getNumeric(row, salesColumnCandidates.paint)
+      // Sales Production Report hours are defined as the sum of Fab + Shipping + Blast + Paint.
+      const totalHours = fabHours + shippingHours + blastHours + paintHours
 
-      const start = getDate(normalized, requiredColumns.start)
-      const finish = getDate(normalized, requiredColumns.finish)
+      const start = getDate(row, salesColumnCandidates.start)
+      const finish = getDate(row, salesColumnCandidates.finish)
 
       if (!totalHours || totalHours <= 0 || !start || !finish) {
         return null
       }
 
-      const sir = normalized[requiredColumns.sir]
-      const quote = normalized[requiredColumns.quote]
-      const title = normalized[requiredColumns.title]
-      const probabilityValue = findCellValue(normalized, probabilityCandidates)
+      const sir = findCellValue(row, salesColumnCandidates.sir)
+      const quote = findCellValue(row, salesColumnCandidates.quote)
+      const title = findCellValue(row, salesColumnCandidates.title)
+      const probabilityValue = findCellValue(row, probabilityCandidates)
       const probability = parseProbability(probabilityValue)
 
       const pieces = [sir, quote, title]
