@@ -1067,6 +1067,28 @@ function App() {
   }, [smartsheetProgressEntries.length, matchedSmartsheetRowCount])
 
   useEffect(() => {
+    if (smartsheetSyncStatus !== 'loaded' || smartsheetProgressEntries.length === 0) {
+      return
+    }
+
+    const unmatchedByDepartment = Object.entries(departmentRowsByResource)
+      .map(([resource, rows]) => ({
+        resource,
+        unmatched: rows.filter((row) => row.progressSource !== 'smartsheet').length,
+        total: rows.length,
+      }))
+      .filter((entry) => entry.total > 0 && entry.unmatched > 0)
+
+    if (unmatchedByDepartment.length > 0) {
+      console.info(
+        `[capacity-dashboard] Department rows without Smartsheet match: ${unmatchedByDepartment
+          .map((entry) => `${entry.resource} ${entry.unmatched}/${entry.total}`)
+          .join(', ')}`,
+      )
+    }
+  }, [departmentRowsByResource, smartsheetProgressEntries.length, smartsheetSyncStatus])
+
+  useEffect(() => {
     if (availableProjects.length === 0) {
       setSelectedProjects(new Set())
       setProjectsInitialized(false)

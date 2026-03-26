@@ -7,7 +7,7 @@ import re
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Iterable, Optional
 
 from flask import Flask, Response, jsonify
 
@@ -32,8 +32,8 @@ def _normalize_title(value: Any) -> str:
 def _pick_column(columns: Iterable[dict], candidates: Iterable[str]) -> Optional[dict]:
     normalized_candidates = {_normalize_title(candidate) for candidate in candidates}
     for column in columns:
-      if _normalize_title(column.get("title")) in normalized_candidates:
-        return column
+        if _normalize_title(column.get("title")) in normalized_candidates:
+            return column
     return None
 
 
@@ -90,13 +90,10 @@ def _parse_percent(value: Any) -> Optional[float]:
     return round(numeric, 2)
 
 
-def _compose_project_label(project: Optional[str], sir: Optional[str], quote: Optional[str], title: Optional[str], job_number: Optional[str]) -> Optional[str]:
-    if project:
-        return project
-    combined = " - ".join(part for part in (sir, quote, title) if part)
-    if combined:
-        return combined
-    return job_number
+def _clamp_percent(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    return max(0.0, min(100.0, round(value, 2)))
 
 
 @app.get("/")
@@ -121,80 +118,80 @@ def get_smartsheet_progress() -> Response:
     columns = sheet.get("columns", []) if isinstance(sheet, dict) else []
     rows = sheet.get("rows", []) if isinstance(sheet, dict) else []
 
-    percent_column = _pick_column(
-        columns,
-        ["percent complete", "% complete", "percent done", "percentage complete", "progress", "pct complete"],
-    )
-    sequence_column = _pick_column(
-        columns,
-        ["sequence", "sequence name", "task", "task name", "operation", "description", "item", "name"],
-    )
-    project_column = _pick_column(columns, ["project", "project name", "job", "job name"])
-    resource_column = _pick_column(columns, ["department", "resource", "shop", "area", "trade", "crew", "discipline"])
-    sir_column = _pick_column(columns, ["sir"])
-    quote_column = _pick_column(columns, ["quote", "quote number", "quote #"])
-    title_column = _pick_column(columns, ["title", "project title"])
-    job_number_column = _pick_column(columns, ["job number", "job #", "job no"])
+    job_column = _pick_column(columns, ["job", "job number", "job #", "job no"])
+    sequence_column = _pick_column(columns, ["sequence", "sequence name", "task", "task name", "operation", "item", "name"])
+    process_column = _pick_column(columns, ["process"])
+    manual_process_column = _pick_column(columns, ["manual process", "manualprocess"])
+    weld_column = _pick_column(columns, ["weld"])
+    paint_column = _pick_column(columns, ["paint"])
+    qc_column = _pick_column(columns, ["qc", "quality control"])
+    ship_column = _pick_column(columns, ["ship", "shipping"])
+    weight_column = _pick_column(columns, ["weight", "weight t", "weight (t)"])
+    source_sheet_column = _pick_column(columns, ["source sheet", "sourcesheet"])
 
-    if percent_column is None:
+    if job_column is None or sequence_column is None:
         logger.error(
-            "Smartsheet percent complete column not found. sheet_id=%s available_columns=%s",
+            "Smartsheet Job/Sequence columns not found. sheet_id=%s available_columns=%s",
             sheet_id,
             [column.get("title") for column in columns],
         )
-        return _json_no_store({"error": "Could not find a Percent Complete column in Smartsheet."}, 500)
+        return _json_no_store({"error": "Could not find required Job and Sequence columns in Smartsheet."}, 500)
 
     parsed_rows = []
-    skipped_without_percent = 0
+    skipped_without_identifiers = 0
+    skipped_without_station_progress = 0
 
     for row in rows:
         cell_map = {cell.get("columnId"): cell for cell in row.get("cells", []) if isinstance(cell, dict)}
-        percent = _parse_percent(_cell_value(cell_map.get(percent_column.get("id"))))
-        if percent is None:
-            skipped_without_percent += 1
+        job = _to_text(_cell_value(cell_map.get(job_column.get("id")))) if job_column else None
+        sequence = _to_text(_cell_value(cell_map.get(sequence_column.get("id")))) if sequence_column else None
+
+        if not job or not sequence:
+            skipped_without_identifiers += 1
             continue
 
-        project = _to_text(_cell_value(cell_map.get(project_column.get("id")))) if project_column else None
-        sequence = _to_text(_cell_value(cell_map.get(sequence_column.get("id")))) if sequence_column else None
-        resource = _to_text(_cell_value(cell_map.get(resource_column.get("id")))) if resource_column else None
-        sir = _to_text(_cell_value(cell_map.get(sir_column.get("id")))) if sir_column else None
-        quote = _to_text(_cell_value(cell_map.get(quote_column.get("id")))) if quote_column else None
-        title = _to_text(_cell_value(cell_map.get(title_column.get("id")))) if title_column else None
-        job_number = _to_text(_cell_value(cell_map.get(job_number_column.get("id")))) if job_number_column else None
-
-        project_label = _compose_project_label(project, sir, quote, title, job_number)
-        if not any([project_label, sequence, resource]):
-            logger.warning(
-                "Skipping Smartsheet row without usable identifiers. sheet_id=%s row_id=%s row_number=%s",
-                sheet_id,
-                row.get("id"),
-                row.get("rowNumber"),
-            )
+        station_progress = {
+            "process": _clamp_percent(_parse_percent(_cell_value(cell_map.get(process_column.get("id"))))) if process_column else None,
+            "manualProcess": _clamp_percent(_parse_percent(_cell_value(cell_map.get(manual_process_column.get("id"))))) if manual_process_column else None,
+            "weld": _clamp_percent(_parse_percent(_cell_value(cell_map.get(weld_column.get("id"))))) if weld_column else None,
+            "paint": _clamp_percent(_parse_percent(_cell_value(cell_map.get(paint_column.get("id"))))) if paint_column else None,
+            "qc": _clamp_percent(_parse_percent(_cell_value(cell_map.get(qc_column.get("id"))))) if qc_column else None,
+            "ship": _clamp_percent(_parse_percent(_cell_value(cell_map.get(ship_column.get("id"))))) if ship_column else None,
+        }
+        if not any(value is not None for value in station_progress.values()):
+            skipped_without_station_progress += 1
             continue
 
         parsed_rows.append(
             {
                 "rowId": str(row.get("id", "")),
                 "rowNumber": int(row.get("rowNumber") or 0),
-                "percentComplete": percent,
-                "project": project_label,
+                "job": job,
                 "sequence": sequence,
-                "resource": resource,
-                "identifiers": {
-                    "sir": sir,
-                    "quote": quote,
-                    "title": title,
-                    "jobNumber": job_number,
-                },
+                "weight": _to_text(_cell_value(cell_map.get(weight_column.get("id")))) if weight_column else None,
+                "sourceSheet": _to_text(_cell_value(cell_map.get(source_sheet_column.get("id")))) if source_sheet_column else None,
+                "stationProgress": station_progress,
             }
         )
 
     logger.info(
-        "Loaded Smartsheet progress. sheet_id=%s rows=%s parsed=%s skipped_without_percent=%s",
+        "Loaded Smartsheet progress. sheet_id=%s rows=%s parsed=%s skipped_without_identifiers=%s skipped_without_station_progress=%s matched_columns=%s",
         sheet_id,
         len(rows),
         len(parsed_rows),
-        skipped_without_percent,
+        skipped_without_identifiers,
+        skipped_without_station_progress,
+        {
+            "job": job_column.get("title") if job_column else None,
+            "sequence": sequence_column.get("title") if sequence_column else None,
+            "process": process_column.get("title") if process_column else None,
+            "manualProcess": manual_process_column.get("title") if manual_process_column else None,
+            "weld": weld_column.get("title") if weld_column else None,
+            "paint": paint_column.get("title") if paint_column else None,
+            "qc": qc_column.get("title") if qc_column else None,
+            "ship": ship_column.get("title") if ship_column else None,
+            "sourceSheet": source_sheet_column.get("title") if source_sheet_column else None,
+        },
     )
 
     return _json_no_store(
@@ -204,14 +201,16 @@ def get_smartsheet_progress() -> Response:
             "rowCount": len(parsed_rows),
             "rows": parsed_rows,
             "matchedColumns": {
-                "percentComplete": percent_column.get("title") if percent_column else None,
-                "project": project_column.get("title") if project_column else None,
+                "job": job_column.get("title") if job_column else None,
                 "sequence": sequence_column.get("title") if sequence_column else None,
-                "resource": resource_column.get("title") if resource_column else None,
-                "sir": sir_column.get("title") if sir_column else None,
-                "quote": quote_column.get("title") if quote_column else None,
-                "title": title_column.get("title") if title_column else None,
-                "jobNumber": job_number_column.get("title") if job_number_column else None,
+                "process": process_column.get("title") if process_column else None,
+                "manualProcess": manual_process_column.get("title") if manual_process_column else None,
+                "weld": weld_column.get("title") if weld_column else None,
+                "paint": paint_column.get("title") if paint_column else None,
+                "qc": qc_column.get("title") if qc_column else None,
+                "ship": ship_column.get("title") if ship_column else None,
+                "weight": weight_column.get("title") if weight_column else None,
+                "sourceSheet": source_sheet_column.get("title") if source_sheet_column else None,
             },
         }
     )

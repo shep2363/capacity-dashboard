@@ -1,18 +1,20 @@
-export interface SmartsheetProgressIdentifiers {
-  sir?: string | null
-  quote?: string | null
-  title?: string | null
-  jobNumber?: string | null
+export interface SmartsheetStationProgress {
+  process?: number | null
+  manualProcess?: number | null
+  weld?: number | null
+  paint?: number | null
+  qc?: number | null
+  ship?: number | null
 }
 
 export interface SmartsheetProgressEntry {
   rowId: string
   rowNumber: number
-  percentComplete: number
-  project?: string | null
+  job?: string | null
   sequence?: string | null
-  resource?: string | null
-  identifiers?: SmartsheetProgressIdentifiers
+  weight?: string | null
+  sourceSheet?: string | null
+  stationProgress: SmartsheetStationProgress
 }
 
 export interface SmartsheetProgressPayload {
@@ -23,9 +25,16 @@ export interface SmartsheetProgressPayload {
   matchedColumns?: Record<string, string | null>
 }
 
+export interface ResolvedDepartmentProgress {
+  rowId: string
+  rowNumber: number
+  percentComplete: number
+  sourceColumn: keyof SmartsheetStationProgress
+}
+
 export interface DepartmentProgressMatcher {
   entryCount: number
-  resolve: (resource: string, project: string, sequence: string) => SmartsheetProgressEntry | null
+  resolve: (resource: string, project: string, sequence: string) => ResolvedDepartmentProgress | null
 }
 
 function normalizeText(value: string | null | undefined): string {
@@ -60,25 +69,25 @@ function uniqueValues(values: Array<string | null | undefined>): string[] {
   return result
 }
 
-function entryProjectCandidates(entry: SmartsheetProgressEntry): string[] {
-  const composedProject = [
-    entry.identifiers?.sir,
-    entry.identifiers?.quote,
-    entry.identifiers?.title,
-  ]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(' - ')
+function extractDigitBearingTokens(value: string | null | undefined): string[] {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return []
+  }
+  return uniqueValues(
+    normalized
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0 && /\d/.test(token)),
+  )
+}
 
-  return uniqueValues([entry.project, composedProject, entry.identifiers?.jobNumber])
+function entryJobCandidates(entry: SmartsheetProgressEntry): string[] {
+  return uniqueValues([entry.job, ...extractDigitBearingTokens(entry.job)])
 }
 
 function entrySequenceCandidates(entry: SmartsheetProgressEntry): string[] {
-  return uniqueValues([entry.sequence])
-}
-
-function entryResourceCandidates(entry: SmartsheetProgressEntry): string[] {
-  const canonical = canonicalizeResource(entry.resource)
-  return canonical ? [canonical] : []
+  return uniqueValues([entry.sequence, ...extractDigitBearingTokens(entry.sequence)])
 }
 
 function buildUniqueLookup(entries: SmartsheetProgressEntry[], keyFactory: (entry: SmartsheetProgressEntry) => string[]) {
@@ -102,75 +111,83 @@ function buildUniqueLookup(entries: SmartsheetProgressEntry[], keyFactory: (entr
   return unique
 }
 
+function toResolvedProgress(
+  entry: SmartsheetProgressEntry,
+  sourceColumn: keyof SmartsheetStationProgress,
+  value: number | null | undefined,
+): ResolvedDepartmentProgress | null {
+  if (!Number.isFinite(value)) {
+    return null
+  }
+  return {
+    rowId: entry.rowId,
+    rowNumber: entry.rowNumber,
+    percentComplete: Math.min(100, Math.max(0, Number(value))),
+    sourceColumn,
+  }
+}
+
+function resolveStationProgress(resource: string, entry: SmartsheetProgressEntry): ResolvedDepartmentProgress | null {
+  const stationProgress = entry.stationProgress ?? {}
+  const canonicalResource = canonicalizeResource(resource)
+
+  if (canonicalResource === 'processing') {
+    return (
+      toResolvedProgress(entry, 'manualProcess', stationProgress.manualProcess) ??
+      toResolvedProgress(entry, 'process', stationProgress.process)
+    )
+  }
+  if (canonicalResource === 'fabrication') {
+    return toResolvedProgress(entry, 'weld', stationProgress.weld)
+  }
+  if (canonicalResource === 'paint') {
+    return toResolvedProgress(entry, 'paint', stationProgress.paint)
+  }
+  if (canonicalResource === 'shipping') {
+    return toResolvedProgress(entry, 'ship', stationProgress.ship)
+  }
+  return null
+}
+
 export function buildDepartmentProgressMatcher(entries: SmartsheetProgressEntry[]): DepartmentProgressMatcher {
-  const resourceProjectSequence = buildUniqueLookup(entries, (entry) => {
-    const resources = entryResourceCandidates(entry)
-    const projects = entryProjectCandidates(entry)
+  const jobSequence = buildUniqueLookup(entries, (entry) => {
+    const jobs = entryJobCandidates(entry)
     const sequences = entrySequenceCandidates(entry)
     const keys: string[] = []
-    resources.forEach((resource) => {
-      projects.forEach((project) => {
-        sequences.forEach((sequence) => {
-          keys.push(`${resource}|${project}|${sequence}`)
-        })
-      })
-    })
-    return keys
-  })
 
-  const projectSequence = buildUniqueLookup(entries, (entry) => {
-    const projects = entryProjectCandidates(entry)
-    const sequences = entrySequenceCandidates(entry)
-    const keys: string[] = []
-    projects.forEach((project) => {
+    jobs.forEach((job) => {
       sequences.forEach((sequence) => {
-        keys.push(`${project}|${sequence}`)
+        keys.push(`${job}|${sequence}`)
       })
     })
+
     return keys
   })
-
-  const resourceSequence = buildUniqueLookup(entries, (entry) => {
-    const resources = entryResourceCandidates(entry)
-    const sequences = entrySequenceCandidates(entry)
-    const keys: string[] = []
-    resources.forEach((resource) => {
-      sequences.forEach((sequence) => {
-        keys.push(`${resource}|${sequence}`)
-      })
-    })
-    return keys
-  })
-
-  const sequenceOnly = buildUniqueLookup(entries, (entry) => entrySequenceCandidates(entry))
 
   return {
     entryCount: entries.length,
     resolve(resource: string, project: string, sequence: string) {
-      const canonicalResource = canonicalizeResource(resource)
-      const normalizedProject = normalizeText(project)
-      const normalizedSequence = normalizeText(sequence)
+      const jobCandidates = uniqueValues([project, ...extractDigitBearingTokens(project)])
+      const sequenceCandidates = uniqueValues([sequence, ...extractDigitBearingTokens(sequence)])
 
-      if (!normalizedSequence) {
+      if (jobCandidates.length === 0 || sequenceCandidates.length === 0) {
         return null
       }
 
-      if (canonicalResource && normalizedProject) {
-        const exact = resourceProjectSequence.get(`${canonicalResource}|${normalizedProject}|${normalizedSequence}`)
-        if (exact) return exact
+      for (const job of jobCandidates) {
+        for (const sequenceValue of sequenceCandidates) {
+          const matched = jobSequence.get(`${job}|${sequenceValue}`)
+          if (!matched) {
+            continue
+          }
+          const resolved = resolveStationProgress(resource, matched)
+          if (resolved) {
+            return resolved
+          }
+        }
       }
 
-      if (normalizedProject) {
-        const byProject = projectSequence.get(`${normalizedProject}|${normalizedSequence}`)
-        if (byProject) return byProject
-      }
-
-      if (canonicalResource) {
-        const byResource = resourceSequence.get(`${canonicalResource}|${normalizedSequence}`)
-        if (byResource) return byResource
-      }
-
-      return sequenceOnly.get(normalizedSequence) ?? null
+      return null
     },
   }
 }
@@ -190,7 +207,7 @@ export function formatSmartsheetSyncLabel(
   }
   const matchSummary =
     typeof matchedCount === 'number' && typeof totalCount === 'number'
-      ? ` • ${matchedCount}/${totalCount} matched`
+      ? ` - ${matchedCount}/${totalCount} matched`
       : ''
   if (status === 'loaded' && updatedAt) {
     return `Smartsheet synced ${new Date(updatedAt).toLocaleString()}${matchSummary}`
