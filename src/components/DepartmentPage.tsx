@@ -2,6 +2,7 @@
 import { eachDayOfInterval, format, getDay, getYear, isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 import type { AppFilters, TaskRow } from '../types'
 import { weekRangeLabel } from '../utils/planner'
+import type { DepartmentProgressMatcher } from '../utils/smartsheetProgress'
 
 const PROJECT_COLOR_PALETTE = [
   '#4f46e5',
@@ -32,6 +33,10 @@ interface DepartmentPageProps {
   resourceEnabled: boolean
   filter: DepartmentFilters
   onFilterChange: (next: DepartmentFilters) => void
+  progressMatcher?: DepartmentProgressMatcher | null
+  smartsheetSyncLabel?: string
+  onRefreshSmartsheet?: () => void
+  isSmartsheetSyncLoading?: boolean
 }
 
 export interface DepartmentRow {
@@ -41,6 +46,8 @@ export interface DepartmentRow {
   weekLabel: string
   hours: number
   percentComplete: number
+  progressSource: 'schedule' | 'smartsheet'
+  smartsheetRowId?: string | null
   finishDate: string
   status: string
 }
@@ -79,8 +86,9 @@ export function buildDepartmentRows(params: {
   selectedProjects: Set<string>
   selectedWeekendDates: Set<string>
   resourceEnabled: boolean
+  progressMatcher?: DepartmentProgressMatcher | null
 }): DepartmentRow[] {
-  const { resource, tasks, filters, selectedProjects, selectedWeekendDates, resourceEnabled } = params
+  const { resource, tasks, filters, selectedProjects, selectedWeekendDates, resourceEnabled, progressMatcher } = params
   if (!resourceEnabled) return []
   const filterYear = filters.year ? Number(filters.year) : null
   const parsedFrom = filters.dateFrom ? parseISO(filters.dateFrom) : null
@@ -99,7 +107,12 @@ export function buildDepartmentRows(params: {
     const workedHours = daily
       .filter(({ date }) => isBefore(date, now))
       .reduce((sum, { hours }) => sum + hours, 0)
-    const percent = Math.min(100, Math.max(0, (workedHours / task.workHours) * 100))
+    const computedPercent = Math.min(100, Math.max(0, (workedHours / task.workHours) * 100))
+    const matchedProgress = progressMatcher?.resolve(resource, task.project, task.name) ?? null
+    const percent =
+      matchedProgress && Number.isFinite(matchedProgress.percentComplete)
+        ? Math.min(100, Math.max(0, matchedProgress.percentComplete))
+        : computedPercent
     const status =
       percent >= 99.5
         ? 'Completed'
@@ -127,6 +140,8 @@ export function buildDepartmentRows(params: {
         weekLabel: weekRangeLabel(weekStartIso),
         hours,
         percentComplete: percent,
+        progressSource: matchedProgress ? 'smartsheet' : 'schedule',
+        smartsheetRowId: matchedProgress?.rowId ?? null,
         finishDate: format(task.finish, 'yyyy-MM-dd'),
         status,
       })
@@ -146,6 +161,10 @@ function DepartmentPage({
   resourceEnabled,
   filter,
   onFilterChange,
+  progressMatcher,
+  smartsheetSyncLabel,
+  onRefreshSmartsheet,
+  isSmartsheetSyncLoading = false,
 }: DepartmentPageProps) {
   const rows = useMemo(
     () =>
@@ -156,8 +175,9 @@ function DepartmentPage({
         selectedProjects,
         selectedWeekendDates,
         resourceEnabled,
+        progressMatcher,
       }),
-    [resource, tasks, filters, selectedProjects, selectedWeekendDates, resourceEnabled],
+    [resource, tasks, filters, selectedProjects, selectedWeekendDates, resourceEnabled, progressMatcher],
   )
 
   const projectFilteredRows = useMemo(() => {
@@ -280,6 +300,15 @@ function DepartmentPage({
             <span>Sequences</span>
             <strong>{totalSequences}</strong>
           </div>
+          <div className="dept-sync">
+            <span>Smartsheet Sync</span>
+            <strong>{smartsheetSyncLabel ?? 'Not configured'}</strong>
+          </div>
+          {onRefreshSmartsheet && (
+            <button type="button" className="ghost-btn" onClick={onRefreshSmartsheet} disabled={isSmartsheetSyncLoading}>
+              {isSmartsheetSyncLoading ? 'Refreshing...' : 'Refresh Smartsheet'}
+            </button>
+          )}
           <button
             type="button"
             className={`ghost-btn collapse-toggle ${activeFilterCount > 0 ? 'filter-active' : ''}`}

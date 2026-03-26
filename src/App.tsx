@@ -26,7 +26,9 @@ import {
   type RevenueRateMap,
   type RevenueRatesPayload,
 } from './utils/revenueRatesApi'
+import { fetchSmartsheetProgress, SmartsheetProgressApiError } from './utils/smartsheetProgressApi'
 import { buildRevenueMetrics, buildRevenueRateRows, normalizeRateMap } from './utils/revenue'
+import { buildDepartmentProgressMatcher, formatSmartsheetSyncLabel, type SmartsheetProgressEntry } from './utils/smartsheetProgress'
 import {
   buildBaseLeafCells,
   buildLeafValueMap,
@@ -93,6 +95,7 @@ const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
 const DEFAULT_DEPT_FILTER: DepartmentFilters = { projects: [], sequences: [], weeks: [], statuses: [] }
 type PlanningSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type RevenueSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+type SmartsheetSyncStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type RevenueRateField = 'revenuePerHour' | 'grossProfitPerHour'
 
 function toNumericOverrides(overrides: Record<string, number>): Record<string, number> {
@@ -298,6 +301,10 @@ function App() {
   const [passwordError, setPasswordError] = useState('')
   const [hoveredProject, setHoveredProject] = useState<string | null>(null)
   const [deptFilters, setDeptFilters] = useState<Record<string, DepartmentFilters>>({})
+  const [smartsheetProgressEntries, setSmartsheetProgressEntries] = useState<SmartsheetProgressEntry[]>([])
+  const [smartsheetSyncStatus, setSmartsheetSyncStatus] = useState<SmartsheetSyncStatus>('idle')
+  const [smartsheetSyncError, setSmartsheetSyncError] = useState('')
+  const [smartsheetUpdatedAt, setSmartsheetUpdatedAt] = useState<string | null>(null)
   const mainPlanningVersionRef = useRef(0)
   const salesPlanningVersionRef = useRef(0)
   const mainPlanningSkipFirstPersistRef = useRef(true)
@@ -322,6 +329,28 @@ function App() {
       return DEFAULT_MAX_RATE_PER_HOUR
     }
     return raw
+  }, [])
+
+  async function refreshSmartsheetProgress(): Promise<void> {
+    setSmartsheetSyncStatus('loading')
+    setSmartsheetSyncError('')
+    try {
+      const payload = await fetchSmartsheetProgress()
+      setSmartsheetProgressEntries(payload.rows)
+      setSmartsheetUpdatedAt(payload.updatedAt ?? null)
+      setSmartsheetSyncStatus('loaded')
+    } catch (error) {
+      const message =
+        error instanceof SmartsheetProgressApiError || error instanceof Error
+          ? error.message
+          : 'Failed loading Smartsheet progress.'
+      setSmartsheetSyncStatus('error')
+      setSmartsheetSyncError(message)
+    }
+  }
+
+  useEffect(() => {
+    void refreshSmartsheetProgress()
   }, [])
 
   useEffect(() => {
@@ -960,6 +989,10 @@ function App() {
     })
     return map
   }, [availableProjects])
+  const smartsheetProgressMatcher = useMemo(
+    () => buildDepartmentProgressMatcher(smartsheetProgressEntries),
+    [smartsheetProgressEntries],
+  )
   const getDeptFilter = (resource: string): DepartmentFilters => deptFilters[resource] ?? DEFAULT_DEPT_FILTER
   const setDeptFilter = (resource: string, next: DepartmentFilters) =>
     setDeptFilters((current) => ({ ...current, [resource]: next }))
@@ -985,6 +1018,7 @@ function App() {
         selectedProjects,
         selectedWeekendDates,
         resourceEnabled: resourceEnabledMap[resource] !== false,
+        progressMatcher: smartsheetProgressMatcher,
       })
       const filter = getDeptFilter(resource)
       const filtered = applyDeptFilters(baseRows, filter).sort(
@@ -996,7 +1030,41 @@ function App() {
       map[resource] = filtered
     })
     return map
-  }, [tasks, filters, selectedProjects, selectedWeekendDates, enabledResources, deptFilters])
+  }, [tasks, filters, selectedProjects, selectedWeekendDates, enabledResources, deptFilters, smartsheetProgressMatcher])
+
+  const matchedSmartsheetRowCount = useMemo(() => {
+    const matchedRowIds = new Set<string>()
+    Object.values(departmentRowsByResource).forEach((rows) => {
+      rows.forEach((row) => {
+        if (row.progressSource === 'smartsheet' && row.smartsheetRowId) {
+          matchedRowIds.add(row.smartsheetRowId)
+        }
+      })
+    })
+    return matchedRowIds.size
+  }, [departmentRowsByResource])
+
+  const smartsheetSyncLabel = useMemo(
+    () =>
+      formatSmartsheetSyncLabel(
+        smartsheetSyncStatus,
+        smartsheetUpdatedAt,
+        smartsheetSyncError,
+        matchedSmartsheetRowCount,
+        smartsheetProgressEntries.length,
+      ),
+    [smartsheetSyncStatus, smartsheetUpdatedAt, smartsheetSyncError, matchedSmartsheetRowCount, smartsheetProgressEntries.length],
+  )
+
+  useEffect(() => {
+    if (smartsheetProgressEntries.length === 0) {
+      return
+    }
+    const unmatched = smartsheetProgressEntries.length - matchedSmartsheetRowCount
+    if (unmatched > 0) {
+      console.warn(`[capacity-dashboard] ${unmatched} Smartsheet progress row(s) did not match department rows.`)
+    }
+  }, [smartsheetProgressEntries.length, matchedSmartsheetRowCount])
 
   useEffect(() => {
     if (availableProjects.length === 0) {
@@ -2762,6 +2830,10 @@ function App() {
           resourceEnabled={enabledResources['Processing'] !== false}
           filter={getDeptFilter('Processing')}
           onFilterChange={(next) => setDeptFilter('Processing', next)}
+          progressMatcher={smartsheetProgressMatcher}
+          smartsheetSyncLabel={smartsheetSyncLabel}
+          onRefreshSmartsheet={() => void refreshSmartsheetProgress()}
+          isSmartsheetSyncLoading={smartsheetSyncStatus === 'loading'}
         />
       )}
       {activePage === 'fabrication' && (
@@ -2775,6 +2847,10 @@ function App() {
           resourceEnabled={enabledResources['Fabrication'] !== false}
           filter={getDeptFilter('Fabrication')}
           onFilterChange={(next) => setDeptFilter('Fabrication', next)}
+          progressMatcher={smartsheetProgressMatcher}
+          smartsheetSyncLabel={smartsheetSyncLabel}
+          onRefreshSmartsheet={() => void refreshSmartsheetProgress()}
+          isSmartsheetSyncLoading={smartsheetSyncStatus === 'loading'}
         />
       )}
       {activePage === 'assembly' && (
@@ -2788,6 +2864,10 @@ function App() {
           resourceEnabled={enabledResources['Assembly'] !== false}
           filter={getDeptFilter('Assembly')}
           onFilterChange={(next) => setDeptFilter('Assembly', next)}
+          progressMatcher={smartsheetProgressMatcher}
+          smartsheetSyncLabel={smartsheetSyncLabel}
+          onRefreshSmartsheet={() => void refreshSmartsheetProgress()}
+          isSmartsheetSyncLoading={smartsheetSyncStatus === 'loading'}
         />
       )}
       {activePage === 'paint' && (
@@ -2801,6 +2881,10 @@ function App() {
           resourceEnabled={enabledResources['Paint'] !== false}
           filter={getDeptFilter('Paint')}
           onFilterChange={(next) => setDeptFilter('Paint', next)}
+          progressMatcher={smartsheetProgressMatcher}
+          smartsheetSyncLabel={smartsheetSyncLabel}
+          onRefreshSmartsheet={() => void refreshSmartsheetProgress()}
+          isSmartsheetSyncLoading={smartsheetSyncStatus === 'loading'}
         />
       )}
       {activePage === 'shipping' && (
@@ -2814,6 +2898,10 @@ function App() {
           resourceEnabled={enabledResources['Shipping'] !== false}
           filter={getDeptFilter('Shipping')}
           onFilterChange={(next) => setDeptFilter('Shipping', next)}
+          progressMatcher={smartsheetProgressMatcher}
+          smartsheetSyncLabel={smartsheetSyncLabel}
+          onRefreshSmartsheet={() => void refreshSmartsheetProgress()}
+          isSmartsheetSyncLoading={smartsheetSyncStatus === 'loading'}
         />
       )}
 
