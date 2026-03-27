@@ -1104,8 +1104,8 @@ button:disabled {
   font-size: 0.84rem;
   background: rgba(9, 22, 38, 0.36);
   box-shadow: 0 14px 26px rgba(2, 8, 23, 0.18);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
+  backdrop-filter: blur(8.55px);
+  -webkit-backdrop-filter: blur(8.55px);
   color: #f8fafc;
   padding: 0.6rem 0.68rem;
   width: 430px;
