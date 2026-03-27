@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { WorkbookDataset } from '../utils/activeWorkbookApi'
+import { computeLeftTooltipPosition, type TooltipPosition } from '../utils/chartTooltip'
 import { exportRevenueMonthlyWorkbook } from '../utils/revenueExport'
 import type {
   MonthlyGrossProfitRow,
@@ -33,6 +34,8 @@ const COLOR_PALETTE = [
   '#ea580c',
   '#047857',
 ]
+
+const REVENUE_TOOLTIP_BOUNDS = { width: 450, height: 320 }
 
 type RevenueSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type RevenueRateField = 'revenuePerHour' | 'grossProfitPerHour'
@@ -125,16 +128,6 @@ interface WeeklyTooltipEntry {
   dataKey?: string | number
   color?: string
   payload?: WeeklyRevenueRow
-}
-
-interface RevenueHoverState<TEntry> {
-  active: boolean
-  payload?: TEntry[]
-}
-
-interface RechartsHoverSnapshot<TPayload> {
-  isTooltipActive?: boolean
-  activePayload?: TPayload[]
 }
 
 function WeeklyRevenueTooltip({
@@ -350,13 +343,10 @@ export function RevenueWorkspace({
 }: RevenueWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<RevenueViewTab>('data')
   const [exportError, setExportError] = useState('')
-  const [weeklyRevenueHover, setWeeklyRevenueHover] = useState<RevenueHoverState<WeeklyTooltipEntry>>({ active: false })
-  const [weeklyGrossProfitHover, setWeeklyGrossProfitHover] =
-    useState<RevenueHoverState<WeeklyGrossProfitTooltipEntry>>({ active: false })
-  const [monthlyRevenueHover, setMonthlyRevenueHover] =
-    useState<RevenueHoverState<MonthlyRevenueTooltipEntry>>({ active: false })
-  const [monthlyGrossProfitHover, setMonthlyGrossProfitHover] =
-    useState<RevenueHoverState<MonthlyGrossProfitTooltipEntry>>({ active: false })
+  const [weeklyRevenueTooltipPosition, setWeeklyRevenueTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [weeklyGrossProfitTooltipPosition, setWeeklyGrossProfitTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [monthlyRevenueTooltipPosition, setMonthlyRevenueTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [monthlyGrossProfitTooltipPosition, setMonthlyGrossProfitTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
 
   const weeklyChartData = useMemo(
     () =>
@@ -556,69 +546,57 @@ export function RevenueWorkspace({
             {weeklyChartData.length === 0 || weeklyProjectKeys.length === 0 ? (
               <div className="status">No weekly revenue data available for the current scope.</div>
             ) : (
-              <div className="chart-layout chart-layout-wide">
-                <div className="chart-wrap revenue-chart-wrap">
-                  <ResponsiveContainer width="100%" height={560}>
-                    <ComposedChart
-                      data={weeklyChartData}
-                      margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
-                      barCategoryGap="2%"
-                      barGap={0}
-                      barSize={resolveBarSize(weeklyChartData.length)}
-                      onMouseMove={(state) => {
-                        const hover = state as RechartsHoverSnapshot<WeeklyTooltipEntry>
-                        setWeeklyRevenueHover({
-                          active: Boolean(hover.isTooltipActive),
-                          payload: hover.activePayload,
-                        })
-                      }}
-                      onMouseLeave={() => {
-                        setWeeklyRevenueHover({ active: false })
-                      }}
-                    >
-                      <CartesianGrid vertical={false} stroke="#334155" />
-                      <XAxis
-                        dataKey="weekLabel"
-                        angle={-34}
-                        textAnchor="end"
-                        interval={0}
-                        minTickGap={0}
-                        height={72}
-                        tickMargin={8}
-                        tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
-                        axisLine={{ stroke: '#475569' }}
-                        tickLine={false}
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={weeklyChartData}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="2%"
+                    barGap={0}
+                    barSize={resolveBarSize(weeklyChartData.length)}
+                    onMouseMove={(state) => {
+                      setWeeklyRevenueTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setWeeklyRevenueTooltipPosition(undefined)
+                    }}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="weekLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={72}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<WeeklyRevenueTooltip projectColorMap={weeklyProjectColorMap} />}
+                      position={weeklyRevenueTooltipPosition}
+                    />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+                    {weeklyProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="weekly-revenue"
+                        fill={weeklyProjectColorMap[projectKey] ?? COLOR_PALETTE[index % COLOR_PALETTE.length]}
                       />
-                      <YAxis
-                        tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
-                        tickFormatter={(value: number) => formatCurrency(value)}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip formatter={(value) => formatHours(value)} content={() => null} />
-                      <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
-                      {weeklyProjectKeys.map((projectKey, index) => (
-                        <Bar
-                          key={projectKey}
-                          dataKey={projectKey}
-                          name={projectKey}
-                          stackId="weekly-revenue"
-                          fill={weeklyProjectColorMap[projectKey] ?? COLOR_PALETTE[index % COLOR_PALETTE.length]}
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-                <aside className="chart-hover-dock chart-hover-dock-wide" aria-live="polite">
-                  {weeklyRevenueHover.active && weeklyRevenueHover.payload && weeklyRevenueHover.payload.length > 0 ? (
-                    <WeeklyRevenueTooltip active payload={weeklyRevenueHover.payload} projectColorMap={weeklyProjectColorMap} />
-                  ) : (
-                    <div className="chart-hover-placeholder">
-                      <strong>Hover details</strong>
-                      <span>Hover a week in the revenue chart to review project hours, rates, and revenue here.</span>
-                    </div>
-                  )}
-                </aside>
+                    ))}
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
             )}
           </div>
@@ -635,77 +613,59 @@ export function RevenueWorkspace({
             {weeklyGrossProfitChartData.length === 0 || weeklyGrossProfitProjectKeys.length === 0 ? (
               <div className="status">No gross profit data available for the current scope.</div>
             ) : (
-              <div className="chart-layout chart-layout-wide">
-                <div className="chart-wrap revenue-chart-wrap">
-                  <ResponsiveContainer width="100%" height={560}>
-                    <ComposedChart
-                      data={weeklyGrossProfitChartData}
-                      margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
-                      barCategoryGap="2%"
-                      barGap={0}
-                      barSize={resolveBarSize(weeklyGrossProfitChartData.length)}
-                      onMouseMove={(state) => {
-                        const hover = state as RechartsHoverSnapshot<WeeklyGrossProfitTooltipEntry>
-                        setWeeklyGrossProfitHover({
-                          active: Boolean(hover.isTooltipActive),
-                          payload: hover.activePayload,
-                        })
-                      }}
-                      onMouseLeave={() => {
-                        setWeeklyGrossProfitHover({ active: false })
-                      }}
-                    >
-                      <CartesianGrid vertical={false} stroke="#334155" />
-                      <XAxis
-                        dataKey="weekLabel"
-                        angle={-34}
-                        textAnchor="end"
-                        interval={0}
-                        minTickGap={0}
-                        height={72}
-                        tickMargin={8}
-                        tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
-                        axisLine={{ stroke: '#475569' }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
-                        tickFormatter={(value: number) => formatCurrency(value)}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip formatter={(value) => formatHours(value)} content={() => null} />
-                      <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
-                      {weeklyGrossProfitProjectKeys.map((projectKey, index) => (
-                        <Bar
-                          key={projectKey}
-                          dataKey={projectKey}
-                          name={projectKey}
-                          stackId="weekly-gross-profit"
-                          fill={
-                            weeklyGrossProfitProjectColorMap[projectKey] ?? COLOR_PALETTE[index % COLOR_PALETTE.length]
-                          }
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-                <aside className="chart-hover-dock chart-hover-dock-wide" aria-live="polite">
-                  {weeklyGrossProfitHover.active &&
-                  weeklyGrossProfitHover.payload &&
-                  weeklyGrossProfitHover.payload.length > 0 ? (
-                    <WeeklyGrossProfitTooltip
-                      active
-                      payload={weeklyGrossProfitHover.payload}
-                      projectColorMap={weeklyGrossProfitProjectColorMap}
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={weeklyGrossProfitChartData}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="2%"
+                    barGap={0}
+                    barSize={resolveBarSize(weeklyGrossProfitChartData.length)}
+                    onMouseMove={(state) => {
+                      setWeeklyGrossProfitTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setWeeklyGrossProfitTooltipPosition(undefined)
+                    }}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="weekLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={72}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
                     />
-                  ) : (
-                    <div className="chart-hover-placeholder">
-                      <strong>Hover details</strong>
-                      <span>Hover a week in the gross profit chart to review project hours, rates, and gross profit here.</span>
-                    </div>
-                  )}
-                </aside>
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<WeeklyGrossProfitTooltip projectColorMap={weeklyGrossProfitProjectColorMap} />}
+                      position={weeklyGrossProfitTooltipPosition}
+                    />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+                    {weeklyGrossProfitProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="weekly-gross-profit"
+                        fill={
+                          weeklyGrossProfitProjectColorMap[projectKey] ?? COLOR_PALETTE[index % COLOR_PALETTE.length]
+                        }
+                      />
+                    ))}
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
             )}
           </div>
@@ -722,69 +682,57 @@ export function RevenueWorkspace({
             {monthlyRevenueChartData.length === 0 || monthlyProjectKeys.length === 0 ? (
               <div className="status">No monthly revenue data available for the current scope.</div>
             ) : (
-              <div className="chart-layout chart-layout-wide">
-                <div className="chart-wrap revenue-chart-wrap">
-                  <ResponsiveContainer width="100%" height={560}>
-                    <ComposedChart
-                      data={monthlyRevenueChartData}
-                      margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
-                      barCategoryGap="4%"
-                      barGap={0}
-                      barSize={resolveBarSize(monthlyRevenueChartData.length)}
-                      onMouseMove={(state) => {
-                        const hover = state as RechartsHoverSnapshot<MonthlyRevenueTooltipEntry>
-                        setMonthlyRevenueHover({
-                          active: Boolean(hover.isTooltipActive),
-                          payload: hover.activePayload,
-                        })
-                      }}
-                      onMouseLeave={() => {
-                        setMonthlyRevenueHover({ active: false })
-                      }}
-                    >
-                      <CartesianGrid vertical={false} stroke="#334155" />
-                      <XAxis
-                        dataKey="monthLabel"
-                        angle={-34}
-                        textAnchor="end"
-                        interval={0}
-                        minTickGap={0}
-                        height={72}
-                        tickMargin={8}
-                        tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
-                        axisLine={{ stroke: '#475569' }}
-                        tickLine={false}
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={monthlyRevenueChartData}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="4%"
+                    barGap={0}
+                    barSize={resolveBarSize(monthlyRevenueChartData.length)}
+                    onMouseMove={(state) => {
+                      setMonthlyRevenueTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setMonthlyRevenueTooltipPosition(undefined)
+                    }}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={72}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<MonthlyRevenueTooltip />}
+                      position={monthlyRevenueTooltipPosition}
+                    />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+                    {monthlyProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="monthly-revenue"
+                        fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
                       />
-                      <YAxis
-                        tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
-                        tickFormatter={(value: number) => formatCurrency(value)}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip formatter={(value) => formatHours(value)} content={() => null} />
-                      <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
-                      {monthlyProjectKeys.map((projectKey, index) => (
-                        <Bar
-                          key={projectKey}
-                          dataKey={projectKey}
-                          name={projectKey}
-                          stackId="monthly-revenue"
-                          fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-                <aside className="chart-hover-dock chart-hover-dock-wide" aria-live="polite">
-                  {monthlyRevenueHover.active && monthlyRevenueHover.payload && monthlyRevenueHover.payload.length > 0 ? (
-                    <MonthlyRevenueTooltip active payload={monthlyRevenueHover.payload} />
-                  ) : (
-                    <div className="chart-hover-placeholder">
-                      <strong>Hover details</strong>
-                      <span>Hover a month in the revenue forecast to review project hours, rates, and revenue here.</span>
-                    </div>
-                  )}
-                </aside>
+                    ))}
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
             )}
           </div>
@@ -801,71 +749,57 @@ export function RevenueWorkspace({
             {monthlyGrossProfitChartData.length === 0 || monthlyProjectKeys.length === 0 ? (
               <div className="status">No monthly gross profit data available for the current scope.</div>
             ) : (
-              <div className="chart-layout chart-layout-wide">
-                <div className="chart-wrap revenue-chart-wrap">
-                  <ResponsiveContainer width="100%" height={560}>
-                    <ComposedChart
-                      data={monthlyGrossProfitChartData}
-                      margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
-                      barCategoryGap="4%"
-                      barGap={0}
-                      barSize={resolveBarSize(monthlyGrossProfitChartData.length)}
-                      onMouseMove={(state) => {
-                        const hover = state as RechartsHoverSnapshot<MonthlyGrossProfitTooltipEntry>
-                        setMonthlyGrossProfitHover({
-                          active: Boolean(hover.isTooltipActive),
-                          payload: hover.activePayload,
-                        })
-                      }}
-                      onMouseLeave={() => {
-                        setMonthlyGrossProfitHover({ active: false })
-                      }}
-                    >
-                      <CartesianGrid vertical={false} stroke="#334155" />
-                      <XAxis
-                        dataKey="monthLabel"
-                        angle={-34}
-                        textAnchor="end"
-                        interval={0}
-                        minTickGap={0}
-                        height={72}
-                        tickMargin={8}
-                        tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
-                        axisLine={{ stroke: '#475569' }}
-                        tickLine={false}
+              <div className="chart-wrap revenue-chart-wrap">
+                <ResponsiveContainer width="100%" height={560}>
+                  <ComposedChart
+                    data={monthlyGrossProfitChartData}
+                    margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+                    barCategoryGap="4%"
+                    barGap={0}
+                    barSize={resolveBarSize(monthlyGrossProfitChartData.length)}
+                    onMouseMove={(state) => {
+                      setMonthlyGrossProfitTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setMonthlyGrossProfitTooltipPosition(undefined)
+                    }}
+                  >
+                    <CartesianGrid vertical={false} stroke="#334155" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      angle={-34}
+                      textAnchor="end"
+                      interval={0}
+                      minTickGap={0}
+                      height={72}
+                      tickMargin={8}
+                      tick={{ fontSize: 12, fill: '#e5e7eb', fontWeight: 600 }}
+                      axisLine={{ stroke: '#475569' }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                      tickFormatter={(value: number) => formatCurrency(value)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<MonthlyGrossProfitTooltip />}
+                      position={monthlyGrossProfitTooltipPosition}
+                    />
+                    <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+                    {monthlyProjectKeys.map((projectKey, index) => (
+                      <Bar
+                        key={projectKey}
+                        dataKey={projectKey}
+                        name={projectKey}
+                        stackId="monthly-gross-profit"
+                        fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
                       />
-                      <YAxis
-                        tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
-                        tickFormatter={(value: number) => formatCurrency(value)}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip formatter={(value) => formatHours(value)} content={() => null} />
-                      <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
-                      {monthlyProjectKeys.map((projectKey, index) => (
-                        <Bar
-                          key={projectKey}
-                          dataKey={projectKey}
-                          name={projectKey}
-                          stackId="monthly-gross-profit"
-                          fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-                <aside className="chart-hover-dock chart-hover-dock-wide" aria-live="polite">
-                  {monthlyGrossProfitHover.active &&
-                  monthlyGrossProfitHover.payload &&
-                  monthlyGrossProfitHover.payload.length > 0 ? (
-                    <MonthlyGrossProfitTooltip active payload={monthlyGrossProfitHover.payload} />
-                  ) : (
-                    <div className="chart-hover-placeholder">
-                      <strong>Hover details</strong>
-                      <span>Hover a month in the gross profit forecast to review project hours, rates, and gross profit here.</span>
-                    </div>
-                  )}
-                </aside>
+                    ))}
+                  </ComposedChart>
+                </ResponsiveContainer>
               </div>
             )}
           </div>
