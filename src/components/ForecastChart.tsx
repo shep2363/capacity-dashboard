@@ -12,7 +12,13 @@ import {
   YAxis,
 } from 'recharts'
 import type { WeeklyBucket } from '../types'
-import { resolveTooltipPosition, type TooltipPosition, type RechartsTooltipSnapshot } from '../utils/chartTooltip'
+import {
+  chartTooltipGlassStyle,
+  chartTooltipInsetStyle,
+  resolveTooltipPosition,
+  type TooltipPosition,
+  type RechartsTooltipSnapshot,
+} from '../utils/chartTooltip'
 import { shortWeekLabel } from '../utils/planner'
 
 interface ForecastChartProps {
@@ -118,11 +124,9 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   return (
     <div
       style={{
+        ...chartTooltipGlassStyle,
         borderRadius: 12,
-        border: '1px solid #1f2937',
         fontSize: '0.95rem',
-        backgroundColor: '#0f172a',
-        color: '#e5e7eb',
         padding: '0.65rem 0.75rem',
         minWidth: 210,
       }}
@@ -140,7 +144,7 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
         Total Project Hours: {totalProjectHours.toFixed(1)} h
       </div>
       {holidayTooltip ? (
-        <div style={{ marginBottom: 6, padding: '6px 8px', background: '#111827', borderRadius: 8 }}>
+        <div style={{ ...chartTooltipInsetStyle, marginBottom: 6, padding: '6px 8px', borderRadius: 8 }}>
           <div style={{ fontWeight: 700, color: '#fbbf24', marginBottom: 4 }}>Holidays</div>
           {holidayTooltip.split('\n').map((line) => (
             <div key={line} style={{ color: '#e5e7eb', fontSize: '0.93rem', lineHeight: 1.35 }}>

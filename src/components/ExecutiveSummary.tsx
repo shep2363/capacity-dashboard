@@ -11,7 +11,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { resolveTooltipPosition, type TooltipPosition, type RechartsTooltipSnapshot } from '../utils/chartTooltip'
+import {
+  chartTooltipGlassStyle,
+  resolveTooltipPosition,
+  type TooltipPosition,
+  type RechartsTooltipSnapshot,
+} from '../utils/chartTooltip'
 
 export interface KpiSet {
   bookedYtd: number
@@ -173,7 +178,7 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
                 <XAxis dataKey="month" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
                 <Tooltip
-                  contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }}
+                  contentStyle={chartTooltipGlassStyle}
                   position={monthlyTooltipPosition}
                 />
                 <Legend />
@@ -207,7 +212,7 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
                 <XAxis dataKey="month" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" unit="%" />
                 <Tooltip
-                  contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }}
+                  contentStyle={chartTooltipGlassStyle}
                   position={utilizationTooltipPosition}
                 />
                 <Legend />

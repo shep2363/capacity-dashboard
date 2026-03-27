@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 export interface TooltipPosition {
   x: number
   y: number
@@ -22,6 +24,22 @@ interface TooltipSizing {
   height: number
   offset?: number
   padding?: number
+}
+
+export const chartTooltipGlassStyle: CSSProperties = {
+  background: 'rgba(8, 20, 36, 0.58)',
+  border: '1px solid rgba(148, 163, 184, 0.28)',
+  boxShadow: '0 18px 40px rgba(2, 8, 23, 0.28)',
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
+  color: '#e5e7eb',
+}
+
+export const chartTooltipInsetStyle: CSSProperties = {
+  background: 'rgba(15, 23, 42, 0.26)',
+  border: '1px solid rgba(148, 163, 184, 0.18)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
 }
 
 function clamp(value: number, min: number, max: number): number {
