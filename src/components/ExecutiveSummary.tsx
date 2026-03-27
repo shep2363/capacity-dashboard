@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -11,7 +10,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { computeLeftTooltipPosition, type TooltipPosition } from '../utils/chartTooltip'
 
 export interface KpiSet {
   bookedYtd: number
@@ -55,12 +53,8 @@ const statusColors: Record<string, string> = {
   red: '#ef4444',
 }
 
-const EXECUTIVE_TOOLTIP_BOUNDS = { width: 240, height: 140 }
-
 export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
   const { combinedKpis, opsKpis, salesKpis, monthlyComparison, quarterlySummary, annual, riskMonths, topProjects, utilizationTrend } = data
-  const [monthlyTooltipPosition, setMonthlyTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
-  const [utilizationTooltipPosition, setUtilizationTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
 
   const monthlyChartData = monthlyComparison
 
@@ -159,22 +153,11 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
           </div>
           <div style={{ height: 260 }}>
             <ResponsiveContainer>
-              <BarChart
-                data={monthlyChartData}
-                onMouseMove={(state) => {
-                  setMonthlyTooltipPosition(computeLeftTooltipPosition(state, EXECUTIVE_TOOLTIP_BOUNDS))
-                }}
-                onMouseLeave={() => {
-                  setMonthlyTooltipPosition(undefined)
-                }}
-              >
+              <BarChart data={monthlyChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                 <XAxis dataKey="month" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
-                <Tooltip
-                  contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }}
-                  position={monthlyTooltipPosition}
-                />
+                <Tooltip contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }} />
                 <Legend />
                 <Bar dataKey="opsBooked" name="Shop Booked" stackId="booked" fill="#38bdf8" />
                 <Bar dataKey="salesBooked" name="Sales Booked" stackId="booked" fill="#f472b6" />
@@ -190,22 +173,11 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
           </div>
           <div style={{ height: 260 }}>
             <ResponsiveContainer>
-              <LineChart
-                data={utilizationChartData}
-                onMouseMove={(state) => {
-                  setUtilizationTooltipPosition(computeLeftTooltipPosition(state, EXECUTIVE_TOOLTIP_BOUNDS))
-                }}
-                onMouseLeave={() => {
-                  setUtilizationTooltipPosition(undefined)
-                }}
-              >
+              <LineChart data={utilizationChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                 <XAxis dataKey="month" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" unit="%" />
-                <Tooltip
-                  contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }}
-                  position={utilizationTooltipPosition}
-                />
+                <Tooltip contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }} />
                 <Legend />
                 <Line
                   type="monotone"
