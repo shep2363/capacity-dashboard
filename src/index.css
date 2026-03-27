@@ -70,6 +70,10 @@ p {
   width: 100%;
 }
 
+.lock-logo-wrap { text-align: center; padding-top: 0.5rem; }
+.lock-logo { height: 64px; width: auto; object-fit: contain; }
+
+
 .lock-error {
   color: #fca5a5 !important;
   font-weight: 700;
@@ -295,6 +299,25 @@ p {
   min-height: auto;
   padding-bottom: 1rem;
 }
+
+
+/* ── Persistent App Header ──────────────────────────────── */
+.app-header {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  margin-bottom: 0.75rem;
+}
+.app-header-brand { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.app-header-logo { height: 36px; width: auto; object-fit: contain; }
+.app-header-wordmark { font-size: 0.78rem; font-weight: 700; color: var(--brand-muted); white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase; }
+.app-header-nav { flex: 1; display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; }
+.app-header-actions { display: flex; align-items: center; gap: 0.55rem; flex-shrink: 0; }
+.user-mode-badge { display: inline-flex; align-items: center; padding: 0.22rem 0.7rem; border-radius: 999px; border: 1px solid var(--brand-accent); background: rgba(0,163,196,0.12); color: var(--brand-text); font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
 
 .page-nav {
   display: inline-flex;
@@ -1953,3 +1976,17 @@ input,
 .token-inline small {
   color: var(--brand-muted);
 }
+
+/* ── Executive Summary Panel ──────────────────────────────── */
+.executive-panel .section-header { margin-bottom: 1rem; }
+.executive-panel .kpi-card { transition: box-shadow 0.2s; }
+.executive-panel .kpi-card:hover { box-shadow: 0 0 0 2px var(--brand-accent); }
+.executive-panel .sub-panel { border: 1px solid var(--brand-border); border-radius: 12px; padding: 1rem; }
+.executive-panel .compact-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.executive-panel .compact-table th { text-align: left; color: var(--brand-muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--brand-border); }
+.executive-panel .compact-table td { padding: 6px 8px; border-bottom: 1px solid #1f2937; }
+.executive-panel .annual-summary { margin-top: 0.5rem; }
+.executive-panel .annual-summary span { display: block; color: var(--brand-muted); font-size: 0.82rem; }
+.executive-panel .annual-summary strong { font-size: 1.25rem; }
+.executive-panel .muted { color: var(--brand-muted); font-size: 0.9rem; padding: 0.5rem 0; }
+
