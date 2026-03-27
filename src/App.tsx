@@ -6,7 +6,7 @@ import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { RevenueWorkspace } from './components/RevenueWorkspace'
 import { ResourceCapacityTable } from './components/ResourceCapacityTable'
-import { type ExecutiveData, type KpiSet } from './components/ExecutiveSummary'
+import { ExecutiveSummary, type ExecutiveData, type KpiSet } from './components/ExecutiveSummary'
 import type { AppFilters, ChartGroupBy, PivotRowGrouping, TaskRow } from './types'
 import { parseSalesSpreadsheet, parseSpreadsheet } from './utils/excel'
 import { exportReportWorkbook, type SummaryMetric } from './utils/reportExport'
@@ -78,11 +78,12 @@ const PROJECT_COLOR_PALETTE = [
   '#c084fc',
 ]
 
-type PageKey = 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping' | 'revenue'
+type PageKey = 'executive' | 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping' | 'revenue'
 type AccessRole = 'admin' | 'user'
-const PAGE_TAB_ORDER: PageKey[] = ['report', 'processing', 'fabrication', 'assembly', 'paint', 'shipping', 'planning', 'revenue']
+const PAGE_TAB_ORDER: PageKey[] = ['executive', 'report', 'processing', 'fabrication', 'assembly', 'paint', 'shipping', 'planning', 'revenue']
 const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
 const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
+  executive: 'Executive Summary',
   planning: 'Planning',
   report: 'Report Workspace',
   processing: 'Processing',
@@ -275,7 +276,7 @@ function App() {
   const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true)
-  const [activePage, setActivePage] = useState<PageKey>('report')
+  const [activePage, setActivePage] = useState<PageKey>('executive')
   const [accessRole, setAccessRole] = useState<AccessRole | null>(() => {
     if (typeof window === 'undefined') {
       return null
@@ -2444,7 +2445,16 @@ function App() {
     return (
       <div className="lock-screen">
         <section className="panel lock-card">
-          <h1>Capacity Dashboard Locked</h1>
+          <div className="lock-logo-wrap">
+            <img
+              src="/brand/inframod-logo.svg"
+              alt="InfraMOD"
+              className="lock-logo"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+          <h1>Capacity Dashboard</h1>
           <p>Enter the access password to open the planning dashboard.</p>
           <form className="lock-form" onSubmit={handleUnlock}>
             <label htmlFor="dashboard-password">Password</label>
@@ -2467,18 +2477,39 @@ function App() {
   return (
     <div className="app-shell">
       <div className="brand-grid" aria-hidden />
-      <div className="page-nav">
-        {pageTabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={activePage === tab.key ? 'page-tab page-tab-active' : 'page-tab'}
-            onClick={() => setActivePage(tab.key)}
-          >
-            {tab.label}
+
+      <header className="app-header">
+        <div className="app-header-brand">
+          <img
+            src="/brand/inframod-logo.svg"
+            alt="InfraMOD"
+            className="app-header-logo"
+            loading="eager"
+            decoding="async"
+          />
+          <span className="app-header-wordmark">Capacity Dashboard</span>
+        </div>
+
+        <nav className="app-header-nav" aria-label="Main navigation">
+          {pageTabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={activePage === tab.key ? 'page-tab page-tab-active' : 'page-tab'}
+              onClick={() => setActivePage(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="app-header-actions">
+          {isUserMode && <span className="user-mode-badge">User Mode</span>}
+          <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
+            Lock
           </button>
-        ))}
-      </div>
+        </div>
+      </header>
 
       {activePage === 'planning' && (
         <>
@@ -2528,7 +2559,7 @@ function App() {
                   aria-expanded={!isHeaderCollapsed}
                 >
                   <span className={`chevron ${isHeaderCollapsed ? 'chevron-closed' : 'chevron-open'}`} aria-hidden="true">
-                    ▾
+                    â¾
                   </span>
                   {isHeaderCollapsed ? 'Show Filters' : 'Hide Filters'}
                 </button>
@@ -2952,7 +2983,17 @@ function App() {
         </>
       )}
 
-      {activePage === 'report' && (
+      {activePage === 'executive' && (
+        <>
+          {isLoading && <div className="panel status">Loading workbook...</div>}
+          {!isLoading && error && <div className="panel status error">{error}</div>}
+          {!isLoading && !error && (
+            <ExecutiveSummary data={executiveData} />
+          )}
+        </>
+      )}
+
+            {activePage === 'report' && (
         <>
           {isLoading && <div className="panel status">Loading workbook...</div>}
           {!isLoading && error && <div className="panel status error">{error}</div>}
