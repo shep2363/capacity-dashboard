@@ -30,16 +30,16 @@ export const chartTooltipGlassStyle: CSSProperties = {
   background: 'rgba(9, 22, 38, 0.36)',
   border: '1px solid rgba(191, 219, 254, 0.18)',
   boxShadow: '0 14px 26px rgba(2, 8, 23, 0.18)',
-  backdropFilter: 'blur(15px)',
-  WebkitBackdropFilter: 'blur(15px)',
+  backdropFilter: 'blur(9px)',
+  WebkitBackdropFilter: 'blur(9px)',
   color: '#f8fafc',
 }
 
 export const chartTooltipInsetStyle: CSSProperties = {
   background: 'rgba(15, 23, 42, 0.14)',
   border: '1px solid rgba(191, 219, 254, 0.1)',
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
+  backdropFilter: 'blur(7px)',
+  WebkitBackdropFilter: 'blur(7px)',
 }
 
 function clamp(value: number, min: number, max: number): number {
