@@ -1,4 +1,4 @@
-import { useMemo, type MouseEvent as ReactMouseEvent } from 'react'
+import { useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Bar,
   CartesianGrid,
@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { WeeklyBucket } from '../types'
+import { computeLeftTooltipPosition, type TooltipPosition } from '../utils/chartTooltip'
 import { shortWeekLabel } from '../utils/planner'
 
 interface ForecastChartProps {
@@ -43,6 +44,8 @@ const COLOR_PALETTE = [
   '#ea580c',
   '#047857',
 ]
+
+const FORECAST_TOOLTIP_BOUNDS = { width: 340, height: 320 }
 
 function formatHours(value: unknown): string {
   const normalized = Array.isArray(value) ? value[0] : value
@@ -204,6 +207,7 @@ export function ForecastChart({
 }: ForecastChartProps) {
   const Y_AXIS_STEP = 500
   const MIN_Y_AXIS_MAX = 1000
+  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
 
   function buildYAxisTicks(maxValue: number): number[] {
     const ticks: number[] = []
@@ -368,6 +372,12 @@ export function ForecastChart({
             barCategoryGap="2%"
             barGap={0}
             barSize={barSize}
+            onMouseMove={(state) => {
+              setTooltipPosition(computeLeftTooltipPosition(state, FORECAST_TOOLTIP_BOUNDS))
+            }}
+            onMouseLeave={() => {
+              setTooltipPosition(undefined)
+            }}
           >
             <CartesianGrid vertical={false} stroke="#334155" />
             <XAxis
@@ -393,6 +403,7 @@ export function ForecastChart({
             <Tooltip
               formatter={(value) => formatHours(value)}
               content={<CustomTooltip />}
+              position={tooltipPosition}
             />
             <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
 

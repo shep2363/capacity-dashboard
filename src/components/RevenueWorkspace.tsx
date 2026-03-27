@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { WorkbookDataset } from '../utils/activeWorkbookApi'
+import { computeLeftTooltipPosition, type TooltipPosition } from '../utils/chartTooltip'
 import { exportRevenueMonthlyWorkbook } from '../utils/revenueExport'
 import type {
   MonthlyGrossProfitRow,
@@ -33,6 +34,8 @@ const COLOR_PALETTE = [
   '#ea580c',
   '#047857',
 ]
+
+const REVENUE_TOOLTIP_BOUNDS = { width: 450, height: 320 }
 
 type RevenueSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type RevenueRateField = 'revenuePerHour' | 'grossProfitPerHour'
@@ -340,6 +343,10 @@ export function RevenueWorkspace({
 }: RevenueWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<RevenueViewTab>('data')
   const [exportError, setExportError] = useState('')
+  const [weeklyRevenueTooltipPosition, setWeeklyRevenueTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [weeklyGrossProfitTooltipPosition, setWeeklyGrossProfitTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [monthlyRevenueTooltipPosition, setMonthlyRevenueTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [monthlyGrossProfitTooltipPosition, setMonthlyGrossProfitTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
 
   const weeklyChartData = useMemo(
     () =>
@@ -547,6 +554,12 @@ export function RevenueWorkspace({
                     barCategoryGap="2%"
                     barGap={0}
                     barSize={resolveBarSize(weeklyChartData.length)}
+                    onMouseMove={(state) => {
+                      setWeeklyRevenueTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setWeeklyRevenueTooltipPosition(undefined)
+                    }}
                   >
                     <CartesianGrid vertical={false} stroke="#334155" />
                     <XAxis
@@ -570,6 +583,7 @@ export function RevenueWorkspace({
                     <Tooltip
                       formatter={(value) => formatHours(value)}
                       content={<WeeklyRevenueTooltip projectColorMap={weeklyProjectColorMap} />}
+                      position={weeklyRevenueTooltipPosition}
                     />
                     <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
                     {weeklyProjectKeys.map((projectKey, index) => (
@@ -607,6 +621,12 @@ export function RevenueWorkspace({
                     barCategoryGap="2%"
                     barGap={0}
                     barSize={resolveBarSize(weeklyGrossProfitChartData.length)}
+                    onMouseMove={(state) => {
+                      setWeeklyGrossProfitTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setWeeklyGrossProfitTooltipPosition(undefined)
+                    }}
                   >
                     <CartesianGrid vertical={false} stroke="#334155" />
                     <XAxis
@@ -630,6 +650,7 @@ export function RevenueWorkspace({
                     <Tooltip
                       formatter={(value) => formatHours(value)}
                       content={<WeeklyGrossProfitTooltip projectColorMap={weeklyGrossProfitProjectColorMap} />}
+                      position={weeklyGrossProfitTooltipPosition}
                     />
                     <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
                     {weeklyGrossProfitProjectKeys.map((projectKey, index) => (
@@ -669,6 +690,12 @@ export function RevenueWorkspace({
                     barCategoryGap="4%"
                     barGap={0}
                     barSize={resolveBarSize(monthlyRevenueChartData.length)}
+                    onMouseMove={(state) => {
+                      setMonthlyRevenueTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setMonthlyRevenueTooltipPosition(undefined)
+                    }}
                   >
                     <CartesianGrid vertical={false} stroke="#334155" />
                     <XAxis
@@ -689,7 +716,11 @@ export function RevenueWorkspace({
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip formatter={(value) => formatHours(value)} content={<MonthlyRevenueTooltip />} />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<MonthlyRevenueTooltip />}
+                      position={monthlyRevenueTooltipPosition}
+                    />
                     <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
                     {monthlyProjectKeys.map((projectKey, index) => (
                       <Bar
@@ -726,6 +757,12 @@ export function RevenueWorkspace({
                     barCategoryGap="4%"
                     barGap={0}
                     barSize={resolveBarSize(monthlyGrossProfitChartData.length)}
+                    onMouseMove={(state) => {
+                      setMonthlyGrossProfitTooltipPosition(computeLeftTooltipPosition(state, REVENUE_TOOLTIP_BOUNDS))
+                    }}
+                    onMouseLeave={() => {
+                      setMonthlyGrossProfitTooltipPosition(undefined)
+                    }}
                   >
                     <CartesianGrid vertical={false} stroke="#334155" />
                     <XAxis
@@ -746,7 +783,11 @@ export function RevenueWorkspace({
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip formatter={(value) => formatHours(value)} content={<MonthlyGrossProfitTooltip />} />
+                    <Tooltip
+                      formatter={(value) => formatHours(value)}
+                      content={<MonthlyGrossProfitTooltip />}
+                      position={monthlyGrossProfitTooltipPosition}
+                    />
                     <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
                     {monthlyProjectKeys.map((projectKey, index) => (
                       <Bar
