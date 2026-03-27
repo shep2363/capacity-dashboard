@@ -27,17 +27,17 @@ interface TooltipSizing {
 }
 
 export const chartTooltipGlassStyle: CSSProperties = {
-  background: 'rgba(9, 22, 38, 0.44)',
-  border: '1px solid rgba(191, 219, 254, 0.22)',
-  boxShadow: '0 16px 30px rgba(2, 8, 23, 0.22)',
+  background: 'rgba(9, 22, 38, 0.36)',
+  border: '1px solid rgba(191, 219, 254, 0.18)',
+  boxShadow: '0 14px 26px rgba(2, 8, 23, 0.18)',
   backdropFilter: 'blur(15px)',
   WebkitBackdropFilter: 'blur(15px)',
   color: '#f8fafc',
 }
 
 export const chartTooltipInsetStyle: CSSProperties = {
-  background: 'rgba(15, 23, 42, 0.18)',
-  border: '1px solid rgba(191, 219, 254, 0.12)',
+  background: 'rgba(15, 23, 42, 0.14)',
+  border: '1px solid rgba(191, 219, 254, 0.1)',
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
 }
