@@ -12,7 +12,6 @@ import {
   YAxis,
 } from 'recharts'
 import type { WeeklyBucket } from '../types'
-import { computeLeftTooltipPosition, type TooltipPosition } from '../utils/chartTooltip'
 import { shortWeekLabel } from '../utils/planner'
 
 interface ForecastChartProps {
@@ -44,8 +43,6 @@ const COLOR_PALETTE = [
   '#ea580c',
   '#047857',
 ]
-
-const FORECAST_TOOLTIP_BOUNDS = { width: 340, height: 320 }
 
 function formatHours(value: unknown): string {
   const normalized = Array.isArray(value) ? value[0] : value
@@ -93,7 +90,7 @@ interface CustomTooltipProps {
   label?: string | number
 }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+function ForecastTooltipCard({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload || payload.length === 0) {
     return null
   }
@@ -207,7 +204,7 @@ export function ForecastChart({
 }: ForecastChartProps) {
   const Y_AXIS_STEP = 500
   const MIN_Y_AXIS_MAX = 1000
-  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [hoverState, setHoverState] = useState<ForecastHoverState>({ active: false })
 
   function buildYAxisTicks(maxValue: number): number[] {
     const ticks: number[] = []
@@ -364,93 +361,106 @@ export function ForecastChart({
         </div>
       </div>
 
-      <div className="chart-wrap">
-        <ResponsiveContainer width="100%" height={560}>
-          <ComposedChart
-            data={chartData}
-            margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
-            barCategoryGap="2%"
-            barGap={0}
-            barSize={barSize}
-            onMouseMove={(state) => {
-              setTooltipPosition(computeLeftTooltipPosition(state, FORECAST_TOOLTIP_BOUNDS))
-            }}
-            onMouseLeave={() => {
-              setTooltipPosition(undefined)
-            }}
-          >
-            <CartesianGrid vertical={false} stroke="#334155" />
-            <XAxis
-              dataKey="weekLabel"
-              angle={-34}
-              textAnchor="end"
-              interval={0}
-              minTickGap={0}
-              height={72}
-              tickMargin={8}
-              tick={renderWeekTick}
-              axisLine={{ stroke: '#475569' }}
-              tickLine={false}
-            />
-            <YAxis
-              domain={[0, axisMax]}
-              ticks={axisTicks}
-              tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
-              tickFormatter={(value: number) => `${value}`}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip
-              formatter={(value) => formatHours(value)}
-              content={<CustomTooltip />}
-              position={tooltipPosition}
-            />
-            <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
+      <div className="chart-layout">
+        <div className="chart-wrap">
+          <ResponsiveContainer width="100%" height={560}>
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 20, right: 20, left: 22, bottom: 36 }}
+              barCategoryGap="2%"
+              barGap={0}
+              barSize={barSize}
+              onMouseMove={(state) => {
+                const hover = state as RechartsHoverSnapshot<TooltipEntry>
+                setHoverState({
+                  active: Boolean(hover.isTooltipActive),
+                  payload: hover.activePayload,
+                  label: hover.activeLabel,
+                })
+              }}
+              onMouseLeave={() => {
+                setHoverState({ active: false })
+              }}
+            >
+              <CartesianGrid vertical={false} stroke="#334155" />
+              <XAxis
+                dataKey="weekLabel"
+                angle={-34}
+                textAnchor="end"
+                interval={0}
+                minTickGap={0}
+                height={72}
+                tickMargin={8}
+                tick={renderWeekTick}
+                axisLine={{ stroke: '#475569' }}
+                tickLine={false}
+              />
+              <YAxis
+                domain={[0, axisMax]}
+                ticks={axisTicks}
+                tick={{ fontSize: 13, fill: '#e5e7eb', fontWeight: 600 }}
+                tickFormatter={(value: number) => `${value}`}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip formatter={(value) => formatHours(value)} content={() => null} />
+              <Legend verticalAlign="top" align="left" content={<CompactLegend />} />
 
-            {categoryOrder.map((category, index) => (
-              <Bar
-                key={category}
-                dataKey={category}
-                stackId="weekly"
-                fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
-                fillOpacity={isHighlighted(category) ? 1 : 0.25}
-                name={category}
-                onClick={(data, _index, event) => {
-                  const weekId = data?.payload?.id
-                  if (!weekId) {
-                    return
-                  }
-                  handleWeekSelection(weekId, event)
-                }}
-              >
-                {chartData.map((row) => {
-                  const isSelected = selectedWeekIds?.has(row.id) ?? false
-                  return (
-                    <Cell
-                      key={`${category}-${row.id}`}
-                      cursor={onWeekSelect ? 'pointer' : 'default'}
-                      stroke={isSelected ? '#fbbf24' : undefined}
-                      strokeWidth={isSelected ? 2 : 0}
-                    />
-                  )
-                })}
-              </Bar>
-            ))}
+              {categoryOrder.map((category, index) => (
+                <Bar
+                  key={category}
+                  dataKey={category}
+                  stackId="weekly"
+                  fill={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                  fillOpacity={isHighlighted(category) ? 1 : 0.25}
+                  name={category}
+                  onClick={(data, _index, event) => {
+                    const weekId = data?.payload?.id
+                    if (!weekId) {
+                      return
+                    }
+                    handleWeekSelection(weekId, event)
+                  }}
+                >
+                  {chartData.map((row) => {
+                    const isSelected = selectedWeekIds?.has(row.id) ?? false
+                    return (
+                      <Cell
+                        key={`${category}-${row.id}`}
+                        cursor={onWeekSelect ? 'pointer' : 'default'}
+                        stroke={isSelected ? '#fbbf24' : undefined}
+                        strokeWidth={isSelected ? 2 : 0}
+                      />
+                    )
+                  })}
+                </Bar>
+              ))}
 
-            <Line
-              type="monotone"
-              dataKey="capacity"
-              name="Capacity"
-              stroke="#93c5fd"
-              strokeWidth={3}
-              dot={false}
-              strokeDasharray="6 4"
-              connectNulls
-              strokeLinecap="round"
-              isAnimationActive={false}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+              <Line
+                type="monotone"
+                dataKey="capacity"
+                name="Capacity"
+                stroke="#93c5fd"
+                strokeWidth={3}
+                dot={false}
+                strokeDasharray="6 4"
+                connectNulls
+                strokeLinecap="round"
+                isAnimationActive={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <aside className="chart-hover-dock" aria-live="polite">
+          {hoverState.active && hoverState.payload && hoverState.payload.length > 0 ? (
+            <ForecastTooltipCard active payload={hoverState.payload} label={hoverState.label} />
+          ) : (
+            <div className="chart-hover-placeholder">
+              <strong>Hover details</strong>
+              <span>Hover a week in the chart to view hours, capacity, utilization, and project totals here.</span>
+            </div>
+          )}
+        </aside>
       </div>
 
       <p className="chart-note">
@@ -459,4 +469,16 @@ export function ForecastChart({
       </p>
     </div>
   )
+}
+
+interface ForecastHoverState {
+  active: boolean
+  payload?: TooltipEntry[]
+  label?: string | number
+}
+
+interface RechartsHoverSnapshot<TPayload> {
+  isTooltipActive?: boolean
+  activePayload?: TPayload[]
+  activeLabel?: string | number
 }

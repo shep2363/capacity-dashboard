@@ -887,10 +887,65 @@ button:disabled {
   border-radius: 12px;
   background: linear-gradient(180deg, #0f172a 0%, #0b1322 100%);
   padding: 0.2rem;
+  min-width: 0;
 }
 
 .chart-panel {
   overflow: hidden;
+}
+
+.chart-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 32%);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.chart-layout-wide {
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 36%);
+}
+
+.chart-layout-compact {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 28%);
+}
+
+.chart-hover-dock {
+  min-height: 580px;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #0f172a 0%, #0b1322 100%);
+  padding: 0.75rem;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.chart-hover-dock-wide {
+  min-height: 500px;
+}
+
+.chart-hover-dock-compact {
+  min-height: 260px;
+}
+
+.chart-hover-placeholder {
+  width: 100%;
+  min-height: 100%;
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.chart-hover-placeholder strong {
+  color: #e5e7eb;
+  font-size: 1rem;
+}
+
+.chart-wrap-compact {
+  height: 260px;
 }
 
 .toggle-chips {
@@ -1110,6 +1165,34 @@ button:disabled {
   max-height: 320px;
   display: grid;
   gap: 0.4rem;
+}
+
+.chart-hover-dock .revenue-tooltip {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+}
+
+.executive-tooltip {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.executive-tooltip-title {
+  font-weight: 700;
+  margin-bottom: 0.1rem;
+}
+
+.executive-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .revenue-tooltip-title {
@@ -1586,6 +1669,18 @@ button.sortable {
 
   .meta-card-actions {
     justify-content: flex-start;
+  }
+
+  .chart-layout,
+  .chart-layout-wide,
+  .chart-layout-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-hover-dock,
+  .chart-hover-dock-wide,
+  .chart-hover-dock-compact {
+    min-height: auto;
   }
 }
 

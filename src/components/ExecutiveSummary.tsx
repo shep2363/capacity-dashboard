@@ -11,7 +11,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { computeLeftTooltipPosition, type TooltipPosition } from '../utils/chartTooltip'
 
 export interface KpiSet {
   bookedYtd: number
@@ -55,12 +54,110 @@ const statusColors: Record<string, string> = {
   red: '#ef4444',
 }
 
-const EXECUTIVE_TOOLTIP_BOUNDS = { width: 240, height: 140 }
+interface ExecutiveTooltipEntry<TPayload> {
+  name?: string | number
+  value?: number | string
+  color?: string
+  payload?: TPayload
+}
+
+interface MonthlyComparisonRow {
+  month: string
+  opsBooked: number
+  salesBooked: number
+  totalBooked: number
+  capacity: number
+}
+
+interface UtilizationTrendRow {
+  month: string
+  utilization: number
+}
+
+interface ExecutiveHoverState<TPayload> {
+  active: boolean
+  label?: string | number
+  payload?: Array<ExecutiveTooltipEntry<TPayload>>
+}
+
+interface RechartsHoverSnapshot<TPayload> {
+  isTooltipActive?: boolean
+  activeLabel?: string | number
+  activePayload?: Array<ExecutiveTooltipEntry<TPayload>>
+}
+
+function ExecutiveMonthlyTooltipCard({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<ExecutiveTooltipEntry<MonthlyComparisonRow>>
+  label?: string | number
+}) {
+  if (!active || !payload || payload.length === 0) {
+    return null
+  }
+  const row = payload[0]?.payload
+  if (!row) {
+    return null
+  }
+
+  return (
+    <div className="executive-tooltip">
+      <div className="executive-tooltip-title">{String(label ?? row.month)}</div>
+      <div className="executive-tooltip-row">
+        <span>Shop Booked</span>
+        <strong>{formatHours(row.opsBooked)}</strong>
+      </div>
+      <div className="executive-tooltip-row">
+        <span>Sales Booked</span>
+        <strong>{formatHours(row.salesBooked)}</strong>
+      </div>
+      <div className="executive-tooltip-row">
+        <span>Total Booked</span>
+        <strong>{formatHours(row.totalBooked)}</strong>
+      </div>
+      <div className="executive-tooltip-row">
+        <span>Capacity</span>
+        <strong>{formatHours(row.capacity)}</strong>
+      </div>
+    </div>
+  )
+}
+
+function ExecutiveUtilizationTooltipCard({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<ExecutiveTooltipEntry<UtilizationTrendRow>>
+  label?: string | number
+}) {
+  if (!active || !payload || payload.length === 0) {
+    return null
+  }
+  const row = payload[0]?.payload
+  if (!row) {
+    return null
+  }
+
+  return (
+    <div className="executive-tooltip">
+      <div className="executive-tooltip-title">{String(label ?? row.month)}</div>
+      <div className="executive-tooltip-row">
+        <span>Utilization</span>
+        <strong style={{ color: statusColors[utilizationStatus(row.utilization / 100)] }}>{row.utilization.toFixed(1)}%</strong>
+      </div>
+    </div>
+  )
+}
 
 export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
   const { combinedKpis, opsKpis, salesKpis, monthlyComparison, quarterlySummary, annual, riskMonths, topProjects, utilizationTrend } = data
-  const [monthlyTooltipPosition, setMonthlyTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
-  const [utilizationTooltipPosition, setUtilizationTooltipPosition] = useState<TooltipPosition | undefined>(undefined)
+  const [monthlyHover, setMonthlyHover] = useState<ExecutiveHoverState<MonthlyComparisonRow>>({ active: false })
+  const [utilizationHover, setUtilizationHover] = useState<ExecutiveHoverState<UtilizationTrendRow>>({ active: false })
 
   const monthlyChartData = monthlyComparison
 
@@ -157,30 +254,44 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
           <div className="section-header">
             <h3>Monthly Capacity vs Bookings</h3>
           </div>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer>
-              <BarChart
-                data={monthlyChartData}
-                onMouseMove={(state) => {
-                  setMonthlyTooltipPosition(computeLeftTooltipPosition(state, EXECUTIVE_TOOLTIP_BOUNDS))
-                }}
-                onMouseLeave={() => {
-                  setMonthlyTooltipPosition(undefined)
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="month" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" />
-                <Tooltip
-                  contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }}
-                  position={monthlyTooltipPosition}
-                />
-                <Legend />
-                <Bar dataKey="opsBooked" name="Shop Booked" stackId="booked" fill="#38bdf8" />
-                <Bar dataKey="salesBooked" name="Sales Booked" stackId="booked" fill="#f472b6" />
-                <Line type="monotone" dataKey="capacity" name="Capacity" stroke="#a855f7" strokeWidth={3} dot={false} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="chart-layout chart-layout-compact">
+            <div className="chart-wrap chart-wrap-compact">
+              <ResponsiveContainer>
+                <BarChart
+                  data={monthlyChartData}
+                  onMouseMove={(state) => {
+                    const hover = state as RechartsHoverSnapshot<MonthlyComparisonRow>
+                    setMonthlyHover({
+                      active: Boolean(hover.isTooltipActive),
+                      label: hover.activeLabel,
+                      payload: hover.activePayload,
+                    })
+                  }}
+                  onMouseLeave={() => {
+                    setMonthlyHover({ active: false })
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis dataKey="month" stroke="#9ca3af" />
+                  <YAxis stroke="#9ca3af" />
+                  <Tooltip content={() => null} />
+                  <Legend />
+                  <Bar dataKey="opsBooked" name="Shop Booked" stackId="booked" fill="#38bdf8" />
+                  <Bar dataKey="salesBooked" name="Sales Booked" stackId="booked" fill="#f472b6" />
+                  <Line type="monotone" dataKey="capacity" name="Capacity" stroke="#a855f7" strokeWidth={3} dot={false} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <aside className="chart-hover-dock chart-hover-dock-compact" aria-live="polite">
+              {monthlyHover.active && monthlyHover.payload && monthlyHover.payload.length > 0 ? (
+                <ExecutiveMonthlyTooltipCard active payload={monthlyHover.payload} label={monthlyHover.label} />
+              ) : (
+                <div className="chart-hover-placeholder">
+                  <strong>Hover details</strong>
+                  <span>Hover a month to review booked hours and capacity here.</span>
+                </div>
+              )}
+            </aside>
           </div>
         </div>
 
@@ -188,35 +299,53 @@ export function ExecutiveSummary({ data }: ExecutiveSummaryProps) {
           <div className="section-header">
             <h3>Utilization Trend</h3>
           </div>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer>
-              <LineChart
-                data={utilizationChartData}
-                onMouseMove={(state) => {
-                  setUtilizationTooltipPosition(computeLeftTooltipPosition(state, EXECUTIVE_TOOLTIP_BOUNDS))
-                }}
-                onMouseLeave={() => {
-                  setUtilizationTooltipPosition(undefined)
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="month" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" unit="%" />
-                <Tooltip
-                  contentStyle={{ background: '#0f172a', borderColor: '#1f2937', color: '#e5e7eb' }}
-                  position={utilizationTooltipPosition}
+          <div className="chart-layout chart-layout-compact">
+            <div className="chart-wrap chart-wrap-compact">
+              <ResponsiveContainer>
+                <LineChart
+                  data={utilizationChartData}
+                  onMouseMove={(state) => {
+                    const hover = state as RechartsHoverSnapshot<UtilizationTrendRow>
+                    setUtilizationHover({
+                      active: Boolean(hover.isTooltipActive),
+                      label: hover.activeLabel,
+                      payload: hover.activePayload,
+                    })
+                  }}
+                  onMouseLeave={() => {
+                    setUtilizationHover({ active: false })
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis dataKey="month" stroke="#9ca3af" />
+                  <YAxis stroke="#9ca3af" unit="%" />
+                  <Tooltip content={() => null} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="utilization"
+                    name="Utilization %"
+                    stroke="#22c55e"
+                    strokeWidth={3}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <aside className="chart-hover-dock chart-hover-dock-compact" aria-live="polite">
+              {utilizationHover.active && utilizationHover.payload && utilizationHover.payload.length > 0 ? (
+                <ExecutiveUtilizationTooltipCard
+                  active
+                  payload={utilizationHover.payload}
+                  label={utilizationHover.label}
                 />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="utilization"
-                  name="Utilization %"
-                  stroke="#22c55e"
-                  strokeWidth={3}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+              ) : (
+                <div className="chart-hover-placeholder">
+                  <strong>Hover details</strong>
+                  <span>Hover a month to review utilization in this dock.</span>
+                </div>
+              )}
+            </aside>
           </div>
         </div>
       </div>
