@@ -27,19 +27,19 @@ interface TooltipSizing {
 }
 
 export const chartTooltipGlassStyle: CSSProperties = {
-  background: 'rgba(8, 20, 36, 0.42)',
-  border: '1px solid rgba(148, 163, 184, 0.22)',
-  boxShadow: '0 16px 34px rgba(2, 8, 23, 0.22)',
-  backdropFilter: 'blur(16px)',
-  WebkitBackdropFilter: 'blur(16px)',
+  background: 'rgba(8, 20, 36, 0.32)',
+  border: '1px solid rgba(148, 163, 184, 0.18)',
+  boxShadow: '0 14px 28px rgba(2, 8, 23, 0.18)',
+  backdropFilter: 'blur(18px)',
+  WebkitBackdropFilter: 'blur(18px)',
   color: '#f8fafc',
 }
 
 export const chartTooltipInsetStyle: CSSProperties = {
-  background: 'rgba(15, 23, 42, 0.18)',
-  border: '1px solid rgba(148, 163, 184, 0.14)',
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
+  background: 'rgba(15, 23, 42, 0.12)',
+  border: '1px solid rgba(148, 163, 184, 0.1)',
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
 }
 
 function clamp(value: number, min: number, max: number): number {
