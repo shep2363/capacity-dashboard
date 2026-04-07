@@ -98,6 +98,27 @@ function formatProbabilityLabel(probability: number): string {
   return `${Number.isInteger(probability) ? probability.toFixed(0) : probability.toFixed(1)}%`
 }
 
+function buildWeekSelectionRange(
+  bucketList: WeeklyBucket[],
+  anchorWeekStartIso: string | null,
+  targetWeekStartIso: string,
+): string[] {
+  const orderedWeeks = bucketList.map((bucket) => bucket.weekStartIso)
+  const targetIndex = orderedWeeks.indexOf(targetWeekStartIso)
+  if (targetIndex < 0) {
+    return []
+  }
+
+  const anchorIndex = anchorWeekStartIso ? orderedWeeks.indexOf(anchorWeekStartIso) : -1
+  if (anchorIndex < 0) {
+    return [targetWeekStartIso]
+  }
+
+  const startIndex = Math.min(anchorIndex, targetIndex)
+  const endIndex = Math.max(anchorIndex, targetIndex)
+  return orderedWeeks.slice(startIndex, endIndex + 1)
+}
+
 export function ReportWorkspace({
   weeklyBuckets,
   salesWeeklyBuckets,
@@ -141,6 +162,9 @@ export function ReportWorkspace({
   const [selectedShopWeekIds, setSelectedShopWeekIds] = useState<Set<string>>(new Set())
   const [selectedSalesWeekIds, setSelectedSalesWeekIds] = useState<Set<string>>(new Set())
   const [selectedCombinedWeekIds, setSelectedCombinedWeekIds] = useState<Set<string>>(new Set())
+  const selectedShopWeekAnchorRef = useRef<string | null>(null)
+  const selectedSalesWeekAnchorRef = useRef<string | null>(null)
+  const selectedCombinedWeekAnchorRef = useRef<string | null>(null)
   const [stageMap, setStageMap] = useState<Record<number, string>>({})
   const envToken =
     (import.meta.env as Record<string, string | undefined>).VITE_PROJECT_47_API_TOKEN ??
@@ -265,10 +289,34 @@ export function ReportWorkspace({
 
   function toggleSelectedWeeks(
     setter: Dispatch<SetStateAction<Set<string>>>,
+    anchorRef: { current: string | null },
+    bucketList: WeeklyBucket[],
     weekStartIso: string,
-    multiSelect: boolean,
+    selection: { multiSelect: boolean; rangeSelect: boolean },
   ): void {
+    const { multiSelect, rangeSelect } = selection
     setter((current) => {
+      if (rangeSelect) {
+        const rangeWeekIds = buildWeekSelectionRange(bucketList, anchorRef.current, weekStartIso)
+        anchorRef.current = weekStartIso
+
+        if (!multiSelect) {
+          const next = new Set(rangeWeekIds)
+          if (next.size === current.size && [...next].every((weekId) => current.has(weekId))) {
+            return current
+          }
+          return next
+        }
+
+        const next = new Set(current)
+        rangeWeekIds.forEach((weekId) => next.add(weekId))
+        if (next.size === current.size && [...next].every((weekId) => current.has(weekId))) {
+          return current
+        }
+        return next
+      }
+
+      anchorRef.current = weekStartIso
       if (!multiSelect) {
         if (current.size === 1 && current.has(weekStartIso)) {
           return current
@@ -393,16 +441,39 @@ export function ReportWorkspace({
     setSelectedCombinedWeekIds((current) => pruneSelectedWeeks(current, combinedWeeklyBuckets))
   }, [combinedWeeklyBuckets])
 
-  function handleSelectShopWeek(weekStartIso: string, multiSelect: boolean): void {
-    toggleSelectedWeeks(setSelectedShopWeekIds, weekStartIso, multiSelect)
+  function clearSelectedWeeks(
+    setter: Dispatch<SetStateAction<Set<string>>>,
+    anchorRef: { current: string | null },
+  ): void {
+    anchorRef.current = null
+    setter(new Set())
   }
 
-  function handleSelectSalesWeek(weekStartIso: string, multiSelect: boolean): void {
-    toggleSelectedWeeks(setSelectedSalesWeekIds, weekStartIso, multiSelect)
+  function handleSelectShopWeek(
+    weekStartIso: string,
+    selection: { multiSelect: boolean; rangeSelect: boolean },
+  ): void {
+    toggleSelectedWeeks(setSelectedShopWeekIds, selectedShopWeekAnchorRef, weeklyBuckets, weekStartIso, selection)
   }
 
-  function handleSelectCombinedWeek(weekStartIso: string, multiSelect: boolean): void {
-    toggleSelectedWeeks(setSelectedCombinedWeekIds, weekStartIso, multiSelect)
+  function handleSelectSalesWeek(
+    weekStartIso: string,
+    selection: { multiSelect: boolean; rangeSelect: boolean },
+  ): void {
+    toggleSelectedWeeks(setSelectedSalesWeekIds, selectedSalesWeekAnchorRef, salesWeeklyBuckets, weekStartIso, selection)
+  }
+
+  function handleSelectCombinedWeek(
+    weekStartIso: string,
+    selection: { multiSelect: boolean; rangeSelect: boolean },
+  ): void {
+    toggleSelectedWeeks(
+      setSelectedCombinedWeekIds,
+      selectedCombinedWeekAnchorRef,
+      combinedWeeklyBuckets,
+      weekStartIso,
+      selection,
+    )
   }
 
   const selectedShopWeekSummary = useMemo(
@@ -671,8 +742,8 @@ export function ReportWorkspace({
           </div>
           {renderWeekSelectionSummary(
             selectedShopWeekSummary,
-            () => setSelectedShopWeekIds(new Set()),
-            'Ctrl + click week bars or labels to total selected Shop Forecast weeks.',
+            () => clearSelectedWeeks(setSelectedShopWeekIds, selectedShopWeekAnchorRef),
+            'Ctrl + click week bars or labels to toggle weeks. Ctrl + Shift + click adds the full week range in between.',
           )}
           <ForecastChart
             weeklyBuckets={weeklyBuckets}
@@ -697,8 +768,8 @@ export function ReportWorkspace({
           {renderSalesProbabilityFilter('Sales Forecast')}
           {renderWeekSelectionSummary(
             selectedSalesWeekSummary,
-            () => setSelectedSalesWeekIds(new Set()),
-            'Ctrl + click week bars or labels to total selected Sales Forecast weeks.',
+            () => clearSelectedWeeks(setSelectedSalesWeekIds, selectedSalesWeekAnchorRef),
+            'Ctrl + click week bars or labels to toggle weeks. Ctrl + Shift + click adds the full week range in between.',
           )}
           <ForecastChart
             weeklyBuckets={salesWeeklyBuckets}
@@ -727,8 +798,8 @@ export function ReportWorkspace({
           {renderSalesProbabilityFilter('Shop and Sales Forecast')}
           {renderWeekSelectionSummary(
             selectedCombinedWeekSummary,
-            () => setSelectedCombinedWeekIds(new Set()),
-            'Ctrl + click week bars or labels to total selected Shop and Sales Forecast weeks.',
+            () => clearSelectedWeeks(setSelectedCombinedWeekIds, selectedCombinedWeekAnchorRef),
+            'Ctrl + click week bars or labels to toggle weeks. Ctrl + Shift + click adds the full week range in between.',
           )}
           <ForecastChart
             weeklyBuckets={combinedWeeklyBuckets}

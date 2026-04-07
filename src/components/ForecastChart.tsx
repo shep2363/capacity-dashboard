@@ -33,7 +33,7 @@ interface ForecastChartProps {
   onHoverProject?: (project: string | null) => void
   hoverProjectPrefix?: string
   selectedWeekIds?: Set<string>
-  onWeekSelect?: (weekStartIso: string, multiSelect: boolean) => void
+  onWeekSelect?: (weekStartIso: string, selection: { multiSelect: boolean; rangeSelect: boolean }) => void
 }
 
 const COLOR_PALETTE = [
@@ -255,11 +255,17 @@ export function ForecastChart({
     ...bucket.groups,
   }))
 
-  function handleWeekSelection(weekStartIso: string, event: Pick<ReactMouseEvent<Element>, 'ctrlKey' | 'metaKey'>): void {
+  function handleWeekSelection(
+    weekStartIso: string,
+    event: Pick<ReactMouseEvent<Element>, 'ctrlKey' | 'metaKey' | 'shiftKey'>,
+  ): void {
     if (!onWeekSelect || !weekStartIso) {
       return
     }
-    onWeekSelect(weekStartIso, event.ctrlKey || event.metaKey)
+    onWeekSelect(weekStartIso, {
+      multiSelect: event.ctrlKey || event.metaKey,
+      rangeSelect: event.shiftKey,
+    })
   }
 
   function toHoverKey(project: string): string {
