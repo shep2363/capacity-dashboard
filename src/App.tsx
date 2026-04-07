@@ -1903,14 +1903,10 @@ function App() {
       setTasks(parsed)
       setFileName(activeWorkbook.fileName || file.name)
       setManualOverrides({})
-      setResourceWeeklyCapacities({})
-      setWeekCapacitySchedule({})
-      setEnabledResources({})
       setFilters(createDefaultFilters())
       setSelectedWeekendDates(new Set())
-      setWeekendExtraByResource({})
       setProjectsInitialized(false)
-      // On new workbook upload, reset panel defaults (pivot/resource collapsed; forecast tables expanded by component default).
+      // Preserve resource capacity inputs across workbook replacement while resetting upload-specific view state.
       setIsPivotCollapsed(true)
       setCollapseResetToken((current) => current + 1)
     } catch (uploadError) {
