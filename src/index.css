@@ -349,6 +349,128 @@ p {
   flex-wrap: wrap;
 }
 
+.how-to-use-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.how-to-use-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.18), transparent 30%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(15, 23, 42, 0.92));
+}
+
+.how-to-use-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1rem;
+  max-width: 64rem;
+}
+
+.how-to-use-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.28rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  background: rgba(11, 18, 32, 0.55);
+  color: #bae6fd;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.how-to-use-callout {
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(11, 22, 37, 0.7);
+  color: #dbeafe;
+  max-width: 52rem;
+}
+
+.how-to-use-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.how-to-use-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.how-to-use-card {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.how-to-use-steps {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.how-to-use-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.85rem;
+  align-items: flex-start;
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  background: #0b1625;
+}
+
+.how-to-use-step p {
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+
+.how-to-use-step-number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: linear-gradient(135deg, #22d3ee, #2563eb);
+  color: #0b1220;
+  font-weight: 800;
+}
+
+.how-to-use-tab-list,
+.how-to-use-tip-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.how-to-use-tab-item,
+.how-to-use-tip {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  background: #0b1625;
+}
+
+.how-to-use-tab-item strong,
+.how-to-use-tip strong {
+  color: #f8fafc;
+}
+
+.how-to-use-tab-item p,
+.how-to-use-tip p {
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+
 .title-actions {
   display: grid;
   gap: 0.55rem;
@@ -1587,6 +1709,12 @@ button.sortable {
   .chart-wrap {
     height: 520px;
   }
+
+  .how-to-use-grid,
+  .how-to-use-tab-list,
+  .how-to-use-tip-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (min-width: 1280px) {
@@ -1682,6 +1810,14 @@ button.sortable {
   }
 
   .pivot-table td input {
+    width: 100%;
+  }
+
+  .how-to-use-actions {
+    flex-direction: column;
+  }
+
+  .how-to-use-actions button {
     width: 100%;
   }
 }

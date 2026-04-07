@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import DepartmentPage, { buildDepartmentRows, type DepartmentFilters, type DepartmentRow } from './components/DepartmentPage'
+import { HowToUsePage } from './components/HowToUsePage'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
 import { RevenueWorkspace } from './components/RevenueWorkspace'
@@ -78,11 +79,33 @@ const PROJECT_COLOR_PALETTE = [
   '#c084fc',
 ]
 
-type PageKey = 'executive' | 'planning' | 'report' | 'processing' | 'fabrication' | 'assembly' | 'paint' | 'shipping' | 'revenue'
+type PageKey =
+  | 'howToUse'
+  | 'executive'
+  | 'planning'
+  | 'report'
+  | 'processing'
+  | 'fabrication'
+  | 'assembly'
+  | 'paint'
+  | 'shipping'
+  | 'revenue'
 type AccessRole = 'admin' | 'user'
-const PAGE_TAB_ORDER: PageKey[] = ['executive', 'report', 'processing', 'fabrication', 'assembly', 'paint', 'shipping', 'planning', 'revenue']
+const PAGE_TAB_ORDER: PageKey[] = [
+  'howToUse',
+  'executive',
+  'report',
+  'processing',
+  'fabrication',
+  'assembly',
+  'paint',
+  'shipping',
+  'planning',
+  'revenue',
+]
 const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
 const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
+  howToUse: 'How to Use App',
   executive: 'Executive Summary',
   planning: 'Planning',
   report: 'Report Workspace',
@@ -212,6 +235,13 @@ function applyHolidayAdjustedWeeklyCapacity(
   return safeBaseline + safeWeekend - holidayReduction
 }
 
+function getInitialActivePage(): PageKey {
+  if (typeof window === 'undefined') {
+    return 'executive'
+  }
+  return window.sessionStorage.getItem(APP_ROLE_SESSION_KEY) === 'user' ? 'howToUse' : 'executive'
+}
+
 function App() {
   const reportTabParam =
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('reportTab') : null
@@ -276,7 +306,7 @@ function App() {
   const [salesPivotWeekWindowSize, setSalesPivotWeekWindowSize] = useState(12)
   const [salesPivotWeekStartIndex, setSalesPivotWeekStartIndex] = useState(0)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true)
-  const [activePage, setActivePage] = useState<PageKey>('executive')
+  const [activePage, setActivePage] = useState<PageKey>(getInitialActivePage)
   const [accessRole, setAccessRole] = useState<AccessRole | null>(() => {
     if (typeof window === 'undefined') {
       return null
@@ -2391,6 +2421,7 @@ function App() {
     if (passwordInput === APP_ADMIN_PASSWORD) {
       setIsUnlocked(true)
       setAccessRole('admin')
+      setActivePage('executive')
       setPasswordError('')
       setPasswordInput('')
       window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
@@ -2400,6 +2431,7 @@ function App() {
     if (passwordInput === APP_USER_PASSWORD) {
       setIsUnlocked(true)
       setAccessRole('user')
+      setActivePage('howToUse')
       setPasswordError('')
       setPasswordInput('')
       window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
@@ -2412,6 +2444,7 @@ function App() {
   function handleLock(): void {
     setIsUnlocked(false)
     setAccessRole(null)
+    setActivePage('executive')
     setPasswordInput('')
     setPasswordError('')
     window.sessionStorage.removeItem(APP_UNLOCK_SESSION_KEY)
@@ -2510,6 +2543,17 @@ function App() {
           </button>
         </div>
       </header>
+
+      {activePage === 'howToUse' && (
+        <HowToUsePage
+          isUserMode={isUserMode}
+          onOpenReport={() => setActivePage('report')}
+          onOpenProcessing={() => setActivePage('processing')}
+          onOpenRevenue={() => setActivePage('revenue')}
+          onOpenPlanning={() => setActivePage('planning')}
+          onLock={handleLock}
+        />
+      )}
 
       {activePage === 'planning' && (
         <>
