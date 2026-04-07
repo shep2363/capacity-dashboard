@@ -10,7 +10,8 @@ interface HowToUsePageProps {
 const tabGuide = [
   {
     title: 'Report Workspace',
-    description: 'See weekly and monthly forecast trends, project totals, and summary metrics in one place.',
+    description:
+      'See weekly and monthly forecast trends, project totals, and summary metrics in one place. You can also select one week, toggle weeks with Ctrl + click, or add a full range with Ctrl + Shift + click.',
   },
   {
     title: 'Department Tabs',
@@ -28,6 +29,7 @@ const tabGuide = [
 
 const quickStartSteps = [
   'Open Report Workspace first to get the overall forecast picture for the selected year and week range.',
+  'When comparing capacity across several weeks, click one week first, then use Ctrl + Shift + click on a later week to select the full range in between.',
   'Move into the department tabs when you want to answer who is working on what and when each sequence is planned.',
   'Use the Planning page when you need to confirm the source workbook, current filters, and capacity assumptions.',
   'Lock the dashboard when you are finished so the next person starts from a clean access screen.',
@@ -123,6 +125,13 @@ export function HowToUsePage({
           <article className="how-to-use-tip">
             <strong>Check the active files</strong>
             <p>The Planning page shows the active workbook names and sync status, which helps confirm you are reviewing the right data.</p>
+          </article>
+          <article className="how-to-use-tip">
+            <strong>Use week range selection in reports</strong>
+            <p>
+              In the forecast charts, click a week to anchor your selection. Ctrl + click toggles individual weeks, and
+              Ctrl + Shift + click adds every week between the anchor week and the week you clicked.
+            </p>
           </article>
           <article className="how-to-use-tip">
             <strong>Refresh department progress when needed</strong>
