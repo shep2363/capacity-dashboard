@@ -53,11 +53,11 @@ const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
 const APP_ROLE_SESSION_KEY = 'capacity_dashboard_role'
 const DEFAULT_MAX_RATE_PER_HOUR = 1_000_000
 const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
-  Fabrication: 1440,
-  Assembly: 80,
+  Fabrication: 1520,
+  Assembly: 0,
   Processing: 280,
-  Paint: 60,
-  Shipping: 200,
+  Paint: 80,
+  Shipping: 160,
 }
 
 const PROJECT_COLOR_PALETTE = [
