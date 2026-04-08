@@ -214,9 +214,10 @@ function normalizeSalesProbability(value: number): number {
 
 function createDefaultFilters(): AppFilters {
   const now = new Date()
+  const currentWeekMonday = startOfWeek(now, { weekStartsOn: 1 })
   const currentYear = now.getFullYear()
   return {
-    dateFrom: format(now, 'yyyy-MM-dd'),
+    dateFrom: format(currentWeekMonday, 'yyyy-MM-dd'),
     dateTo: `${currentYear}-12-31`,
     year: String(currentYear),
     resources: [],
