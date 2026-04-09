@@ -61,22 +61,22 @@ const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
 }
 
 const PROJECT_COLOR_PALETTE = [
-  '#4f46e5',
-  '#0f766e',
-  '#f59e0b',
-  '#0284c7',
-  '#7c3aed',
-  '#16a34a',
-  '#9333ea',
-  '#be123c',
-  '#0ea5e9',
-  '#64748b',
-  '#ea580c',
-  '#047857',
-  '#3b82f6',
-  '#10b981',
-  '#e11d48',
-  '#c084fc',
+  '#ef4444',  // Red
+  '#3b82f6',  // Blue
+  '#22c55e',  // Green
+  '#f97316',  // Orange
+  '#8b5cf6',  // Violet
+  '#facc15',  // Yellow
+  '#06b6d4',  // Cyan
+  '#ec4899',  // Pink
+  '#84cc16',  // Lime
+  '#a855f7',  // Purple
+  '#14b8a6',  // Teal
+  '#f59e0b',  // Amber
+  '#d946ef',  // Fuchsia
+  '#6366f1',  // Indigo
+  '#10b981',  // Emerald
+  '#0ea5e9',  // Sky
 ]
 
 type PageKey =

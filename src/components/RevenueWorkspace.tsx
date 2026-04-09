@@ -21,18 +21,18 @@ import type {
 } from '../utils/revenue'
 
 const COLOR_PALETTE = [
-  '#4f46e5',
-  '#0f766e',
-  '#f59e0b',
-  '#0284c7',
-  '#7c3aed',
-  '#16a34a',
-  '#9333ea',
-  '#be123c',
-  '#0ea5e9',
-  '#64748b',
-  '#ea580c',
-  '#047857',
+  '#ef4444',  // Red
+  '#3b82f6',  // Blue
+  '#22c55e',  // Green
+  '#f97316',  // Orange
+  '#8b5cf6',  // Violet
+  '#facc15',  // Yellow
+  '#06b6d4',  // Cyan
+  '#ec4899',  // Pink
+  '#84cc16',  // Lime
+  '#a855f7',  // Purple
+  '#14b8a6',  // Teal
+  '#d946ef',  // Fuchsia
 ]
 
 type RevenueSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
