@@ -49,6 +49,7 @@ const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
 const INITIAL_SALES_FILE_NAME = '2026 Sales Production Report.xlsx'
 const APP_ADMIN_PASSWORD = '2431'
 const APP_USER_PASSWORD = '1357'
+const APP_FORECAST_PASSWORD = '9876'
 const APP_UNLOCK_SESSION_KEY = 'capacity_dashboard_unlocked'
 const APP_ROLE_SESSION_KEY = 'capacity_dashboard_role'
 const DEFAULT_MAX_RATE_PER_HOUR = 1_000_000
@@ -90,7 +91,7 @@ type PageKey =
   | 'paint'
   | 'shipping'
   | 'revenue'
-type AccessRole = 'admin' | 'user'
+type AccessRole = 'admin' | 'user' | 'forecast'
 const PAGE_TAB_ORDER: PageKey[] = [
   'howToUse',
   'executive',
@@ -240,7 +241,10 @@ function getInitialActivePage(): PageKey {
   if (typeof window === 'undefined') {
     return 'executive'
   }
-  return window.sessionStorage.getItem(APP_ROLE_SESSION_KEY) === 'user' ? 'howToUse' : 'executive'
+  const role = window.sessionStorage.getItem(APP_ROLE_SESSION_KEY)
+  if (role === 'user') return 'howToUse'
+  if (role === 'forecast') return 'report'
+  return 'executive'
 }
 
 function App() {
@@ -313,7 +317,7 @@ function App() {
       return null
     }
     const persistedRole = window.sessionStorage.getItem(APP_ROLE_SESSION_KEY)
-    if (persistedRole === 'admin' || persistedRole === 'user') {
+    if (persistedRole === 'admin' || persistedRole === 'user' || persistedRole === 'forecast') {
       return persistedRole
     }
     if (window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true') {
@@ -327,7 +331,7 @@ function App() {
     }
     const hasUnlockFlag = window.sessionStorage.getItem(APP_UNLOCK_SESSION_KEY) === 'true'
     const persistedRole = window.sessionStorage.getItem(APP_ROLE_SESSION_KEY)
-    return hasUnlockFlag || persistedRole === 'admin' || persistedRole === 'user'
+    return hasUnlockFlag || persistedRole === 'admin' || persistedRole === 'user' || persistedRole === 'forecast'
   })
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
@@ -349,10 +353,12 @@ function App() {
   const salesRevenueSkipFirstPersistRef = useRef(true)
   const mainRevenueRequestSeqRef = useRef(0)
   const salesRevenueRequestSeqRef = useRef(0)
-  const pageTabs: Array<{ key: PageKey; label: string }> = PAGE_TAB_ORDER.map((key) => ({
-    key,
-    label: DEPT_RESOURCE_LABEL[key],
-  }))
+  const pageTabs: Array<{ key: PageKey; label: string }> = PAGE_TAB_ORDER
+    .filter((key) => accessRole === 'forecast' ? key === 'report' : true)
+    .map((key) => ({
+      key,
+      label: DEPT_RESOURCE_LABEL[key],
+    }))
 
   const [filters, setFilters] = useState<AppFilters>(createDefaultFilters())
   const maxRatePerHour = useMemo(() => {
@@ -2435,6 +2441,16 @@ function App() {
       window.sessionStorage.setItem(APP_ROLE_SESSION_KEY, 'user')
       return
     }
+    if (passwordInput === APP_FORECAST_PASSWORD) {
+      setIsUnlocked(true)
+      setAccessRole('forecast')
+      setActivePage('report')
+      setPasswordError('')
+      setPasswordInput('')
+      window.sessionStorage.setItem(APP_UNLOCK_SESSION_KEY, 'true')
+      window.sessionStorage.setItem(APP_ROLE_SESSION_KEY, 'forecast')
+      return
+    }
     setPasswordError('Incorrect password. Please try again.')
   }
 
@@ -2469,6 +2485,7 @@ function App() {
     salesRevenueSaveError,
   )
   const isUserMode = accessRole === 'user'
+  const isForecastMode = accessRole === 'forecast'
   const canViewAdminPlanningControls = accessRole === 'admin'
 
   if (!isUnlocked) {
@@ -2535,6 +2552,7 @@ function App() {
 
         <div className="app-header-actions">
           {isUserMode && <span className="user-mode-badge">User Mode</span>}
+          {isForecastMode && <span className="user-mode-badge">Forecast View</span>}
           <button type="button" className="ghost-btn lock-btn" onClick={handleLock}>
             Lock
           </button>
@@ -3070,6 +3088,7 @@ function App() {
               reportContext={reportContext}
               initialTab={initialReportTab}
               executiveData={executiveData}
+              allowedTabs={isForecastMode ? ['snapshot', 'sales'] : undefined}
             />
           )}
           {!isLoading && !error && allResourcesVisible && (

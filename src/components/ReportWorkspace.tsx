@@ -54,6 +54,7 @@ interface ReportWorkspaceProps {
   reportContext: string[]
   initialTab?: ReportTab
   executiveData: ExecutiveData
+  allowedTabs?: ReportTab[]
 }
 
 interface SelectedWeekSummary {
@@ -149,9 +150,11 @@ export function ReportWorkspace({
   reportContext,
   initialTab = 'snapshot',
   executiveData,
+  allowedTabs,
 }: ReportWorkspaceProps) {
   const reportRef = useRef<HTMLElement>(null)
-  const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab)
+  const resolvedInitialTab = allowedTabs && !allowedTabs.includes(initialTab) ? allowedTabs[0] : initialTab
+  const [activeReportTab, setActiveReportTab] = useState<ReportTab>(resolvedInitialTab ?? initialTab)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const [deals, setDeals] = useState<PipedriveDeal[]>([])
@@ -663,69 +666,87 @@ export function ReportWorkspace({
       </div>
 
       <div className="report-tabs" aria-label="Report Views">
-        <button
-          type="button"
-          className={activeReportTab === 'snapshot' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('snapshot')}
-        >
-          Shop Forecast
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'weekly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('weekly')}
-        >
-          Weekly Forecast
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('monthly')}
-        >
-          Monthly Forecast
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'summary' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('summary')}
-        >
-          Summary
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'executive' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('executive')}
-        >
-          Executive Summary
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'sales' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('sales')}
-        >
-          Sales Forecast
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'combined' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('combined')}
-        >
-          Shop and Sales Forecast
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'sales-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('sales-monthly')}
-        >
-          Sales Monthly Forecast
-        </button>
-        <button
-          type="button"
-          className={activeReportTab === 'combined-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
-          onClick={() => setActiveReportTab('combined-monthly')}
-        >
-          Shop and Sales Monthly Forecast
-        </button>
+        {(!allowedTabs || allowedTabs.includes('snapshot')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'snapshot' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('snapshot')}
+          >
+            Shop Forecast
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('weekly')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'weekly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('weekly')}
+          >
+            Weekly Forecast
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('monthly')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('monthly')}
+          >
+            Monthly Forecast
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('summary')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'summary' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('summary')}
+          >
+            Summary
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('executive')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'executive' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('executive')}
+          >
+            Executive Summary
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('sales')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'sales' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('sales')}
+          >
+            Sales Forecast
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('combined')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'combined' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('combined')}
+          >
+            Shop and Sales Forecast
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('sales-monthly')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'sales-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('sales-monthly')}
+          >
+            Sales Monthly Forecast
+          </button>
+        )}
+        {(!allowedTabs || allowedTabs.includes('combined-monthly')) && (
+          <button
+            type="button"
+            className={activeReportTab === 'combined-monthly' ? 'report-tab-btn report-tab-btn-active' : 'report-tab-btn'}
+            onClick={() => setActiveReportTab('combined-monthly')}
+          >
+            Shop and Sales Monthly Forecast
+          </button>
+        )}
       </div>
 
       {activeReportTab === 'executive' && (
