@@ -702,6 +702,12 @@ p {
   border-collapse: collapse;
 }
 
+.release-table th,
+.release-table td {
+  text-align: left;
+  position: static;
+}
+
 .release-table thead th {
   padding: 0.3rem 0.5rem;
   text-align: left;
@@ -710,7 +716,8 @@ p {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--brand-accent, #a5b4fc);
-  border-bottom: 1px solid #1f2937;
+  background: transparent;
+  border-bottom: 2px solid #1f2937;
   white-space: nowrap;
 }
 
@@ -728,6 +735,8 @@ p {
   border-bottom: 1px solid #0f172a;
   font-size: 0.95rem;
   vertical-align: middle;
+  text-align: left;
+  background: transparent;
 }
 
 .dept-table-row:last-child td {
