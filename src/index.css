@@ -638,6 +638,150 @@ p {
   border-bottom: none;
 }
 
+/* ── Detailing Release Schedule ───────────────────────── */
+
+.dept-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.dept-filter-group {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.dept-filter-group label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dept-filter-group select {
+  background: #0b1220;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.9rem;
+  min-width: 200px;
+}
+
+.dept-filter-stats {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.dept-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: #cbd5e1;
+}
+
+.dept-stat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dept-table-wrap {
+  overflow-x: auto;
+}
+
+.dept-table.release-table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dept-table.release-table thead th {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-accent, #a5b4fc);
+  border-bottom: 1px solid #1f2937;
+  white-space: nowrap;
+}
+
+.dept-th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.dept-th-sortable:hover {
+  color: #e2e8f0;
+}
+
+.dept-table-row td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #0f172a;
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+
+.dept-table-row:last-child td {
+  border-bottom: none;
+}
+
+.dept-table-row:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dept-project-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dept-release-date {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.dept-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.dept-status-complete {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.dept-status-warning {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}
+
+.dept-status-scheduled {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+}
+
+/* ─────────────────────────────────────────────────────── */
+
 .project-dot {
   width: 12px;
   height: 12px;

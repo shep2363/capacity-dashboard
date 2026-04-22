@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import DepartmentPage, { buildDepartmentRows, type DepartmentFilters, type DepartmentRow } from './components/DepartmentPage'
+import { DetailingPage } from './components/DetailingPage'
 import { HowToUsePage } from './components/HowToUsePage'
 import { PivotPlanningTable } from './components/PivotPlanningTable'
 import { ReportWorkspace, type ReportTab } from './components/ReportWorkspace'
@@ -59,6 +60,7 @@ const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Processing: 280,
   Paint: 80,
   Shipping: 160,
+  Detailing: 0,
 }
 
 const PROJECT_COLOR_PALETTE = [
@@ -90,6 +92,7 @@ type PageKey =
   | 'assembly'
   | 'paint'
   | 'shipping'
+  | 'detailing'
   | 'revenue'
 type AccessRole = 'admin' | 'user' | 'forecast'
 const PAGE_TAB_ORDER: PageKey[] = [
@@ -101,10 +104,11 @@ const PAGE_TAB_ORDER: PageKey[] = [
   'assembly',
   'paint',
   'shipping',
+  'detailing',
   'planning',
   'revenue',
 ]
-const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping']
+const DEPARTMENT_RESOURCES: Array<PageKey> = ['processing', 'fabrication', 'assembly', 'paint', 'shipping', 'detailing']
 const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   howToUse: 'How to Use App',
   executive: 'Executive Summary',
@@ -115,6 +119,7 @@ const DEPT_RESOURCE_LABEL: Record<PageKey, string> = {
   assembly: 'Assembly',
   paint: 'Paint',
   shipping: 'Shipping',
+  detailing: 'Detailing',
   revenue: 'Revenue',
 }
 const DEFAULT_DEPT_FILTER: DepartmentFilters = { projects: [], sequences: [], weeks: [], statuses: [] }
@@ -3014,6 +3019,14 @@ function App() {
           smartsheetSyncLabel={smartsheetSyncLabel}
           onRefreshSmartsheet={() => void refreshSmartsheetProgress()}
           isSmartsheetSyncLoading={smartsheetSyncStatus === 'loading'}
+        />
+      )}
+      {activePage === 'detailing' && (
+        <DetailingPage
+          tasks={tasks}
+          filters={filters}
+          selectedProjects={selectedProjects}
+          projectColors={projectColors}
         />
       )}
 
