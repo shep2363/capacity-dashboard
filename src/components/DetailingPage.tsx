@@ -36,7 +36,7 @@ export function DetailingPage({ tasks, filters, selectedProjects, projectColors 
 
     return tasks
       .filter((task) => {
-        if (task.resourceName !== 'Detailing') return false
+        if (task.resourceName !== 'Detailer') return false
         if (selectedProjects.size > 0 && !selectedProjects.has(task.project)) return false
         if (filterYear && task.finish.getFullYear() !== filterYear) return false
         if (parsedFrom && task.finish < parsedFrom) return false
@@ -141,7 +141,7 @@ export function DetailingPage({ tasks, filters, selectedProjects, projectColors 
 
       {filtered.length === 0 ? (
         <div className="panel status">
-          No Detailing tasks found. Ensure tasks in the workbook have a resource named &ldquo;Detailing&rdquo;.
+          No Detailer tasks found. Ensure tasks in the workbook have a resource named &ldquo;Detailer&rdquo;.
         </div>
       ) : (
         <div className="dept-table-wrap">

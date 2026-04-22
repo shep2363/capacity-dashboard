@@ -60,7 +60,7 @@ const DEFAULT_RESOURCE_WEEKLY: Record<string, number> = {
   Processing: 280,
   Paint: 80,
   Shipping: 160,
-  Detailing: 0,
+  Detailer: 0,
 }
 
 const PROJECT_COLOR_PALETTE = [
