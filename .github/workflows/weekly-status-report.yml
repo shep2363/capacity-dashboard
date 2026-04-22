@@ -1,0 +1,32 @@
+name: Weekly Status Report
+
+on:
+  schedule:
+    # Every Friday at 19:00 UTC = 1:00 PM CST (UTC-6) / 2:00 PM CDT (UTC-5)
+    - cron: '0 19 * * 5'
+  workflow_dispatch: # Allow manual runs from the GitHub Actions tab for testing
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install script dependencies
+        run: npm ci
+        working-directory: scripts
+
+      - name: Send weekly status report email
+        env:
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          WORKBOOK_API_URL: ${{ secrets.WORKBOOK_API_URL }}
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+        run: node send-status-report.mjs
+        working-directory: scripts
