@@ -147,7 +147,7 @@ export function DetailingPage({ tasks, filters, selectedProjects, projectColors 
         <div className="dept-table-wrap">
           <table className="release-table">
             <thead>
-              <tr className="dept-table-header">
+              <tr>
                 <th
                   className="dept-th-sortable"
                   onClick={() => handleSort('project')}
