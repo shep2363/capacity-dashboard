@@ -698,9 +698,8 @@ p {
 
 .release-table {
   display: table;
-  width: auto;
+  width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
 }
 
 .release-table thead th {

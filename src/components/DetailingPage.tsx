@@ -146,13 +146,6 @@ export function DetailingPage({ tasks, filters, selectedProjects, projectColors 
       ) : (
         <div className="dept-table-wrap">
           <table className="release-table">
-            <colgroup>
-              <col style={{ width: '90px' }} />
-              <col style={{ width: '80px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '85px' }} />
-            </colgroup>
             <thead>
               <tr>
                 <th
