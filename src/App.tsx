@@ -46,7 +46,7 @@ import {
   weekRangeLabel,
 } from './utils/planner'
 
-const INITIAL_FILE_NAME = 'Hours_03-05-26.xlsx'
+const INITIAL_FILE_NAME = 'Hours_04-22-26.xlsx'
 const INITIAL_SALES_FILE_NAME = '2026 Sales Production Report.xlsx'
 const APP_ADMIN_PASSWORD = '2431'
 const APP_USER_PASSWORD = '1357'
