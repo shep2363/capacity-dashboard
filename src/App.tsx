@@ -2468,19 +2468,19 @@ function App() {
       let aoa: Array<Array<string | number>>
 
       if (resourceName === 'Detailer') {
-        const detailerTasks = tasks.filter((t) => t.resourceName === 'Detailer')
+        // Only show upcoming Detailer milestones (exclude those already past/100%)
+        const detailerTasks = tasks.filter(
+          (t) => t.resourceName === 'Detailer' && !isAfter(now, t.finish),
+        )
         aoa = [
           headers,
-          ...detailerTasks.map((task) => {
-            const pct = isAfter(now, task.finish) ? 100 : 0
-            return [
-              task.project,
-              task.name,
-              `${pct.toFixed(1)}%`,
-              format(task.start, 'MM/dd/yyyy'),
-              format(task.finish, 'MM/dd/yyyy'),
-            ]
-          }),
+          ...detailerTasks.map((task) => [
+            task.project,
+            task.name,
+            '0.0%',
+            format(task.start, 'MM/dd/yyyy'),
+            format(task.finish, 'MM/dd/yyyy'),
+          ]),
         ]
       } else {
         // Build start-date lookup from tasks
@@ -2504,13 +2504,17 @@ function App() {
 
         aoa = [
           headers,
-          ...unique.map((row) => [
-            row.project,
-            row.sequence,
-            `${row.percentComplete.toFixed(1)}%`,
-            startMap.get(`${row.project}::${row.sequence}`) ?? '',
-            row.finishDate,
-          ]),
+          ...unique.map((row) => {
+            // Use Smartsheet percent complete if available; otherwise show 0%
+            const pct = row.progressSource === 'smartsheet' ? row.percentComplete : 0
+            return [
+              row.project,
+              row.sequence,
+              `${pct.toFixed(1)}%`,
+              startMap.get(`${row.project}::${row.sequence}`) ?? '',
+              row.finishDate,
+            ]
+          }),
         ]
       }
 
