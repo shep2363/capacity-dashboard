@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { addDays, format, isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
+import { addDays, format, isAfter, parseISO, startOfDay, startOfWeek } from 'date-fns'
 import DepartmentPage, { buildDepartmentRows, type DepartmentFilters, type DepartmentRow } from './components/DepartmentPage'
 import { DetailingPage } from './components/DetailingPage'
 import { HowToUsePage } from './components/HowToUsePage'
