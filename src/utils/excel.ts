@@ -111,15 +111,145 @@ function parseExcelDate(value: unknown): Date | null {
   return null
 }
 
+// ── Office Script pre-processing ──────────────────────────────────────────
+// Replicates the CleanupWorkbook Office Script logic client-side so the
+// workbook is normalised before the flexible column parser runs.
+
+const BLOCKED_RESOURCES = new Set(['Inventory', 'Purchasing', 'Detailing'])
+
+function worksheetText(ws: XLSX.WorkSheet, r: number, c: number): string {
+  const cell = ws[XLSX.utils.encode_cell({ r, c })]
+  return cell?.v != null ? String(cell.v) : ''
+}
+
+function worksheetSetText(ws: XLSX.WorkSheet, r: number, c: number, v: string): void {
+  const addr = XLSX.utils.encode_cell({ r, c })
+  ws[addr] = { ...(ws[addr] ?? {}), t: 's', v, w: v }
+}
+
+function worksheetFontBold(ws: XLSX.WorkSheet, r: number, c: number): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cell = ws[XLSX.utils.encode_cell({ r, c })] as any
+  return cell?.s?.font?.bold === true
+}
+
+function worksheetFontStrike(ws: XLSX.WorkSheet, r: number, c: number): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cell = ws[XLSX.utils.encode_cell({ r, c })] as any
+  return cell?.s?.font?.strike === true
+}
+
+/**
+ * Applies the same transformations as the CleanupWorkbook Office Script:
+ *
+ * 1. Normalise Project (col 0), Name (col 1), Hours (col 4), Resource (col 9).
+ * 2. Delete rows whose Resource column is blank, bold, struck-through, or in
+ *    the blocked list (Inventory, Purchasing, Detailing).
+ * 3. Move Job # (col 0) to col 10, then shift left — net effect: col 0 moves
+ *    to the last position and all other columns shift one place left.
+ * 4. Delete the two Baseline columns that land at index 4 after the shift.
+ *
+ * Because the downstream parser uses flexible header-name detection (not fixed
+ * column positions), step 3 and 4 do not affect parsing — they are included
+ * for fidelity with the original script.
+ */
+function preprocessWorksheet(ws: XLSX.WorkSheet): XLSX.WorkSheet {
+  if (!ws['!ref']) return ws
+
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  const R0 = range.s.r
+  const C0 = range.s.c
+  const rowCount = range.e.r - R0 + 1
+  const colCount = range.e.c - C0 + 1
+
+  // ── Step 1: Normalise fields (bottom-up, matching Office Script iteration) ──
+  for (let i = R0 + rowCount - 1; i >= R0; i--) {
+    worksheetSetText(ws, i, C0 + 0, worksheetText(ws, i, C0 + 0).substring(0, 5))
+    worksheetSetText(ws, i, C0 + 9, worksheetText(ws, i, C0 + 9).split('[')[0].trim())
+    worksheetSetText(ws, i, C0 + 4, worksheetText(ws, i, C0 + 4).split(' ')[0])
+    worksheetSetText(ws, i, C0 + 1, worksheetText(ws, i, C0 + 1).trim())
+  }
+
+  // ── Step 2: Collect rows to keep ────────────────────────────────────────────
+  const keepRows: number[] = []
+  for (let i = R0; i < R0 + rowCount; i++) {
+    const resourceVal = worksheetText(ws, i, C0 + 9).trim()
+    const shouldDelete =
+      resourceVal === '' ||
+      worksheetFontBold(ws, i, C0 + 9) ||
+      worksheetFontStrike(ws, i, C0 + 9) ||
+      BLOCKED_RESOURCES.has(resourceVal)
+    if (!shouldDelete) keepRows.push(i)
+  }
+
+  // ── Step 3: Rebuild worksheet with only the kept rows ──────────────────────
+  const out: XLSX.WorkSheet = {}
+  keepRows.forEach((oldRow, newRow) => {
+    for (let c = C0; c <= range.e.c; c++) {
+      const src = XLSX.utils.encode_cell({ r: oldRow, c })
+      const dst = XLSX.utils.encode_cell({ r: newRow, c })
+      if (ws[src]) out[dst] = { ...ws[src] }
+    }
+  })
+
+  const newRowCount = keepRows.length
+
+  // ── Step 4: Move col 0 → col 10, then shift cols 1-10 left by 1 ───────────
+  // (mirrors: moveTo col 10, then delete col 0 with shift-left)
+  for (let r = 0; r < newRowCount; r++) {
+    // Copy col C0 → col C0+10
+    const src0 = XLSX.utils.encode_cell({ r, c: C0 })
+    const dst10 = XLSX.utils.encode_cell({ r, c: C0 + 10 })
+    if (out[src0]) out[dst10] = { ...out[src0] }
+
+    // Shift cols C0+1 … C0+10 one place left (fills the gap left by col 0)
+    for (let c = C0; c < C0 + 10; c++) {
+      const src = XLSX.utils.encode_cell({ r, c: c + 1 })
+      const dst = XLSX.utils.encode_cell({ r, c })
+      if (out[src]) out[dst] = { ...out[src] }
+      else delete out[dst]
+    }
+    delete out[XLSX.utils.encode_cell({ r, c: C0 + 10 })]
+  }
+
+  // ── Step 5: Delete baseline cols at index 4 (twice) ────────────────────────
+  // After step 4 the sheet still has colCount columns (0-indexed 0 … colCount-1).
+  let currentLastC = colCount - 1 // last column index (0-based from C0)
+  for (let pass = 0; pass < 2; pass++) {
+    const delC = C0 + 4
+    for (let r = 0; r < newRowCount; r++) {
+      for (let c = delC; c < C0 + currentLastC; c++) {
+        const src = XLSX.utils.encode_cell({ r, c: c + 1 })
+        const dst = XLSX.utils.encode_cell({ r, c })
+        if (out[src]) out[dst] = { ...out[src] }
+        else delete out[dst]
+      }
+      delete out[XLSX.utils.encode_cell({ r, c: C0 + currentLastC })]
+    }
+    currentLastC--
+  }
+
+  // Update the sheet's used-range reference
+  out['!ref'] = XLSX.utils.encode_range({
+    s: { r: 0, c: C0 },
+    e: { r: newRowCount - 1, c: C0 + currentLastC },
+  })
+
+  return out
+}
+
+// ── Main spreadsheet parser ───────────────────────────────────────────────
+
 export function parseSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
-  const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true })
+  // cellStyles: true is required so preprocessWorksheet can read bold / strikethrough
+  const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true, cellStyles: true })
   const firstSheetName = workbook.SheetNames[0]
 
   if (!firstSheetName) {
     return []
   }
 
-  const worksheet = workbook.Sheets[firstSheetName]
+  const worksheet = preprocessWorksheet(workbook.Sheets[firstSheetName])
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
     defval: null,
     // Use displayed cell values so duration-formatted Work cells stay in hours.
