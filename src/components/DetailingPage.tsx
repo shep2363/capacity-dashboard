@@ -19,9 +19,8 @@ interface ReleaseRow {
 }
 
 function getStatus(releaseDate: Date): ReleaseRow['status'] {
-  const today = startOfDay(new Date())
-  if (isPast(releaseDate) && !isThisWeek(releaseDate, { weekStartsOn: 1 })) return 'Released'
   if (isThisWeek(releaseDate, { weekStartsOn: 1 })) return 'This Week'
+  if (isPast(releaseDate)) return 'Released'
   return 'Upcoming'
 }
 
