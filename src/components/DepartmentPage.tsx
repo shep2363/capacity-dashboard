@@ -107,7 +107,9 @@ export function buildDepartmentRows(params: {
     const workedHours = daily
       .filter(({ date }) => isBefore(date, now))
       .reduce((sum, { hours }) => sum + hours, 0)
-    const computedPercent = Math.min(100, Math.max(0, (workedHours / task.workHours) * 100))
+    const computedPercent = task.workHours > 0
+      ? Math.min(100, Math.max(0, (workedHours / task.workHours) * 100))
+      : isAfter(now, task.finish) ? 100 : 0
     const matchedProgress = progressMatcher?.resolve(resource, task.project, task.name) ?? null
     const percent =
       matchedProgress && Number.isFinite(matchedProgress.percentComplete)

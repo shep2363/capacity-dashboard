@@ -136,11 +136,18 @@ export function parseSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
       const projectValue = findCellValue(row, CANDIDATE_COLUMNS.project)
 
       const name = typeof nameValue === 'string' && nameValue.trim() ? nameValue.trim() : `Task ${index + 1}`
-      const workHours = parseWorkHours(workValue)
+      const workHours = parseWorkHours(workValue) ?? 0
       const start = parseExcelDate(startValue)
       const finish = parseExcelDate(finishValue)
+      const resourceName =
+        typeof resourceValue === 'string' && resourceValue.trim() ? resourceValue.trim() : 'Unassigned'
 
-      if (!workHours || workHours <= 0 || !start || !finish) {
+      // Milestones (Work = 0) are allowed through only when they have a valid resource and dates.
+      // Tasks with no hours and no resource are header/summary rows — skip them.
+      if (workHours < 0 || !start || !finish) {
+        return null
+      }
+      if (workHours === 0 && resourceName === 'Unassigned') {
         return null
       }
 
@@ -150,8 +157,7 @@ export function parseSpreadsheet(arrayBuffer: ArrayBuffer): TaskRow[] {
         workHours,
         start,
         finish,
-        resourceName:
-          typeof resourceValue === 'string' && resourceValue.trim() ? resourceValue.trim() : 'Unassigned',
+        resourceName,
         project: typeof projectValue === 'string' && projectValue.trim() ? projectValue.trim() : 'Unspecified',
       } satisfies TaskRow
     })
