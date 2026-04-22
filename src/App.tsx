@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { addDays, format, parseISO, startOfWeek } from 'date-fns'
+import { addDays, format, isAfter, isBefore, parseISO, startOfDay, startOfWeek } from 'date-fns'
 import DepartmentPage, { buildDepartmentRows, type DepartmentFilters, type DepartmentRow } from './components/DepartmentPage'
 import { DetailingPage } from './components/DetailingPage'
 import { HowToUsePage } from './components/HowToUsePage'
@@ -2424,6 +2424,105 @@ function App() {
     XLSX.writeFile(workbook, fileName)
   }
 
+  function exportStatusReport(): void {
+    const workbook = XLSX.utils.book_new()
+    const dateStamp = format(new Date(), 'MM-dd-yyyy')
+    const now = startOfDay(new Date())
+
+    const autoWidth = (rows: Array<Array<string | number>>): Array<{ wch: number }> => {
+      if (rows.length === 0) return []
+      const widths: number[] = []
+      rows.forEach((row) => {
+        row.forEach((cell, idx) => {
+          const len = String(cell ?? '').length
+          widths[idx] = Math.max(widths[idx] ?? 0, Math.min(60, len + 2))
+        })
+      })
+      return widths.map((wch) => ({ wch }))
+    }
+
+    const setHeaderRowFeatures = (sheet: XLSX.WorkSheet) => {
+      const range = XLSX.utils.decode_range(sheet['!ref'] ?? 'A1:A1')
+      sheet['!freeze'] = { xSplit: 0, ySplit: 1 }
+      sheet['!autofilter'] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: 0, c: range.s.c },
+          e: { r: 0, c: range.e.c },
+        }),
+      }
+    }
+
+    const headers = ['Project', 'Sequence', 'Percent Complete', 'Start Date', 'Finish Date']
+
+    const tabs: Array<{ label: string; resourceName: string }> = [
+      { label: 'Detailing', resourceName: 'Detailer' },
+      { label: 'Processing', resourceName: 'Processing' },
+      { label: 'Fabrication', resourceName: 'Fabrication' },
+      { label: 'Shipping', resourceName: 'Shipping' },
+    ]
+
+    tabs.forEach(({ label, resourceName }) => {
+      const deptRows = departmentRowsByResource[resourceName === 'Detailer' ? 'Detailing' : resourceName] ?? []
+
+      // For Detailing (milestones) pull unique tasks directly; for others deduplicate dept rows
+      let aoa: Array<Array<string | number>>
+
+      if (resourceName === 'Detailer') {
+        const detailerTasks = tasks.filter((t) => t.resourceName === 'Detailer')
+        aoa = [
+          headers,
+          ...detailerTasks.map((task) => {
+            const pct = isAfter(now, task.finish) ? 100 : 0
+            return [
+              task.project,
+              task.name,
+              `${pct.toFixed(1)}%`,
+              format(task.start, 'MM/dd/yyyy'),
+              format(task.finish, 'MM/dd/yyyy'),
+            ]
+          }),
+        ]
+      } else {
+        // Build start-date lookup from tasks
+        const startMap = new Map<string, string>()
+        tasks.forEach((t) => {
+          if (t.resourceName !== resourceName) return
+          const k = `${t.project}::${t.name}`
+          if (!startMap.has(k)) startMap.set(k, format(t.start, 'MM/dd/yyyy'))
+        })
+
+        // Deduplicate dept rows (they are per-week)
+        const seen = new Set<string>()
+        const unique: DepartmentRow[] = []
+        deptRows.forEach((row) => {
+          const k = `${row.project}::${row.sequence}`
+          if (!seen.has(k)) {
+            seen.add(k)
+            unique.push(row)
+          }
+        })
+
+        aoa = [
+          headers,
+          ...unique.map((row) => [
+            row.project,
+            row.sequence,
+            `${row.percentComplete.toFixed(1)}%`,
+            startMap.get(`${row.project}::${row.sequence}`) ?? '',
+            row.finishDate,
+          ]),
+        ]
+      }
+
+      const sheet = XLSX.utils.aoa_to_sheet(aoa)
+      sheet['!cols'] = autoWidth(aoa)
+      setHeaderRowFeatures(sheet)
+      XLSX.utils.book_append_sheet(workbook, sheet, label)
+    })
+
+    XLSX.writeFile(workbook, `Status_Report_${dateStamp}.xlsx`)
+  }
+
   function handleUnlock(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (passwordInput === APP_ADMIN_PASSWORD) {
@@ -2598,6 +2697,9 @@ function App() {
               <div className="title-actions">
                 <button type="button" onClick={exportDepartmentWorkbook}>
                   Export Dept Workbook
+                </button>
+                <button type="button" onClick={exportStatusReport}>
+                  Export Status Report
                 </button>
                 {isUserMode && (
                   <span
