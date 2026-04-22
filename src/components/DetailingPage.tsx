@@ -145,7 +145,7 @@ export function DetailingPage({ tasks, filters, selectedProjects, projectColors 
         </div>
       ) : (
         <div className="dept-table-wrap">
-          <table className="dept-table release-table">
+          <table className="release-table">
             <thead>
               <tr className="dept-table-header">
                 <th

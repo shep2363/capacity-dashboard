@@ -696,13 +696,13 @@ p {
   overflow-x: auto;
 }
 
-.dept-table.release-table {
+.release-table {
   display: table;
   width: 100%;
   border-collapse: collapse;
 }
 
-.dept-table.release-table thead th {
+.release-table thead th {
   padding: 0.55rem 0.75rem;
   text-align: left;
   font-size: 0.82rem;
